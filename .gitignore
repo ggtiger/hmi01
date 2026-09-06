@@ -1,0 +1,38 @@
+# 依赖
+node_modules/
+
+# Next.js 构建产物
+.next/
+out/
+
+# 生产构建 / 部署产物
+dist/
+
+# Tauri
+src-tauri/target/
+src-tauri/gen/
+
+# sidecar server 目录：构建时由 scripts/bundle-sidecar.js 生成/覆盖。
+# 保留占位文件（dev 下 cargo 资源校验需要），忽略其余产物
+src-tauri/server/.next/*
+!src-tauri/server/.next/placeholder
+src-tauri/server/node_modules/*
+!src-tauri/server/node_modules/placeholder
+src-tauri/server/public/*
+!src-tauri/server/public/placeholder.txt
+src-tauri/frontend/*
+!src-tauri/frontend/.gitkeep
+
+# 日志与临时文件
+*.log
+.DS_Store
+
+# TypeScript
+*.tsbuildinfo
+
+# 环境变量
+.env
+.env.*
+
+# Claude Code 本地配置
+.claude/

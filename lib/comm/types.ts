@@ -1,0 +1,119 @@
+/** 设备完整状态（与 Rust DeviceState 对应，snake_case 镜像） */
+
+/** 遥测数据：null 表示 nan（传感器故障 / 未选中侧） */
+export interface TelemetryData {
+  t: number;
+  tilt_x: number | null;
+  tilt_y: number | null;
+  pedal_a_tilt_x: number | null;
+  pedal_a_tilt_y: number | null;
+  pedal_b_tilt_x: number | null;
+  pedal_b_tilt_y: number | null;
+  laser_a: number | null;
+  laser_b: number | null;
+  pedal_a: number | null;
+  pedal_b: number | null;
+  ang_cor_a: number | null;
+  ang_cor_b: number | null;
+  steer_x: number | null;
+  steer_y: number | null;
+  sensor: 'OK' | 'NG' | string;
+  state: 'IDLE' | 'PEDAL_RUN' | 'STEER_RUN' | 'FAULT' | string;
+  pedal_select: 'NONE' | 'A' | 'B' | string;
+}
+
+export interface DeviceInfo {
+  fw: string;
+  hw: string;
+  uptime: number;
+  ssid: string;
+}
+
+export interface DeviceState {
+  is_connected: boolean;
+  plain_mode: boolean;
+  device_id: string;
+  fw_version: string;
+  info: DeviceInfo | null;
+  telemetry: TelemetryData;
+  last_error: string | null;
+}
+
+/** DEBUG 事件行（Rust DebugEvent，pedal-event 事件负载） */
+export interface DebugEvent {
+  kind: 'LEVELED' | 'STABLE' | 'PUSH_STOPPED' | 'LEVEL_DONE' | 'LEVEL_ABORT' | 'RAW' | string;
+  side: 'A' | 'B' | null;
+  comp: number | null;
+  reason: string | null;
+  raw: string;
+}
+
+/** ABORT reason 中文说明 */
+export const ABORT_REASON_TEXT: Record<string, string> = {
+  TILT_TIMEOUT: '倾角仪连续读取失败',
+  MOTOR_TIMEOUT: '电机响应失败（步数上限）',
+  STEP_TIMEOUT: '调平步数用尽仍未进入死区',
+  TILT_NOT_ENABLED: '倾角仪硬件未启用',
+  HOME_TIMEOUT: '回原点超时（原点/限位开关故障或报警）',
+  HOME_NOT_SUPPORTED: '驱动器不支持回零/无原点开关',
+  PUSH_START_FAIL: '回零完成后启动推出失败',
+  PUSH_NOT_ENABLED: '推杆电机硬件未启用',
+  MANUAL_OVERRIDE: '流程中手动操作该侧电机',
+  SELECT_CHANGED: '流程中切换选中侧',
+  PEDAL_STOP: '该侧测试停止',
+  STOPPED: '全局停止（急停/断连）',
+};
+
+export function abortReasonText(reason: string | null | undefined): string {
+  if (!reason) return '';
+  return ABORT_REASON_TEXT[reason] ?? reason;
+}
+
+/** 调试日志条目 */
+export interface LogEntry {
+  timestamp: string;
+  direction: 'TX' | 'RX' | 'SYS' | string;
+  content: string;
+}
+
+/** 默认状态 */
+export const DEFAULT_DEVICE_STATE: DeviceState = {
+  is_connected: false,
+  plain_mode: false,
+  device_id: '',
+  fw_version: '',
+  info: null,
+  telemetry: {
+    t: 0,
+    tilt_x: null,
+    tilt_y: null,
+    pedal_a_tilt_x: null,
+    pedal_a_tilt_y: null,
+    pedal_b_tilt_x: null,
+    pedal_b_tilt_y: null,
+    laser_a: null,
+    laser_b: null,
+    pedal_a: null,
+    pedal_b: null,
+    ang_cor_a: null,
+    ang_cor_b: null,
+    steer_x: null,
+    steer_y: null,
+    sensor: 'OK',
+    state: 'IDLE',
+    pedal_select: 'NONE',
+  },
+  last_error: null,
+};
+
+/** 数值显示：null → "--" */
+export function fmtNum(v: number | null | undefined, digits = 2, unit = ''): string {
+  if (v === null || v === undefined || Number.isNaN(v)) return '--';
+  return `${v.toFixed(digits)}${unit}`;
+}
+
+/** 脉冲 → mm（脉冲当量默认 320） */
+export function pulsesToMm(pulses: number | null, pulsesPerMm = 320): number | null {
+  if (pulses === null || pulses === undefined) return null;
+  return pulses / pulsesPerMm;
+}
