@@ -12,16 +12,10 @@ dist/
 src-tauri/target/
 src-tauri/gen/
 
-# sidecar server 目录：构建时由 scripts/bundle-sidecar.js 生成/覆盖。
-# 保留占位文件（dev 下 cargo 资源校验需要），忽略其余产物
-src-tauri/server/.next/*
-!src-tauri/server/.next/placeholder
-src-tauri/server/node_modules/*
-!src-tauri/server/node_modules/placeholder
-src-tauri/server/public/*
-!src-tauri/server/public/placeholder.txt
-src-tauri/frontend/*
-!src-tauri/frontend/.gitkeep
+# sidecar server / frontend 占位与产物：dev 由 scripts/ensure-placeholders.js 生成，
+# 构建产物由 scripts/bundle-sidecar.js 生成，均不入库
+src-tauri/server/
+src-tauri/frontend/
 
 # 日志与临时文件
 *.log
