@@ -3,7 +3,6 @@
 import { useDevice, type MotorAxis } from '@/lib/comm'
 import { useMotorStore, MOTOR_AXES, AXIS_LABELS } from '@/lib/store'
 import MotorAxisPanel from '@/components/ui/MotorAxisPanel'
-import Button from '@/components/ui/Button'
 import EstopButton from '@/components/ui/EstopButton'
 
 export default function MotorDebugPage() {
@@ -45,7 +44,7 @@ export default function MotorDebugPage() {
       )}
 
       {/* 轴 Tab */}
-      <div className="inline-flex rounded-lg border border-outline-variant overflow-hidden">
+      <div className="inline-flex rounded-[10px] border border-outline-variant overflow-hidden">
         {MOTOR_AXES.map((ax) => (
           <button
             key={ax}
@@ -64,15 +63,15 @@ export default function MotorDebugPage() {
       {/* 全局操作 */}
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div className="flex gap-2">
-          <Button onClick={actions.motorEnable} icon="power" disabled={!state.is_connected}>
+          <button onClick={actions.motorEnable} disabled={!state.is_connected} className="ui-action-btn">
             总使能
-          </Button>
-          <Button variant="ghost" onClick={actions.motorDisable} icon="power_off" disabled={!state.is_connected}>
+          </button>
+          <button onClick={actions.motorDisable} disabled={!state.is_connected} className="ui-action-btn ui-action-btn-ghost">
             总释放
-          </Button>
-          <Button variant="critical" onClick={actions.motorStopAll} icon="block" disabled={!state.is_connected}>
+          </button>
+          <button onClick={actions.motorStopAll} disabled={!state.is_connected} className="ui-action-btn ui-action-btn-danger">
             全轴停止
-          </Button>
+          </button>
         </div>
         <EstopButton onEstop={actions.estop} />
       </div>

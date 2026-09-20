@@ -11,11 +11,12 @@ import { AutoUpdater, checkServerDelta, checkForUpdate } from '@/lib/updater'
 import { useUpdaterStore } from '@/lib/store'
 
 const navItems = [
-  { label: '主页', icon: 'dashboard', href: '/' },
+  { label: '命令监测', icon: 'terminal', href: '/' },
   { label: '踏板测试', icon: 'footprint', href: '/pedal-test' },
   { label: '电机调试', icon: 'settings_input_component', href: '/motor-debug' },
   { label: '数据记录', icon: 'storage', href: '/records' },
-  { label: '关于', icon: 'info', href: '/about' },
+  { label: '设置', icon: 'tune', href: '/settings' },
+  { label: '帮助', icon: 'help', href: '/about' },
 ]
 
 export default function TopAppBar() {
@@ -76,45 +77,41 @@ export default function TopAppBar() {
 
   return (
     <header
-      className="flex-shrink-0 z-50 flex items-center justify-between px-6 h-16 w-full bg-white border-b border-slate-200 shadow-sm font-inter text-body-md text-primary antialiased select-none draggable-region relative"
+      className="flex-shrink-0 z-50 flex items-center justify-between px-4 h-14 w-full bg-white border-b border-slate-200 shadow-sm font-inter text-body-md text-primary antialiased select-none draggable-region relative"
       data-tauri-drag-region
       onContextMenu={handleContextMenu}
     >
-      <div className="flex items-center gap-8">
-        <span className="text-lg font-black text-primary tracking-tighter flex items-center">
-          <img src="/icon.png" alt="XdesinHMI" className="w-7 h-7 mr-2 rounded" />
-          Xdesin 踏板测试台
-        </span>
-        <nav className="hidden md:flex items-center gap-6 h-16">
+      <span className="text-lg font-black text-primary tracking-tighter flex items-center flex-shrink-0">
+        <img src="/icon.png" alt="XdesinHMI" className="w-7 h-7 mr-2 rounded" />
+        Xdesin 踏板测试台
+      </span>
+
+      {/* 导航胶囊（右对齐，参考 PPT 设计稿） */}
+      <div className="flex items-center gap-2">
+        <nav className="hidden md:flex items-center gap-1.5">
           {navItems.map((item) => {
-            const isActive = item.href === '/' ? pathname === '/' : pathname.startsWith(item.href) && item.href !== '#'
+            const isActive = item.href === '/' ? pathname === '/' : pathname.startsWith(item.href)
             return (
               <Link
                 key={item.href + item.label}
                 href={item.href}
-                className={`flex items-center gap-1 px-1 border-b-2 transition-colors ${
+                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-[10px] font-label-bold text-[13px] transition-colors ${
                   isActive
-                    ? 'text-primary border-primary font-semibold'
-                    : 'text-slate-500 border-transparent hover:text-primary'
+                    ? 'bg-primary text-on-primary shadow-sm'
+                    : 'text-slate-600 hover:bg-surface-container hover:text-primary'
                 }`}
               >
-                <span className="material-symbols-outlined text-[18px]">{item.icon}</span>
+                <span className="material-symbols-outlined text-[16px]">{item.icon}</span>
                 {item.label}
               </Link>
             )
           })}
-          <button
-            className="flex items-center gap-1 px-1 text-slate-500 border-b-2 border-transparent hover:text-primary transition-colors"
-            onClick={() => setSettingsOpen(true)}
-          >
-            <span className="material-symbols-outlined text-[18px]">settings</span>
-            设置
-          </button>
         </nav>
+        <WindowControls />
       </div>
+
       <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
       <UpdateNotification />
-      <WindowControls />
       {contextMenu && (
         <div
           className="fixed z-[9999] min-w-[160px] rounded-lg bg-slate-800 border border-slate-700 shadow-xl py-1 text-sm text-slate-100"

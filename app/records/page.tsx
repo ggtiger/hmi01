@@ -118,11 +118,11 @@ export default function RecordsPage() {
                         <tr key={m.index} className="hover:bg-slate-50">
                           <td className="px-3 py-1 monospaced-data">{m.index}</td>
                           <td className="px-3 py-1 monospaced-data">{m.timestamp}</td>
-                          <td className="px-3 py-1 monospaced-data">{m.tilt_x === null ? '--' : m.tilt_x.toFixed(3)}</td>
-                          <td className="px-3 py-1 monospaced-data">{m.tilt_y === null ? '--' : m.tilt_y.toFixed(3)}</td>
-                          <td className="px-3 py-1 monospaced-data">{m.laser === null ? '--' : m.laser.toFixed(1)}</td>
-                          <td className="px-3 py-1 monospaced-data">{m.pedal_pos === null ? '--' : m.pedal_pos.toFixed(0)}</td>
-                          <td className="px-3 py-1 monospaced-data">{m.ang_cor === null ? '--' : m.ang_cor.toFixed(2)}</td>
+                          <td className="px-3 py-1 monospaced-data">{m.tilt_x == null ? '--' : m.tilt_x.toFixed(3)}</td>
+                          <td className="px-3 py-1 monospaced-data">{m.tilt_y == null ? '--' : m.tilt_y.toFixed(3)}</td>
+                          <td className="px-3 py-1 monospaced-data">{m.laser == null ? '--' : m.laser.toFixed(1)}</td>
+                          <td className="px-3 py-1 monospaced-data">{m.pedal_pos == null ? '--' : m.pedal_pos.toFixed(0)}</td>
+                          <td className="px-3 py-1 monospaced-data">{m.ang_cor == null ? '--' : m.ang_cor.toFixed(2)}</td>
                         </tr>
                       ))}
                     </tbody>

@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import './globals.css'
 import TopAppBar from '@/components/ui/TopAppBar'
+import InfoBar from '@/components/ui/InfoBar'
 import AppReady from '@/components/AppReady'
 
 export const metadata: Metadata = {
@@ -27,6 +28,7 @@ export default function RootLayout({
           <main className="flex-1 min-h-0 overflow-hidden">
             {children}
           </main>
+          <InfoBar />
         </div>
       </body>
     </html>

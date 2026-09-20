@@ -80,6 +80,131 @@ body {
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
   }
 
+  /* ===== 测试台工作台组件（参考 .tmp PPT 设计稿布局，沿用品牌深色主题） ===== */
+
+  /* 数据字段块：浅灰底圆角，标签 + 等宽数值 */
+  .ui-data-box {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 4px;
+    background-color: #f5f3f4;
+    border: 1px solid #E1E8ED;
+    border-radius: 10px;
+    padding: 5px 10px;
+    font-size: 13px;
+    color: #1b1c1d;
+    min-width: 0;
+  }
+
+  .ui-data-box .ui-label {
+    color: #44474c;
+    white-space: nowrap;
+  }
+
+  .ui-data-box .ui-value {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: #041627;
+    white-space: nowrap;
+  }
+
+  /* 工作台操作按钮：深色圆角块（hover 加深，disabled 灰显） */
+  .ui-action-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    background-color: #041627;
+    color: #ffffff;
+    border: 1px solid #041627;
+    border-radius: 10px;
+    padding: 6px 12px;
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: all 0.15s ease-in-out;
+    user-select: none;
+  }
+
+  .ui-action-btn:hover:not(:disabled) {
+    background-color: #1a2b3c;
+    border-color: #1a2b3c;
+  }
+
+  .ui-action-btn:active:not(:disabled) {
+    transform: scale(0.97);
+  }
+
+  .ui-action-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  /* 幽灵操作按钮：白底深框 */
+  .ui-action-btn-ghost {
+    background-color: #ffffff;
+    color: #041627;
+  }
+
+  .ui-action-btn-ghost:hover:not(:disabled) {
+    background-color: #f5f3f4;
+    border-color: #041627;
+    color: #041627;
+  }
+
+  /* 危险操作按钮 */
+  .ui-action-btn-danger {
+    background-color: #E53935;
+    border-color: #E53935;
+  }
+
+  .ui-action-btn-danger:hover:not(:disabled) {
+    background-color: #c62828;
+    border-color: #c62828;
+  }
+
+  /* 数据/编辑输入框：与数据块同风格 */
+  .ui-input {
+    background-color: #ffffff;
+    border: 1px solid #c4c6cd;
+    border-radius: 10px;
+    padding: 5px 10px;
+    font-size: 13px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-variant-numeric: tabular-nums;
+    color: #1b1c1d;
+    outline: none;
+    min-width: 0;
+    transition: border-color 0.15s;
+  }
+
+  .ui-input:focus {
+    border-color: #041627;
+    box-shadow: 0 0 0 2px rgba(4, 22, 39, 0.08);
+  }
+
+  .ui-input:disabled {
+    background-color: #f5f3f4;
+    color: #74777d;
+  }
+
+  /* 底部 Info 状态栏 */
+  .ui-info-bar {
+    background-color: #efedef;
+    border: 1px solid #E1E8ED;
+    border-radius: 10px;
+    padding: 6px 14px;
+    font-size: 12px;
+    color: #44474c;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
   /* Tauri 窗口拖动区域 */
   .draggable-region {
     -webkit-app-region: drag;

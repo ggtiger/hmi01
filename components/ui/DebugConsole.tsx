@@ -87,12 +87,12 @@ function DebugConsoleImpl({ debugLog, connected, onSend, onClear }: DebugConsole
         </div>
       }
     >
-      <div>
-        {/* 日志窗口（固定高度，内部滚动） */}
+      <div className="h-full flex flex-col">
+        {/* 日志窗口（充满剩余高度，内部滚动） */}
         <div
           ref={scrollRef}
           onScroll={handleScroll}
-          className="h-72 overflow-y-auto px-3 py-2 monospaced-data text-xs leading-5 bg-slate-50 border-b border-surface-variant"
+          className="flex-1 min-h-0 overflow-y-auto px-3 py-2 monospaced-data text-xs leading-5 bg-slate-50 border-b border-surface-variant"
         >
           {debugLog.length === 0 && (
             <div className="text-outline text-center py-10">暂无日志（连接设备后显示交互数据）</div>
