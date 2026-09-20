@@ -117,3 +117,59 @@ export function pulsesToMm(pulses: number | null, pulsesPerMm = 320): number | n
   if (pulses === null || pulses === undefined) return null;
   return pulses / pulsesPerMm;
 }
+
+// ===== 三通道 BLE 力值模块 =====
+
+export type ForceChannel = 'A' | 'B' | 'STEER';
+
+export const FORCE_CHANNEL_LABELS: Record<ForceChannel, string> = {
+  A: '模块 A（踏板 A 加载力）',
+  B: '模块 B（踏板 B 加载力）',
+  STEER: '转向角（转盘力值）',
+};
+
+/** 力值数据（与 Rust ScaleData 对应，camelCase） */
+export interface ForceData {
+  weightMg: number;
+  weightG: number;
+  weightN: number;
+  adCode: number;
+  status: number;
+  timestamp: number;
+}
+
+/** BLE 设备扫描结果 */
+export interface ForceDeviceInfo {
+  name: string;
+  address: string;
+  rssi: number | null;
+}
+
+/** 单通道状态（与 Rust ForceChannelState 对应） */
+export interface ForceChannelState {
+  isConnected: boolean;
+  deviceName: string;
+  deviceAddress: string;
+  latest: ForceData | null;
+  maxN: number;
+}
+
+/** force-data 事件负载 */
+export interface ForceDataEvent {
+  channel: ForceChannel;
+  data: ForceData;
+}
+
+/** force-connection-changed 事件负载 */
+export interface ForceConnectionEvent {
+  channel: ForceChannel;
+  state: ForceChannelState;
+}
+
+export const DEFAULT_FORCE_STATE: ForceChannelState = {
+  isConnected: false,
+  deviceName: '',
+  deviceAddress: '',
+  latest: null,
+  maxN: 0,
+};

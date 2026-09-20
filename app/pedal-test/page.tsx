@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts'
-import { useDevice } from '@/lib/comm'
+import { useDevice, useForce } from '@/lib/comm'
 import { fmtNum } from '@/lib/comm/types'
 import {
   usePedalStore, useSettingsStore,
@@ -13,6 +13,7 @@ import {
 import PedalDataPanel from '@/components/ui/PedalDataPanel'
 import EventTimeline from '@/components/ui/EventTimeline'
 import EstopButton from '@/components/ui/EstopButton'
+import ForceModal from '@/components/ui/ForceModal'
 
 /** 字段快照（起始/终末高度、进深，mm） */
 interface FieldSnapshot {
@@ -40,17 +41,36 @@ export default function PedalTestPage() {
   const lastProcessedEvent = useRef<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [chartTab, setChartTab] = useState<'trend' | 'events'>('trend')
+  const [forceModalOpen, setForceModalOpen] = useState(false)
+  const [processForce, setProcessForce] = useState<Record<PedalSide, number | null>>({ A: null, B: null })
   const [snapshots, setSnapshots] = useState<Record<PedalSide, FieldSnapshot>>({
     A: emptySnapshot(),
     B: emptySnapshot(),
   })
 
+  // BLE 力值（当前工作侧通道）
+  const { states: forceStates } = useForce()
   const t = state.telemetry
   const connected = state.is_connected
   // 当前工作侧：NONE 时默认 A 视图（设计稿为单侧工作视图）
   const workSide: PedalSide = side === 'B' ? 'B' : 'A'
   const work = sides[workSide]
   const snap = snapshots[workSide]
+  const forceCh = forceStates[workSide]
+  const forceLive = forceCh.isConnected ? forceCh.latest?.weightN ?? null : null
+  const forceMax = forceCh.isConnected ? forceCh.maxN : null
+
+  // 进程力值：测试流程进行中实时跟踪，停止后保持最后值
+  const phaseRef = useRef(work.phase)
+  useEffect(() => {
+    if (work.phase !== 'idle' && forceLive !== null) {
+      setProcessForce((prev) => ({ ...prev, [workSide]: forceLive }))
+    }
+    if (phaseRef.current !== 'idle' && work.phase === 'idle') {
+      // 流程结束保持最后值
+    }
+    phaseRef.current = work.phase
+  }, [work.phase, forceLive, workSide])
 
   const laser = workSide === 'A' ? t.laser_a : t.laser_b
   const pedalPulses = workSide === 'A' ? t.pedal_a : t.pedal_b
@@ -143,7 +163,7 @@ export default function PedalTestPage() {
             : null
         break
       case 'processForce':
-        value = null // 协议未提供力值遥测
+        value = forceLive // BLE 力值模块当前力值
         break
     }
     addRecord({
@@ -212,8 +232,19 @@ export default function PedalTestPage() {
 
   return (
     <div className="h-full flex flex-col gap-2 p-3 overflow-hidden">
-      {/* ===== 顶部行：连接 / 侧选 / 加载 / 公用倾角 ===== */}
+      {/* ===== 顶部行：蓝牙 / 连接 / 侧选 / 加载 / 公用倾角 ===== */}
       <div className="flex items-stretch gap-1.5 flex-wrap">
+        <button
+          onClick={() => setForceModalOpen(true)}
+          className={`ui-action-btn ${['A', 'B'].some((c) => forceStates[c as PedalSide].isConnected) ? '' : 'ui-action-btn-ghost'} !px-3`}
+          title="蓝牙力值模块管理"
+        >
+          <span className="material-symbols-outlined text-[16px]">bluetooth</span>
+          蓝牙模块联结
+          <span className="text-[11px] opacity-70">
+            {['A', 'B'].filter((c) => forceStates[c as PedalSide].isConnected).length}/2
+          </span>
+        </button>
         <div className={`ui-data-box !px-3 ${connected ? '!border-success' : '!border-critical'}`}>
           <span className="ui-label">WiFi 连接</span>
           <span className={`ui-value ${connected ? '!text-success' : '!text-critical'}`}>
@@ -271,6 +302,9 @@ export default function PedalTestPage() {
             pulsesPerMm={pulsesPerMm}
             connected={connected}
             busy={busy}
+            forceLive={forceLive}
+            forceMax={forceMax}
+            processForce={processForce[workSide]}
             onParamChange={(key, value) => setParam(workSide, key, value)}
             onZero={() => run(() => actions.pedalZero(workSide))}
             onRecordField={recordField}
@@ -419,6 +453,8 @@ export default function PedalTestPage() {
         </button>
         <EstopButton onEstop={actions.estop} />
       </div>
+
+      <ForceModal open={forceModalOpen} onClose={() => setForceModalOpen(false)} />
     </div>
   )
 }

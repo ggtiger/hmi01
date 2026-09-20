@@ -4,9 +4,10 @@ import { useEffect, useRef, useState } from 'react'
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts'
-import { useDevice } from '@/lib/comm'
+import { useDevice, useForce } from '@/lib/comm'
 import { fmtNum } from '@/lib/comm/types'
 import EstopButton from '@/components/ui/EstopButton'
+import ForceModal from '@/components/ui/ForceModal'
 
 /** 记录点（转盘测试本地记录，协议 STEER 为预留功能） */
 interface SteerRecord {
@@ -72,11 +73,18 @@ function MiniBtn({
  */
 export default function SteeringTestPage() {
   const { state, actions, error } = useDevice()
+  const { states: forceStates } = useForce()
   const t = state.telemetry
   const connected = state.is_connected
   const running = t.state === 'STEER_RUN'
 
+  const steerForce = forceStates.STEER
+  const forceLive = steerForce.isConnected ? steerForce.latest?.weightN ?? null : null
+  const forceMax = steerForce.isConnected ? steerForce.maxN : null
+
   const [busy, setBusy] = useState(false)
+  const [forceModalOpen, setForceModalOpen] = useState(false)
+  const [processForce, setProcessForce] = useState<number | null>(null)
   const [trend, setTrend] = useState<TrendPoint[]>([])
   const [records, setRecords] = useState<SteerRecord[]>([])
   const [freeAngle, setFreeAngle] = useState<number | null>(null)
@@ -102,9 +110,11 @@ export default function SteeringTestPage() {
     })
   }, [t])
 
-  // 顺时针/逆时针峰值跟踪（运行中自动更新）
+  // 顺时针/逆时针峰值跟踪（运行中自动更新）+ 进程力值跟踪
   useEffect(() => {
-    if (!running || t.steer_x === null) return
+    if (!running) return
+    if (forceLive !== null) setProcessForce(forceLive)
+    if (t.steer_x === null) return
     const x = t.steer_x
     if (x > 0 && (cwAngle === null || x > cwAngle)) setCwAngle(x)
     if (x < 0 && (ccwAngle === null || x < ccwAngle)) setCcwAngle(x)
@@ -114,7 +124,7 @@ export default function SteeringTestPage() {
       setFreeAngle(Math.abs(x))
     }
     if (sign !== 0) prevSteerSign.current = sign
-  }, [t.steer_x, running, cwAngle, ccwAngle])
+  }, [t.steer_x, running, cwAngle, ccwAngle, forceLive])
 
   const run = async (fn: () => Promise<void>) => {
     setBusy(true)
@@ -157,8 +167,16 @@ export default function SteeringTestPage() {
 
   return (
     <div className="h-full flex flex-col gap-2 p-3 overflow-hidden">
-      {/* ===== 顶部行：连接 + 公用倾角 ===== */}
+      {/* ===== 顶部行：蓝牙 / 连接 + 公用倾角 ===== */}
       <div className="flex items-stretch gap-1.5">
+        <button
+          onClick={() => setForceModalOpen(true)}
+          className={`ui-action-btn ${steerForce.isConnected ? '' : 'ui-action-btn-ghost'} !px-3`}
+          title="蓝牙力值模块管理"
+        >
+          <span className="material-symbols-outlined text-[16px]">bluetooth</span>
+          蓝牙模块联结
+        </button>
         <div className={`ui-data-box !px-3 ${connected ? '!border-success' : '!border-critical'}`}>
           <span className="ui-label">WiFi 连接</span>
           <span className={`ui-value ${connected ? '!text-success' : '!text-critical'}`}>
@@ -247,21 +265,22 @@ export default function SteeringTestPage() {
             <div className="grid grid-cols-2 gap-1.5">
               <div className="ui-data-box">
                 <span className="ui-label">实时力值 N</span>
-                <span className="ui-value">--</span>
+                <span className="ui-value">{fmtNum(forceLive, 2)}</span>
               </div>
               <div className="ui-data-box">
                 <span className="ui-label">最大力值 N</span>
-                <span className="ui-value">--</span>
+                <span className="ui-value">{fmtNum(forceMax, 2)}</span>
               </div>
             </div>
             <DataRow
               label="进程力值"
               unit="N"
-              value={null}
+              value={processForce}
+              digits={2}
               actions={
                 <>
-                  <MiniBtn onClick={() => addRecord('进程力值', null, 'N')} disabled={!connected}>记录</MiniBtn>
-                  <MiniBtn disabled>清除</MiniBtn>
+                  <MiniBtn onClick={() => addRecord('进程力值', processForce, 'N')} disabled={!connected}>记录</MiniBtn>
+                  <MiniBtn onClick={() => setProcessForce(null)} disabled={!connected}>清除</MiniBtn>
                 </>
               }
             />
@@ -362,6 +381,8 @@ export default function SteeringTestPage() {
         <div className="flex-1" />
         <EstopButton onEstop={actions.estop} />
       </div>
+
+      <ForceModal open={forceModalOpen} onClose={() => setForceModalOpen(false)} />
     </div>
   )
 }

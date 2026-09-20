@@ -68,6 +68,10 @@ interface PedalDataPanelProps {
   pulsesPerMm: number
   connected: boolean
   busy: boolean
+  /** BLE 力值（当前侧通道）：实时 / 会话最大 / 流程进行中快照 */
+  forceLive: number | null
+  forceMax: number | null
+  processForce: number | null
   onParamChange: (key: keyof SideParams, value: string) => void
   onZero: () => void
   onRecordField: (field: 'startH' | 'endH' | 'heightDiff' | 'startDepth' | 'endDepth' | 'depthDiff' | 'processForce') => void
@@ -208,21 +212,22 @@ function PedalDataPanelImpl(p: PedalDataPanelProps) {
         }
       />
 
-      {/* 力值（协议未提供遥测 → 显示 --） */}
+      {/* 力值（BLE 模块，未连接显示 --） */}
       <div className="grid grid-cols-2 gap-1.5">
         <div className="ui-data-box">
           <span className="ui-label">实时力值 N</span>
-          <span className="ui-value">--</span>
+          <span className="ui-value">{fmtNum(p.forceLive, 2)}</span>
         </div>
         <div className="ui-data-box">
           <span className="ui-label">最大力值 N</span>
-          <span className="ui-value">--</span>
+          <span className="ui-value">{fmtNum(p.forceMax, 2)}</span>
         </div>
       </div>
       <DataRow
         label="进程力值"
         unit="N"
-        value={null}
+        value={p.processForce}
+        digits={2}
         actions={
           <>
             <MiniBtn onClick={() => p.onRecordField('processForce')} disabled={!p.connected}>记录</MiniBtn>

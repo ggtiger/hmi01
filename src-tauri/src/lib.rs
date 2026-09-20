@@ -856,6 +856,7 @@ pub fn run() {
             }
         })
         .manage(comm::CommManager::new())
+        .manage(comm::bluetooth::ForceManager::new())
         .setup(move |app| {
             // Windows: 移除原生标题栏，使用前端模拟红绿灯按钮
             #[cfg(target_os = "windows")]
@@ -975,6 +976,13 @@ pub fn run() {
             comm::motor_move, comm::motor_moveabs, comm::motor_home,
             comm::motor_stop, comm::motor_zero,
             comm::steer_start, comm::steer_stop,
+            comm::force_commands::force_scan,
+            comm::force_commands::force_connect,
+            comm::force_commands::force_disconnect,
+            comm::force_commands::force_zero,
+            comm::force_commands::force_calibrate,
+            comm::force_commands::force_reset_max,
+            comm::force_commands::force_get_state,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

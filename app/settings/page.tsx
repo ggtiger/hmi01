@@ -1,19 +1,26 @@
 'use client'
 
 import { useState } from 'react'
-import { useDevice } from '@/lib/comm'
+import { useDevice, useForce } from '@/lib/comm'
+import { fmtNum, FORCE_CHANNEL_LABELS, type ForceChannel } from '@/lib/comm/types'
 import { useSettingsStore } from '@/lib/store'
 import IndustrialCard from '@/components/ui/IndustrialCard'
 import Button from '@/components/ui/Button'
+import ForceModal from '@/components/ui/ForceModal'
+
+const FORCE_CHANNELS: ForceChannel[] = ['A', 'B', 'STEER']
 
 export default function SettingsPage() {
   const { state, actions, error } = useDevice()
+  const { states: forceStates, actions: forceActions } = useForce()
   const {
     reportHz, pulsesPerMm, levelRatio,
     setReportHz, setPulsesPerMm, setLevelRatio,
   } = useSettingsStore()
 
   const [plainConfirm, setPlainConfirm] = useState(false)
+  const [forceModalOpen, setForceModalOpen] = useState(false)
+  const [calWeights, setCalWeights] = useState<Record<ForceChannel, string>>({ A: '', B: '', STEER: '' })
   const [netSsid, setNetSsid] = useState('')
   const [netNewPass, setNetNewPass] = useState('')
   const [netOldPass, setNetOldPass] = useState('')
@@ -46,6 +53,65 @@ export default function SettingsPage() {
           未连接设备——设置将在连接后生效
         </div>
       )}
+
+      {/* 力值模块（BLE，slide 5 设置模块） */}
+      <IndustrialCard
+        title="力值模块（蓝牙）"
+        headerRight={
+          <Button variant="ghost" onClick={() => setForceModalOpen(true)} className="!py-1">
+            蓝牙模块联结
+          </Button>
+        }
+      >
+        <div className="p-4 space-y-2">
+          {FORCE_CHANNELS.map((ch) => {
+            const st = forceStates[ch]
+            return (
+              <div key={ch} className="flex items-center gap-3 rounded-[10px] border border-surface-variant px-3 py-2">
+                <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${st.isConnected ? 'bg-emerald-500' : 'bg-slate-300'}`} />
+                <span className="font-label-bold text-[13px] w-44 flex-shrink-0">{FORCE_CHANNEL_LABELS[ch]}</span>
+                <span className="font-label-sm text-on-surface-variant flex-1 truncate">
+                  {st.isConnected ? st.deviceName : '未连接'}
+                </span>
+                <span className="monospaced-data font-label-bold text-[13px]">
+                  实时 {fmtNum(st.isConnected ? st.latest?.weightN ?? null : null, 2)} N
+                </span>
+                <span className="monospaced-data font-label-sm text-outline">
+                  系数 {st.isConnected && st.latest ? (st.latest.weightN / (st.latest.weightG / 1000 * 9.80665 || 1)).toFixed(4) : '--'}
+                </span>
+                <button
+                  onClick={() => forceActions.zero(ch).catch(() => {})}
+                  disabled={!st.isConnected}
+                  className="ui-action-btn ui-action-btn-ghost !px-2 !py-0.5 !text-[11px]"
+                >
+                  清零
+                </button>
+                <input
+                  value={calWeights[ch]}
+                  onChange={(e) => setCalWeights((p) => ({ ...p, [ch]: e.target.value }))}
+                  inputMode="numeric"
+                  placeholder="砝码 g"
+                  disabled={!st.isConnected}
+                  className="ui-input w-20 !py-0.5 text-center"
+                />
+                <button
+                  onClick={() => {
+                    const w = Number(calWeights[ch])
+                    if (Number.isFinite(w) && w > 0) forceActions.calibrate(ch, Math.round(w)).catch(() => {})
+                  }}
+                  disabled={!st.isConnected || !calWeights[ch]}
+                  className="ui-action-btn !px-2 !py-0.5 !text-[11px]"
+                >
+                  校准
+                </button>
+              </div>
+            )
+          })}
+          <div className="font-label-sm text-outline">
+            三个 BLE 力值模块独立连接；清零 = 零点校准，校准 = 砝码标定（需放置对应重量砝码后执行）
+          </div>
+        </div>
+      </IndustrialCard>
 
       {/* SET 参数 */}
       <IndustrialCard title="设备参数（SET）">
@@ -205,6 +271,8 @@ export default function SettingsPage() {
           </div>
         </div>
       </IndustrialCard>
+
+      <ForceModal open={forceModalOpen} onClose={() => setForceModalOpen(false)} />
     </div>
   )
 }
