@@ -325,3 +325,15 @@ pub async fn motor_stop(axis: String, state: tauri::State<'_, CommManager>) -> R
 pub async fn motor_zero(axis: String, state: tauri::State<'_, CommManager>) -> Result<(), String> {
     expect_ok(state.send_and_wait(Command::MotorZero(axis), T_MOTOR).await?)
 }
+
+// ============ STEER 转盘测试（协议 §2.9） ============
+
+#[tauri::command]
+pub async fn steer_start(state: tauri::State<'_, CommManager>) -> Result<(), String> {
+    expect_ok(state.send_and_wait(Command::SteerStart, T_MOTOR).await?)
+}
+
+#[tauri::command]
+pub async fn steer_stop(state: tauri::State<'_, CommManager>) -> Result<(), String> {
+    expect_ok(state.send_and_wait(Command::SteerStop, T_MOTOR).await?)
+}

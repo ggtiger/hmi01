@@ -153,3 +153,13 @@ export async function motorStop(axis: MotorAxis): Promise<void> {
 export async function motorZero(axis: MotorAxis): Promise<void> {
   return invoke('motor_zero', { axis });
 }
+
+// ============ STEER 转盘测试 ============
+
+export async function steerStart(): Promise<void> {
+  return invoke('steer_start');
+}
+
+export async function steerStop(): Promise<void> {
+  return invoke('steer_stop');
+}

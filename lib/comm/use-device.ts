@@ -128,6 +128,8 @@ export function useDevice() {
       motorHome: wrap(DeviceService.motorHome),
       motorStop: wrap(DeviceService.motorStop),
       motorZero: wrap(DeviceService.motorZero),
+      steerStart: wrap(DeviceService.steerStart),
+      steerStop: wrap(DeviceService.steerStop),
       getDebugLog: DeviceService.getDebugLog,
       clearDebugLog: () => setDebugLog([]),
       clearError: () => setError(null),

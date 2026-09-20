@@ -974,6 +974,7 @@ pub fn run() {
             comm::motor_enable, comm::motor_disable, comm::motor_stop_all,
             comm::motor_move, comm::motor_moveabs, comm::motor_home,
             comm::motor_stop, comm::motor_zero,
+            comm::steer_start, comm::steer_stop,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

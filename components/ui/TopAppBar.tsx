@@ -13,6 +13,7 @@ import { useUpdaterStore } from '@/lib/store'
 const navItems = [
   { label: '命令监测', icon: 'terminal', href: '/' },
   { label: '踏板测试', icon: 'footprint', href: '/pedal-test' },
+  { label: '转盘测试', icon: 'rotate_right', href: '/steering-test' },
   { label: '电机调试', icon: 'settings_input_component', href: '/motor-debug' },
   { label: '数据记录', icon: 'storage', href: '/records' },
   { label: '设置', icon: 'tune', href: '/settings' },

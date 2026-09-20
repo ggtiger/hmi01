@@ -60,6 +60,9 @@ pub enum Command {
     MotorHome(String),
     MotorStop(String),
     MotorZero(String),
+    /// 转盘（方向盘）测试启停（协议 §2.9）
+    SteerStart,
+    SteerStop,
     /// 原始行（调试 / 明文 PLAIN OFF 特殊序列）
     Raw(String),
 }
@@ -97,6 +100,7 @@ pub fn command_head(cmd: &Command) -> String {
         | Command::PedalOp { .. } => "PEDAL".into(),
         Command::MotorGlobal(_) | Command::MotorMove { .. } | Command::MotorMoveAbs { .. }
         | Command::MotorHome(_) | Command::MotorStop(_) | Command::MotorZero(_) => "MOTOR".into(),
+        Command::SteerStart | Command::SteerStop => "STEER".into(),
         Command::Raw(_) => "".into(),
     }
 }
@@ -157,6 +161,8 @@ impl Command {
             Command::MotorHome(axis) => format!("MOTOR {} HOME", axis),
             Command::MotorStop(axis) => format!("MOTOR {} STOP", axis),
             Command::MotorZero(axis) => format!("MOTOR {} ZERO", axis),
+            Command::SteerStart => "STEER START".into(),
+            Command::SteerStop => "STEER STOP".into(),
             Command::Raw(line) => line.clone(),
         }
     }
@@ -477,6 +483,9 @@ mod tests {
             Command::MotorMoveAbs { axis: "PUSH_B".into(), pos: 25.0, feed: None }.to_frame(),
             "MOTOR PUSH_B MOVEABS 25"
         );
+        assert_eq!(Command::SteerStart.to_frame(), "STEER START");
+        assert_eq!(Command::SteerStop.to_frame(), "STEER STOP");
+        assert_eq!(command_head(&Command::SteerStart), "STEER");
         assert_eq!(command_head(&Command::PedalStart('A')), "PEDAL");
         assert_eq!(command_head(&Command::SetReport(10)), "SET");
     }

@@ -255,9 +255,26 @@ class DeviceSession {
         return this.handlePedal(tokens)
       case 'MOTOR':
         return this.handleMotor(tokens)
+      case 'STEER':
+        return this.handleSteer(tokens)
       default:
         return this.reply(`ERR ${cmd || '?'} E_SYNTAX 未知命令`)
     }
+  }
+
+  // STEER START / STOP（协议 §2.9）
+  handleSteer(tokens) {
+    const op = (tokens[1] || '').toUpperCase()
+    if (!op) return this.reply('ERR STEER E_SYNTAX 参数缺失')
+    if (op === 'START') {
+      this.devState = 'STEER_RUN'
+      return this.reply('OK STEER')
+    }
+    if (op === 'STOP') {
+      this.devState = 'IDLE'
+      return this.reply('OK STEER')
+    }
+    return this.reply('ERR STEER E_SYNTAX 未知操作')
   }
 
   handleDebug(tokens) {
@@ -606,6 +623,12 @@ class DeviceSession {
     const a = field('A')
     const b = field('B')
 
+    // 转盘遥测：STEER_RUN 时方向盘 X/Y 做缓速正弦扫描（°）
+    const steerActive = this.devState === 'STEER_RUN'
+    const steerT = t / 1000
+    const steerX = steerActive ? 30 * Math.sin(steerT / 3) : 0
+    const steerY = steerActive ? 20 * Math.cos(steerT / 4) : 0
+
     return (
       `TELEMETRY t=${t}` +
       ` tilt_x=${f(this.commonTiltX + noise())} tilt_y=${f(this.commonTiltY + noise())}` +
@@ -614,7 +637,7 @@ class DeviceSession {
       ` laser_a=${f(a.laser)} laser_b=${f(b.laser)}` +
       ` pedal_a=${f(a.pedal, 0)} pedal_b=${f(b.pedal, 0)}` +
       ` ang_cor_a=${f(a.ang, 3)} ang_cor_b=${f(b.ang, 3)}` +
-      ` motor_a=0 motor_b=0 steer_x=0.00 steer_y=0.00 steer_free=0` +
+      ` motor_a=0 motor_b=0 steer_x=${f(steerX)} steer_y=${f(steerY)} steer_free=0` +
       ` sensor=OK state=${this.devState} pedal_select=${this.pedalSelect}`
     )
   }
