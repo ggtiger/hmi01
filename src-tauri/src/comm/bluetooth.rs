@@ -175,6 +175,10 @@ impl ForceManager {
     }
 
     /// 连接指定通道到指定地址
+    ///
+    /// 全链路带超时（CoreBluetooth 在设备不可达时 connect() 会永久挂起，
+    /// 无超时会导致前端 invoke 不返回、按钮永久禁用），任一步失败即清理
+    /// 通道状态并上报，保证可立即重试。
     pub async fn connect(&self, channel: &str, address: &str, app: AppHandle) -> Result<(), String> {
         let channel = Self::normalize_channel(channel)?;
         let adapter = self.ensure_adapter().await?;
@@ -182,10 +186,13 @@ impl ForceManager {
         // 若该通道已连接，先断开
         let _ = self.disconnect(&channel).await;
 
-        let peripherals = adapter
-            .peripherals()
-            .await
-            .map_err(|e| format!("获取设备列表失败: {}", e))?;
+        let peripherals = tokio::time::timeout(
+            tokio::time::Duration::from_secs(5),
+            adapter.peripherals(),
+        )
+        .await
+        .map_err(|_| "获取设备列表超时".to_string())?
+        .map_err(|e| format!("获取设备列表失败: {}", e))?;
 
         let mut target: Option<Peripheral> = None;
         for p in peripherals {
@@ -196,18 +203,52 @@ impl ForceManager {
                 }
             }
         }
-        let peripheral = target.ok_or_else(|| format!("未找到设备: {}", address))?;
+        let peripheral = target.ok_or_else(|| {
+            format!(
+                "未找到设备: {}（设备可能已下线，请重新扫描后再连接）",
+                address
+            )
+        })?;
 
         log::info!("[Force:{}] 正在连接设备: {}", channel, address);
-        peripheral
-            .connect()
-            .await
-            .map_err(|e| format!("连接设备失败: {}", e))?;
 
-        peripheral
-            .discover_services()
-            .await
-            .map_err(|e| format!("发现服务失败: {}", e))?;
+        // connect 带超时：设备关机/超范围时 CoreBluetooth 会无限等待
+        match tokio::time::timeout(
+            tokio::time::Duration::from_secs(15),
+            peripheral.connect(),
+        )
+        .await
+        {
+            Err(_) => {
+                self.cleanup_failed_connect(&channel, &peripheral, &app).await;
+                return Err(
+                    "连接超时（15 秒）——请确认设备已开机、在通信范围内且未被其他程序占用"
+                        .to_string(),
+                );
+            }
+            Ok(Err(e)) => {
+                self.cleanup_failed_connect(&channel, &peripheral, &app).await;
+                return Err(format!("连接设备失败: {}", e));
+            }
+            Ok(Ok(())) => {}
+        }
+
+        match tokio::time::timeout(
+            tokio::time::Duration::from_secs(10),
+            peripheral.discover_services(),
+        )
+        .await
+        {
+            Err(_) => {
+                self.cleanup_failed_connect(&channel, &peripheral, &app).await;
+                return Err("发现服务超时（10 秒）".to_string());
+            }
+            Ok(Err(e)) => {
+                self.cleanup_failed_connect(&channel, &peripheral, &app).await;
+                return Err(format!("发现服务失败: {}", e));
+            }
+            Ok(Ok(())) => {}
+        }
 
         #[cfg(target_os = "windows")]
         {
@@ -254,13 +295,32 @@ impl ForceManager {
         }
 
         let final_write_char = write_char.or(write_char_no_resp);
-        let notify_c = notify_char
-            .ok_or_else(|| "未找到 Notify 特征，无法接收数据".to_string())?;
 
-        peripheral
-            .subscribe(&notify_c)
-            .await
-            .map_err(|e| format!("订阅通知失败: {}", e))?;
+        // Notify 特征缺失：清理通道状态并返回
+        let notify_c = match notify_char {
+            Some(c) => c,
+            None => {
+                self.cleanup_failed_connect(&channel, &peripheral, &app).await;
+                let all_chars: Vec<String> = services
+                    .iter()
+                    .flat_map(|s| s.characteristics.iter().map(|c| c.uuid.to_string()))
+                    .collect();
+                return Err(format!(
+                    "未找到 Notify 特征，无法接收数据。设备服务特征: {:?}（可能不是力值模块）",
+                    all_chars
+                ));
+            }
+        };
+
+        if let Err(_) = tokio::time::timeout(
+            tokio::time::Duration::from_secs(5),
+            peripheral.subscribe(&notify_c),
+        )
+        .await
+        {
+            self.cleanup_failed_connect(&channel, &peripheral, &app).await;
+            return Err("订阅通知超时（5 秒）".to_string());
+        }
 
         let device_name = if let Ok(Some(props)) = peripheral.properties().await {
             props.local_name.unwrap_or_else(|| address.to_string())
@@ -389,6 +449,37 @@ impl ForceManager {
                     "force-connection-changed",
                     ForceConnectionEvent {
                         channel: channel.clone(),
+                        state: inner.public_state(),
+                    },
+                );
+            }
+        }
+    }
+
+    /// 连接失败后的通道清理：best-effort 断开底层连接 + 复位状态 + 通知前端
+    ///
+    /// btleplug 的 Peripheral 实例按地址缓存在 adapter 中，连接失败后若不
+    /// 复位 CoreBluetooth 状态，后续对该地址的连接会持续失败。
+    async fn cleanup_failed_connect(&self, channel: &str, peripheral: &Peripheral, app: &AppHandle) {
+        log::warn!("[Force:{}] 连接失败，清理通道状态", channel);
+        // best-effort 断开（3s 超时防止再次挂起）
+        let _ = tokio::time::timeout(
+            tokio::time::Duration::from_secs(3),
+            peripheral.disconnect(),
+        )
+        .await;
+        {
+            let mut channels = self.channels.lock().await;
+            if let Some(inner) = channels.get_mut(channel) {
+                inner.peripheral = None;
+                inner.write_char = None;
+                inner.notify_char = None;
+                inner.is_connected = false;
+                inner.latest = None;
+                let _ = app.emit(
+                    "force-connection-changed",
+                    ForceConnectionEvent {
+                        channel: channel.to_string(),
                         state: inner.public_state(),
                     },
                 );

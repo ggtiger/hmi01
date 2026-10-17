@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- 蓝牙力值模块（A/B/转向角）连接权限声明；tauri build 时自动合并进 Info.plist -->
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>需要连接蓝牙力值传感器模块（踏板 A/B 加载力、转盘转向力）以采集实时力值数据</string>
+</dict>
+</plist>

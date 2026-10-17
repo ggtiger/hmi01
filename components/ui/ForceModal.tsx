@@ -64,12 +64,13 @@ export default function ForceModal({ open, onClose }: ForceModalProps) {
 
   const handleConnect = async (channel: ForceChannel, address: string) => {
     setBusy(channel)
+    // 点击即记录地址：连接失败也显示「重连」按钮，可直接重试
+    saveLastAddr(channel, address)
+    setLastAddrs(loadLastAddrs())
     try {
       await actions.connect(channel, address)
-      saveLastAddr(channel, address)
-      setLastAddrs(loadLastAddrs())
     } catch {
-      /* */
+      /* 错误已记录展示，通道状态由 Rust 侧清理并推送 */
     } finally {
       setBusy(null)
     }
