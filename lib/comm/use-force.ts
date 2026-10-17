@@ -24,8 +24,8 @@ const initialStates: ForceStates = {
 export function useForce() {
   const [states, setStates] = useState<ForceStates>(initialStates);
   const [error, setError] = useState<string | null>(null);
-  /** 每通道最近一条诊断信息（帧解析失败等） */
-  const [debugInfo, setDebugInfo] = useState<Partial<Record<ForceChannel, string>>>({});
+  /** 每通道诊断日志（TX/RX 帧，最近 8 条） */
+  const [debugInfo, setDebugInfo] = useState<Partial<Record<ForceChannel, string[]>>>({});
   const unlistenRefs = useRef<UnlistenFn[]>([]);
 
   useEffect(() => {
@@ -57,7 +57,10 @@ export function useForce() {
           (event) => {
             if (!mounted) return;
             const { channel, message } = event.payload;
-            setDebugInfo((prev) => ({ ...prev, [channel]: message }));
+            setDebugInfo((prev) => {
+              const list = [...(prev[channel] ?? []), message];
+              return { ...prev, [channel]: list.slice(-8) };
+            });
           }
         );
 

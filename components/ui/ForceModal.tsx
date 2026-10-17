@@ -194,10 +194,19 @@ export default function ForceModal({ open, onClose }: ForceModalProps) {
                   </div>
                 </div>
 
-                {/* 诊断信息（完整显示，不截断） */}
-                {st.isConnected && debugInfo[ch] && (
-                  <div className="px-3 py-1.5 border-t border-amber-200 bg-amber-50 text-amber-800 font-label-sm monospaced-data break-all">
-                    {debugInfo[ch]}
+                {/* 诊断日志（TX/RX 帧内容，最近 8 条，完整显示） */}
+                {st.isConnected && debugInfo[ch] && debugInfo[ch]!.length > 0 && (
+                  <div className="px-3 py-1.5 border-t border-surface-variant bg-slate-50 max-h-32 overflow-y-auto space-y-0.5">
+                    {debugInfo[ch]!.map((msg, i) => (
+                      <div
+                        key={i}
+                        className={`font-label-sm monospaced-data break-all ${
+                          msg.startsWith('TX') ? 'text-sky-700' : 'text-amber-800'
+                        }`}
+                      >
+                        {msg}
+                      </div>
+                    ))}
                   </div>
                 )}
 

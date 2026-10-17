@@ -504,6 +504,10 @@ impl ForceManager {
         } else {
             WriteType::WithoutResponse
         };
+        // 发送命令诊断（节流 2s，避免 10Hz 轮询刷屏）：前端可见 TX 帧内容
+        let cmd_hex: Vec<String> = cmd.iter().map(|b| format!("{:02X}", b)).collect();
+        let cmd_hex = cmd_hex.join(" ");
+        let mut last_tx_debug = Instant::now() - std::time::Duration::from_secs(10);
         let mut interval = tokio::time::interval(tokio::time::Duration::from_millis(100));
         interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
         interval.tick().await; // 跳过首个立即 tick
@@ -525,7 +529,21 @@ impl ForceManager {
             )
             .await
             {
-                Ok(Ok(())) => consecutive_errors = 0,
+                Ok(Ok(())) => {
+                    consecutive_errors = 0;
+                    // TX 诊断（节流 2s）
+                    let now = Instant::now();
+                    if now.duration_since(last_tx_debug) >= std::time::Duration::from_millis(2000) {
+                        let _ = app.emit(
+                            "force-debug",
+                            serde_json::json!({
+                                "channel": channel,
+                                "message": format!("TX → {}（读 X/Y 角度，10Hz 轮询）", cmd_hex),
+                            }),
+                        );
+                        last_tx_debug = now;
+                    }
+                }
                 Ok(Err(e)) => {
                     consecutive_errors += 1;
                     if consecutive_errors <= 3 {
@@ -616,7 +634,7 @@ impl ForceManager {
                                         serde_json::json!({
                                             "channel": channel,
                                             "message": format!(
-                                                "已收到通知数据但未解析出角度帧（缓冲 {} 字节）: {:02X?}",
+                                                "RX ← 已收到数据但未解析出角度帧（缓冲 {} 字节）: {:02X?}",
                                                 inner.rx_buf.len(),
                                                 &inner.rx_buf[..inner.rx_buf.len().min(24)]
                                             ),
@@ -640,7 +658,7 @@ impl ForceManager {
                                         serde_json::json!({
                                             "channel": channel,
                                             "message": format!(
-                                                "通知数据非 Modbus 角度帧（{}）: {}——若持续出现，可能是透传波特率与传感器不匹配",
+                                                "RX ← 非 Modbus 角度帧（{}）: {}——若持续出现，可能是透传波特率与传感器不匹配",
                                                 msg,
                                                 hex.join(" ")
                                             ),
