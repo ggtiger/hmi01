@@ -20,6 +20,7 @@ use tauri::Emitter;
 use tokio::sync::Mutex;
 
 use super::scale_protocol::{self, ScaleData};
+use super::tilt_protocol::{self, AngleData};
 
 const NUS_RX_CHAR_UUID: &str = "6e400002-b5a3-f393-e0a9-e50e24dcca9e";
 const NUS_TX_CHAR_UUID: &str = "6e400003-b5a3-f393-e0a9-e50e24dcca9e";
@@ -49,6 +50,8 @@ pub struct ForceChannelState {
     pub latest: Option<ScaleData>,
     /// 会话内最大力值（N）
     pub max_n: f64,
+    /// STEER 通道：最新倾角（Modbus RTU 读角度）
+    pub latest_angle: Option<AngleData>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -56,6 +59,15 @@ pub struct ForceChannelState {
 pub struct ForceDataEvent {
     pub channel: String,
     pub data: ScaleData,
+}
+
+/// STEER 通道倾角数据事件
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SteerAngleEvent {
+    pub channel: String,
+    pub angle_x: f64,
+    pub angle_y: f64,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -77,6 +89,9 @@ struct ChannelInner {
     device_address: String,
     latest: Option<ScaleData>,
     max_n: f64,
+    /// STEER：最新倾角 + 接收缓冲（透传流重组）
+    latest_angle: Option<AngleData>,
+    rx_buf: Vec<u8>,
 }
 
 impl ChannelInner {
@@ -87,6 +102,7 @@ impl ChannelInner {
             device_address: self.device_address.clone(),
             latest: self.latest.clone(),
             max_n: self.max_n,
+            latest_angle: self.latest_angle.clone(),
         }
     }
 }
@@ -353,13 +369,15 @@ impl ForceManager {
             let mut channels = self.channels.lock().await;
             let inner = channels.get_mut(&channel).expect("channel exists");
             inner.peripheral = Some(peripheral.clone());
-            inner.write_char = final_write_char;
+            inner.write_char = final_write_char.clone();
             inner.notify_char = Some(notify_c);
             inner.is_connected = true;
             inner.device_name = device_name.clone();
             inner.device_address = device_id.to_string();
             inner.latest = None;
             inner.max_n = 0.0;
+            inner.latest_angle = None;
+            inner.rx_buf.clear();
             let _ = app.emit(
                 "force-connection-changed",
                 ForceConnectionEvent {
@@ -372,13 +390,91 @@ impl ForceManager {
         log::info!("[Force:{}] 设备已连接: {} ({})", channel, device_name, device_id);
 
         // 启动通知接收循环
+        let peripheral_for_notify = peripheral.clone();
         let channels_arc = self.channels.clone();
         let ch = channel.clone();
+        let app_notify = app.clone();
         tokio::spawn(async move {
-            Self::notification_loop(ch, peripheral, channels_arc, app).await;
+            Self::notification_loop(ch, peripheral_for_notify, channels_arc, app_notify).await;
         });
 
+        // STEER 通道：启动读角度轮询（Modbus RTU 问答式，10Hz）
+        if channel == "STEER" {
+            if let Some(wc) = final_write_char {
+                let channels_arc2 = self.channels.clone();
+                let ch2 = channel.clone();
+                let app2 = app.clone();
+                tokio::spawn(async move {
+                    Self::steer_polling_loop(ch2, peripheral, wc, channels_arc2, app2).await;
+                });
+            } else {
+                log::warn!("[Force:STEER] 无 Write 特征，无法轮询读角度");
+            }
+        }
+
         Ok(())
+    }
+
+    /// STEER 通道轮询：周期发送 Modbus 读角度命令（应答经通知流异步返回）
+    ///
+    /// 写失败连续超过 5 次自动停止（设备断开时由通知循环/断开逻辑收尾）。
+    async fn steer_polling_loop(
+        channel: String,
+        peripheral: Peripheral,
+        write_c: Characteristic,
+        channels: Arc<Mutex<HashMap<String, ChannelInner>>>,
+        app: AppHandle,
+    ) {
+        let cmd = tilt_protocol::build_read_angle_command();
+        let wt = if write_c.properties.contains(CharPropFlags::WRITE) {
+            WriteType::WithResponse
+        } else {
+            WriteType::WithoutResponse
+        };
+        let mut interval = tokio::time::interval(tokio::time::Duration::from_millis(100));
+        interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+        interval.tick().await; // 跳过首个立即 tick
+        let mut consecutive_errors = 0u32;
+
+        loop {
+            // 检查连接状态
+            {
+                let guard = channels.lock().await;
+                let connected = guard.get(&channel).map(|c| c.is_connected).unwrap_or(false);
+                if !connected {
+                    break;
+                }
+            }
+
+            match tokio::time::timeout(
+                tokio::time::Duration::from_secs(2),
+                peripheral.write(&write_c, &cmd, wt),
+            )
+            .await
+            {
+                Ok(Ok(())) => consecutive_errors = 0,
+                Ok(Err(e)) => {
+                    consecutive_errors += 1;
+                    if consecutive_errors <= 3 {
+                        log::warn!("[Force:{}] 读角度命令写入失败: {}", channel, e);
+                    }
+                }
+                Err(_) => consecutive_errors += 1,
+            }
+            if consecutive_errors >= 5 {
+                log::error!("[Force:{}] 读角度连续写入失败 {} 次，停止轮询", channel, consecutive_errors);
+                let _ = app.emit(
+                    "force-debug",
+                    serde_json::json!({
+                        "channel": channel,
+                        "message": "读角度命令连续写入失败，已停止轮询（请断开重连）",
+                    }),
+                );
+                break;
+            }
+            interval.tick().await;
+        }
+        log::info!("[Force:{}] 读角度轮询已结束", channel);
     }
 
     /// 通知数据接收循环（节流 100ms）
@@ -406,6 +502,51 @@ impl ForceManager {
                 if !connected {
                     break;
                 }
+            }
+
+            // STEER 通道：Modbus RTU 倾角流解析（透传流含分帧/夹带，用缓冲重组）
+            if channel == "STEER" {
+                let new_bytes = notification.value;
+                {
+                    let mut guard = channels.lock().await;
+                    if let Some(inner) = guard.get_mut(&channel) {
+                        inner.rx_buf.extend_from_slice(&new_bytes);
+                        if inner.rx_buf.len() > 256 {
+                            // 异常流保护：只保留末尾可能构成帧的部分
+                            let keep = tilt_protocol::ANGLE_REPLY_LEN - 1;
+                            let l = inner.rx_buf.len();
+                            inner.rx_buf.drain(..l - keep);
+                        }
+                        match tilt_protocol::parse_angle_stream(&inner.rx_buf) {
+                            Ok(Some((angle, consumed))) => {
+                                inner.rx_buf.drain(..consumed);
+                                inner.latest_angle = Some(angle.clone());
+                                let now = Instant::now();
+                                if now.duration_since(last_emit) >= throttle {
+                                    let _ = app.emit(
+                                        "steer-angle-data",
+                                        SteerAngleEvent {
+                                            channel: channel.clone(),
+                                            angle_x: angle.angle_x,
+                                            angle_y: angle.angle_y,
+                                        },
+                                    );
+                                    last_emit = now;
+                                }
+                            }
+                            Ok(None) => {} // 等待更多数据
+                            Err((drop_n, msg)) => {
+                                inner.rx_buf.drain(..drop_n.min(inner.rx_buf.len()));
+                                let now = Instant::now();
+                                if now.duration_since(last_emit) >= std::time::Duration::from_millis(1000) {
+                                    log::warn!("[Force:{}] 倾角流丢弃 {} 字节: {}", channel, drop_n, msg);
+                                    last_emit = now;
+                                }
+                            }
+                        }
+                    }
+                }
+                continue;
             }
 
             match scale_protocol::parse_scale_frame(&notification.value) {

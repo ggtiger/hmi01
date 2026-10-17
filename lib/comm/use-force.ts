@@ -61,7 +61,20 @@ export function useForce() {
           }
         );
 
-        unlistenRefs.current = [unlistenData, unlistenConn, unlistenDebug];
+        const unlistenAngle = await listen<{
+          channel: ForceChannel;
+          angleX: number;
+          angleY: number;
+        }>('steer-angle-data', (event) => {
+          if (!mounted) return;
+          const { channel, angleX, angleY } = event.payload;
+          setStates((prev) => ({
+            ...prev,
+            [channel]: { ...prev[channel], latestAngle: { angleX, angleY } },
+          }));
+        });
+
+        unlistenRefs.current = [unlistenData, unlistenConn, unlistenDebug, unlistenAngle];
 
         // 获取初始全通道状态
         const all = await ForceService.forceGetState().catch(() => null);

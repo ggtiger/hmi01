@@ -82,6 +82,12 @@ export default function SteeringTestPage() {
   const forceLive = steerForce.isConnected ? steerForce.latest?.weightN ?? null : null
   const forceMax = steerForce.isConnected ? steerForce.maxN : null
 
+  // 方向盘角度：BLE 倾角模块（Modbus RTU）优先，TCP 遥测兜底
+  const bleAngle = steerForce.isConnected ? steerForce.latestAngle : null
+  const dispSteerX = bleAngle ? bleAngle.angleX : t.steer_x
+  const dispSteerY = bleAngle ? bleAngle.angleY : t.steer_y
+  const angleSource = bleAngle ? '蓝牙倾角模块' : 'TCP 遥测'
+
   const [busy, setBusy] = useState(false)
   const [forceModalOpen, setForceModalOpen] = useState(false)
   const [processForce, setProcessForce] = useState<number | null>(null)
@@ -93,11 +99,12 @@ export default function SteeringTestPage() {
   const lastTrendPush = useRef(0)
   const prevSteerSign = useRef(0)
 
-  // 遥测 → 趋势（200ms 采样门控）
+  // 角度 → 趋势（200ms 采样门控；BLE 已连时每次角度事件都触发）
   useEffect(() => {
-    if (t.t <= 0) return
     const now = Date.now()
     if (now - lastTrendPush.current < 200) return
+    if (dispSteerX === null && dispSteerY === null) return
+    if (!bleAngle && t.t <= 0) return
     lastTrendPush.current = now
     const d = new Date()
     const label = `${d.getMinutes().toString().padStart(2, '0')}:${d
@@ -105,17 +112,18 @@ export default function SteeringTestPage() {
       .toString()
       .padStart(2, '0')}`
     setTrend((prev) => {
-      const next = [...prev, { label, steer_x: t.steer_x, steer_y: t.steer_y }]
+      const next = [...prev, { label, steer_x: dispSteerX, steer_y: dispSteerY }]
       return next.length > MAX_TREND ? next.slice(-MAX_TREND) : next
     })
-  }, [t])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bleAngle?.angleX, bleAngle?.angleY, t.steer_x, t.steer_y])
 
-  // 顺时针/逆时针峰值跟踪（运行中自动更新）+ 进程力值跟踪
+  // 顺时针/逆时针峰值跟踪 + 进程力值跟踪（测试运行中或 BLE 数据流中自动更新）
   useEffect(() => {
-    if (!running) return
+    if (!running && !bleAngle) return
     if (forceLive !== null) setProcessForce(forceLive)
-    if (t.steer_x === null) return
-    const x = t.steer_x
+    if (dispSteerX === null) return
+    const x = dispSteerX
     if (x > 0 && (cwAngle === null || x > cwAngle)) setCwAngle(x)
     if (x < 0 && (ccwAngle === null || x < ccwAngle)) setCcwAngle(x)
     // 自由转角 = 方向反转点的幅值（近似）
@@ -124,7 +132,8 @@ export default function SteeringTestPage() {
       setFreeAngle(Math.abs(x))
     }
     if (sign !== 0) prevSteerSign.current = sign
-  }, [t.steer_x, running, cwAngle, ccwAngle, forceLive])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dispSteerX, running, forceLive, !!bleAngle])
 
   const run = async (fn: () => Promise<void>) => {
     setBusy(true)
@@ -218,14 +227,14 @@ export default function SteeringTestPage() {
             <DataRow
               label="方向盘 X"
               unit="°"
-              value={t.steer_x}
-              actions={<MiniBtn onClick={() => addRecord('方向盘 X', t.steer_x)} disabled={!connected}>记录</MiniBtn>}
+              value={dispSteerX}
+              actions={<MiniBtn onClick={() => addRecord('方向盘 X', dispSteerX)} disabled={!connected}>记录</MiniBtn>}
             />
             <DataRow
               label="方向盘 Y"
               unit="°"
-              value={t.steer_y}
-              actions={<MiniBtn onClick={() => addRecord('方向盘 Y', t.steer_y)} disabled={!connected}>记录</MiniBtn>}
+              value={dispSteerY}
+              actions={<MiniBtn onClick={() => addRecord('方向盘 Y', dispSteerY)} disabled={!connected}>记录</MiniBtn>}
             />
 
             <DataRow
@@ -294,7 +303,7 @@ export default function SteeringTestPage() {
                 {running ? '停止测试' : '开始测试'}
               </button>
               <button
-                onClick={() => addRecord('遥测快照', t.steer_x)}
+                onClick={() => addRecord('角度快照', dispSteerX)}
                 disabled={!connected}
                 className="ui-action-btn flex-1 !py-2.5"
               >
@@ -305,7 +314,7 @@ export default function SteeringTestPage() {
               </button>
             </div>
             <div className="font-label-sm text-outline">
-              力值字段协议未提供，显示 --；STEER 为协议 §2.9 预留功能
+              力值字段协议未提供，显示 --；角度来源：{angleSource}（BLE 连接后为 Modbus RTU 10Hz 轮询）
             </div>
           </div>
         </div>

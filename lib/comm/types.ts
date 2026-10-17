@@ -138,6 +138,12 @@ export interface ForceData {
   timestamp: number;
 }
 
+/** 转向角倾角数据（Modbus RTU 读角度，IEEE754） */
+export interface AngleData {
+  angleX: number;
+  angleY: number;
+}
+
 /** BLE 设备扫描结果 */
 export interface ForceDeviceInfo {
   /** 平台设备标识（macOS 为 CoreBluetooth UUID，连接用；address 在 macOS 全零） */
@@ -154,6 +160,8 @@ export interface ForceChannelState {
   deviceAddress: string;
   latest: ForceData | null;
   maxN: number;
+  /** STEER 通道：最新倾角 */
+  latestAngle: AngleData | null;
 }
 
 /** force-data 事件负载 */
@@ -174,4 +182,5 @@ export const DEFAULT_FORCE_STATE: ForceChannelState = {
   deviceAddress: '',
   latest: null,
   maxN: 0,
+  latestAngle: null,
 };
