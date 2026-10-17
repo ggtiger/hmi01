@@ -425,17 +425,20 @@ impl ForceManager {
         };
 
         // 探测写入触发 Windows 配对（SSTS 成熟模式）
-        if let Some(ref wc) = final_write_char {
-            let probe: &[u8] = &[0xAA];
-            let wt = if wc.properties.contains(CharPropFlags::WRITE) {
-                WriteType::WithResponse
-            } else {
-                WriteType::WithoutResponse
-            };
-            if peripheral.write(wc, probe, wt).await.is_err() {
-                log::warn!("[Force:{}] 探测写入失败，等待配对后重试...", channel);
-                tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
-                let _ = peripheral.write(wc, probe, wt).await;
+        // STEER 跳过：0xAA 会经 WCH 透传进传感器制造串口噪音
+        if channel != "STEER" {
+            if let Some(ref wc) = final_write_char {
+                let probe: &[u8] = &[0xAA];
+                let wt = if wc.properties.contains(CharPropFlags::WRITE) {
+                    WriteType::WithResponse
+                } else {
+                    WriteType::WithoutResponse
+                };
+                if peripheral.write(wc, probe, wt).await.is_err() {
+                    log::warn!("[Force:{}] 探测写入失败，等待配对后重试...", channel);
+                    tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
+                    let _ = peripheral.write(wc, probe, wt).await;
+                }
             }
         }
 
@@ -464,6 +467,29 @@ impl ForceManager {
         }
 
         log::info!("[Force:{}] 设备已连接: {} ({})", channel, device_name, device_id);
+
+        // 特征清单诊断：前端通道卡可见，便于排查"写到哪个口、听哪个口"
+        {
+            let fmt_char = |c: &Option<Characteristic>| {
+                c.as_ref()
+                    .map(|x| x.uuid.to_string())
+                    .unwrap_or_else(|| "无".into())
+            };
+            let notify_uuids: Vec<String> =
+                notify_candidates.iter().map(|c| c.uuid.to_string()).collect();
+            let _ = app.emit(
+                "force-debug",
+                serde_json::json!({
+                    "channel": channel,
+                    "message": format!(
+                        "已连接。写特征: {} | 配置特征: {} | 通知特征: {:?}",
+                        fmt_char(&final_write_char),
+                        fmt_char(&config_write_char),
+                        notify_uuids
+                    ),
+                }),
+            );
+        }
 
         // STEER 通道：确保 WCH 透传模块 UART 波特率与传感器一致（115200 8N1）
         // （传感器 SCT726T-M 要求 115200；透传模块波特率不匹配时命令到不了传感器）
@@ -630,6 +656,34 @@ impl ForceManager {
             // STEER 通道：Modbus RTU 倾角流解析（透传流含分帧/夹带，用缓冲重组）
             if channel == "STEER" {
                 let new_bytes = notification.value;
+
+                // WCH 模块自身应答识别（JS 库约定）：
+                //   88 开头 7 字节 = 串口配置应答（对波特率配置命令的回应）
+                //   87 开头 8 字节 = Modem 状态应答
+                // 这些是模块正常应答，直接消费掉，不算解析错误
+                if (new_bytes.first() == Some(&0x88) && new_bytes.len() == 7)
+                    || (new_bytes.first() == Some(&0x87) && new_bytes.len() == 8)
+                {
+                    let now = Instant::now();
+                    if now.duration_since(last_emit) >= std::time::Duration::from_millis(2000) {
+                        let hex: Vec<String> =
+                            new_bytes.iter().map(|b| format!("{:02X}", b)).collect();
+                        let _ = app.emit(
+                            "force-debug",
+                            serde_json::json!({
+                                "channel": channel,
+                                "message": format!(
+                                    "RX ← WCH 模块{}（正常应答，非传感器数据）: {}",
+                                    if new_bytes[0] == 0x88 { "串口配置应答" } else { "Modem 状态应答" },
+                                    hex.join(" ")
+                                ),
+                            }),
+                        );
+                        last_emit = now;
+                    }
+                    continue;
+                }
+
                 {
                     let mut guard = channels.lock().await;
                     if let Some(inner) = guard.get_mut(&channel) {
