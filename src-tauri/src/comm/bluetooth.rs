@@ -276,70 +276,114 @@ impl ForceManager {
         }
 
         let services = peripheral.services();
+
+        // ---- 特征发现（WCH 透传模块感知）----
+        // WCH BLE 串口模块（CH9140 等，WCHBLEWxJsLib 约定）：
+        //   FFF2 = 数据写入（用户数据 → 串口）；
+        //   FFF3 = 配置写入（波特率/Modem 命令，发用户数据会被静默丢弃！）
+        //   数据通知在其余 notify 特征上。
+        // 策略：NUS 精确 → FFF2 → 其他 WRITE（排除 FFF3）→ WRITE_WITHOUT_RESPONSE → FFF3 兜底
         let mut write_char: Option<Characteristic> = None;
         let mut write_char_no_resp: Option<Characteristic> = None;
-        let mut notify_char: Option<Characteristic> = None;
+        let mut config_write_char: Option<Characteristic> = None;
+        let mut notify_candidates: Vec<Characteristic> = Vec::new();
 
         // 第一轮：精确匹配 nRF52 UART 特征
         for service in &services {
             for characteristic in &service.characteristics {
-                let char_uuid = characteristic.uuid.to_string().to_lowercase();
-                if char_uuid == NUS_RX_CHAR_UUID {
+                let u = characteristic.uuid.to_string().to_lowercase();
+                if u == NUS_RX_CHAR_UUID {
                     write_char = Some(characteristic.clone());
                 }
-                if char_uuid == NUS_TX_CHAR_UUID {
-                    notify_char = Some(characteristic.clone());
+                if u == NUS_TX_CHAR_UUID {
+                    notify_candidates.insert(0, characteristic.clone());
                 }
             }
         }
 
-        // 第二轮：按属性回退匹配（兼容自定义 UUID 设备）
-        if write_char.is_none() && notify_char.is_none() {
-            log::warn!("[Force:{}] 未找到标准 NUS 特征，按属性匹配...", channel);
+        // 第二轮：属性 + WCH UUID 优先级
+        if write_char.is_none() {
+            log::info!("[Force:{}] 未找到 NUS 特征，按属性/WCH 约定匹配...", channel);
             for service in &services {
-                for characteristic in &service.characteristics {
-                    if characteristic.properties.contains(CharPropFlags::NOTIFY) && notify_char.is_none() {
-                        notify_char = Some(characteristic.clone());
+                for c in &service.characteristics {
+                    let u = c.uuid.to_string().to_lowercase();
+                    let has_w = c.properties.contains(CharPropFlags::WRITE);
+                    let has_wnr = c.properties.contains(CharPropFlags::WRITE_WITHOUT_RESPONSE);
+                    let has_n = c.properties.contains(CharPropFlags::NOTIFY)
+                        || c.properties.contains(CharPropFlags::INDICATE);
+                    if has_n {
+                        notify_candidates.push(c.clone());
                     }
-                    if characteristic.properties.contains(CharPropFlags::WRITE) && write_char.is_none() {
-                        write_char = Some(characteristic.clone());
+                    if !has_w && !has_wnr {
+                        continue;
                     }
-                    if characteristic.properties.contains(CharPropFlags::WRITE_WITHOUT_RESPONSE)
-                        && write_char_no_resp.is_none()
-                    {
-                        write_char_no_resp = Some(characteristic.clone());
+                    if u.contains("fff2") {
+                        if write_char.is_none() {
+                            write_char = Some(c.clone());
+                        }
+                    } else if u.contains("fff3") {
+                        // WCH 配置特征：只作兜底，绝不优先
+                        if config_write_char.is_none() {
+                            config_write_char = Some(c.clone());
+                        }
+                    } else if write_char.is_none() {
+                        if has_w {
+                            write_char = Some(c.clone());
+                        } else if write_char_no_resp.is_none() {
+                            write_char_no_resp = Some(c.clone());
+                        }
                     }
                 }
             }
+            // 只有 FFF3 可写时才兜底使用
+            if write_char.is_none() {
+                write_char = config_write_char.take();
+            }
         }
-
         let final_write_char = write_char.or(write_char_no_resp);
 
-        // Notify 特征缺失：清理通道状态并返回
-        let notify_c = match notify_char {
-            Some(c) => c,
-            None => {
-                self.cleanup_failed_connect(&channel, &peripheral, &app).await;
-                let all_chars: Vec<String> = services
-                    .iter()
-                    .flat_map(|s| s.characteristics.iter().map(|c| c.uuid.to_string()))
-                    .collect();
-                return Err(format!(
-                    "未找到 Notify 特征，无法接收数据。设备服务特征: {:?}（可能不是力值模块）",
-                    all_chars
-                ));
-            }
-        };
-
-        if let Err(_) = tokio::time::timeout(
-            tokio::time::Duration::from_secs(5),
-            peripheral.subscribe(&notify_c),
-        )
-        .await
-        {
+        if notify_candidates.is_empty() {
             self.cleanup_failed_connect(&channel, &peripheral, &app).await;
-            return Err("订阅通知超时（5 秒）".to_string());
+            let all_chars: Vec<String> = services
+                .iter()
+                .flat_map(|s| s.characteristics.iter().map(|c| c.uuid.to_string()))
+                .collect();
+            return Err(format!(
+                "未找到 Notify 特征，无法接收数据。设备服务特征: {:?}（可能不是力值模块）",
+                all_chars
+            ));
         }
+
+        // 订阅所有 notify/indicate 特征（WCH 模块数据/配置应答可能分属不同特征）
+        let mut subscribed = 0usize;
+        for nc in &notify_candidates {
+            if tokio::time::timeout(
+                tokio::time::Duration::from_secs(5),
+                peripheral.subscribe(nc),
+            )
+            .await
+            .map(|r| r.is_ok())
+            .unwrap_or(false)
+            {
+                subscribed += 1;
+            } else {
+                log::warn!("[Force:{}] 订阅特征 {} 失败", channel, nc.uuid);
+            }
+        }
+        if subscribed == 0 {
+            self.cleanup_failed_connect(&channel, &peripheral, &app).await;
+            return Err("订阅通知失败（所有特征均超时）".to_string());
+        }
+        log::info!(
+            "[Force:{}] 已订阅 {} 个通知特征；写入特征: {}",
+            channel,
+            subscribed,
+            final_write_char
+                .as_ref()
+                .map(|c| c.uuid.to_string())
+                .unwrap_or_else(|| "无".into())
+        );
+        let notify_c = notify_candidates[0].clone();
 
         let device_name = if let Ok(Some(props)) = peripheral.properties().await {
             props
@@ -534,12 +578,45 @@ impl ForceManager {
                                     last_emit = now;
                                 }
                             }
-                            Ok(None) => {} // 等待更多数据
+                            Ok(None) => {
+                                // 收到数据但不足一帧：诊断上报原始字节（节流 2s）
+                                let now = Instant::now();
+                                if now.duration_since(last_emit) >= std::time::Duration::from_millis(2000) {
+                                    let _ = app.emit(
+                                        "force-debug",
+                                        serde_json::json!({
+                                            "channel": channel,
+                                            "message": format!(
+                                                "已收到通知数据但未解析出角度帧（缓冲 {} 字节）: {:02X?}",
+                                                inner.rx_buf.len(),
+                                                &inner.rx_buf[..inner.rx_buf.len().min(24)]
+                                            ),
+                                        }),
+                                    );
+                                    last_emit = now;
+                                }
+                            }
                             Err((drop_n, msg)) => {
+                                let hex: Vec<String> = new_bytes
+                                    .iter()
+                                    .take(16)
+                                    .map(|b| format!("{:02X}", b))
+                                    .collect();
                                 inner.rx_buf.drain(..drop_n.min(inner.rx_buf.len()));
                                 let now = Instant::now();
-                                if now.duration_since(last_emit) >= std::time::Duration::from_millis(1000) {
+                                if now.duration_since(last_emit) >= std::time::Duration::from_millis(2000) {
                                     log::warn!("[Force:{}] 倾角流丢弃 {} 字节: {}", channel, drop_n, msg);
+                                    let _ = app.emit(
+                                        "force-debug",
+                                        serde_json::json!({
+                                            "channel": channel,
+                                            "message": format!(
+                                                "通知数据非 Modbus 角度帧（{}）: {}——若持续出现，可能是透传波特率与传感器不匹配",
+                                                msg,
+                                                hex.join(" ")
+                                            ),
+                                        }),
+                                    );
                                     last_emit = now;
                                 }
                             }
