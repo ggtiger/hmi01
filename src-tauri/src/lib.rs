@@ -983,6 +983,8 @@ pub fn run() {
             comm::force_commands::force_calibrate,
             comm::force_commands::force_reset_max,
             comm::force_commands::force_get_state,
+            comm::force_commands::force_send_raw,
+            comm::force_commands::force_raw_monitor,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

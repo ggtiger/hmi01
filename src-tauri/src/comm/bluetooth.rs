@@ -95,6 +95,8 @@ struct ChannelInner {
     latest_angle: Option<AngleData>,
     /// 最近一次收到角度帧的时刻（波特率校准用）
     last_angle_at: Option<Instant>,
+    /// 手动调试：原始数据监视（每帧通知的原始 hex 全量上报）
+    debug_raw: bool,
     rx_buf: Vec<u8>,
 }
 
@@ -746,6 +748,28 @@ impl ForceManager {
                 if !connected {
                     break;
                 }
+                // 手动调试：原始数据监视（全量上报，无节流）
+                if guard.get(&channel).map(|c| c.debug_raw).unwrap_or(false) {
+                    if let Some(app) = Some(&app) {
+                        let hex: Vec<String> = notification
+                            .value
+                            .iter()
+                            .map(|b| format!("{:02X}", b))
+                            .collect();
+                        let _ = app.emit(
+                            "force-debug",
+                            serde_json::json!({
+                                "channel": channel,
+                                "message": format!(
+                                    "RX ← {} ({} 字节, 特征 {})",
+                                    hex.join(" "),
+                                    notification.value.len(),
+                                    notification.uuid
+                                ),
+                            }),
+                        );
+                    }
+                }
             }
 
             // STEER 通道：Modbus RTU 倾角流解析（透传流含分帧/夹带，用缓冲重组）
@@ -1042,6 +1066,20 @@ impl ForceManager {
         let mut channels = self.channels.lock().await;
         let inner = channels.get_mut(&channel).expect("channel exists");
         inner.max_n = 0.0;
+        Ok(())
+    }
+
+    /// 手动调试：向通道写特征发送原始字节
+    pub async fn send_raw_bytes(&self, channel: &str, data: &[u8]) -> Result<(), String> {
+        self.write_to_device(channel, data).await
+    }
+
+    /// 手动调试：开关原始数据监视（每帧通知的原始 hex 全量上报 force-debug）
+    pub async fn set_raw_monitor(&self, channel: &str, on: bool) -> Result<(), String> {
+        let channel = Self::normalize_channel(channel)?;
+        let mut channels = self.channels.lock().await;
+        let inner = channels.get_mut(&channel).expect("channel exists");
+        inner.debug_raw = on;
         Ok(())
     }
 

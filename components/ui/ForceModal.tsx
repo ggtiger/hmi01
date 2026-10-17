@@ -50,6 +50,7 @@ export default function ForceModal({ open, onClose }: ForceModalProps) {
   const [calWeight, setCalWeight] = useState<Record<ForceChannel, string>>({ A: '', B: '', STEER: '' })
   const [busy, setBusy] = useState<string | null>(null)
   const [lastAddrs, setLastAddrs] = useState<Partial<Record<ForceChannel, LastDevice>>>({})
+  const [rawMonitor, setRawMonitor] = useState<Partial<Record<ForceChannel, boolean>>>({})
 
   useEffect(() => {
     if (open) {
@@ -210,6 +211,12 @@ export default function ForceModal({ open, onClose }: ForceModalProps) {
                   </div>
                 )}
 
+                {/* 手动调试区（已连接时展开） */}
+                {st.isConnected && <ChannelDebugArea channel={ch} actions={actions} rawOn={rawMonitor[ch] ?? false} onToggleRaw={(on) => {
+                  setRawMonitor((p) => ({ ...p, [ch]: on }))
+                  actions.rawMonitor(ch, on).catch(() => {})
+                }} />}
+
                 {/* 校准区（仅力值通道；已连接时展开） */}
                 {st.isConnected && !isSteer && (
                   <div className="flex items-center gap-2 px-3 py-2 border-t border-surface-variant">
@@ -287,6 +294,95 @@ export default function ForceModal({ open, onClose }: ForceModalProps) {
             </div>
           </div>
         </div>
+      </div>
+    </div>
+  )
+}
+
+/** 快捷调试命令（hex 直发） */
+const QUICK_HEX: { label: string; hex: string; channels: ForceChannel[] }[] = [
+  { label: '读角度(01)', hex: '01 03 00 01 00 04 15 C9', channels: ['STEER'] },
+  { label: '读角度(03)', hex: '03 03 00 01 00 04 15 C9', channels: ['STEER'] },
+  { label: '读X(01)', hex: '01 03 00 01 00 02 95 CB', channels: ['STEER'] },
+  { label: '读Y(01)', hex: '01 03 00 03 00 02 34 0B', channels: ['STEER'] },
+  { label: '清零(AA帧)', hex: 'AA 01 03 08 A6 01 07 00', channels: ['A', 'B'] },
+]
+
+/** 单通道手动调试区：原始数据监视开关 + hex 手动发送 + 快捷命令 */
+function ChannelDebugArea({
+  channel,
+  actions,
+  rawOn,
+  onToggleRaw,
+}: {
+  channel: ForceChannel
+  actions: {
+    sendRaw: (channel: ForceChannel, hex: string) => Promise<void>
+  }
+  rawOn: boolean
+  onToggleRaw: (on: boolean) => void
+}) {
+  const [hex, setHex] = useState('')
+  const [sending, setSending] = useState(false)
+
+  const send = async (data: string) => {
+    const trimmed = data.trim()
+    if (!trimmed || sending) return
+    setSending(true)
+    try {
+      await actions.sendRaw(channel, trimmed)
+      setHex('')
+    } catch {
+      /* 错误已展示 */
+    } finally {
+      setSending(false)
+    }
+  }
+
+  return (
+    <div className="px-3 py-2 border-t border-surface-variant bg-brand-ghost/50 space-y-2">
+      <div className="flex items-center gap-3">
+        <span className="font-label-bold text-[12px] text-on-surface-variant">手动调试</span>
+        <label className="flex items-center gap-1.5 font-label-sm text-on-surface-variant cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={rawOn}
+            onChange={(e) => onToggleRaw(e.target.checked)}
+            className="accent-[#041627]"
+          />
+          原始数据监视（全量显示收到的字节）
+        </label>
+      </div>
+      <div className="flex items-center gap-1.5 flex-wrap">
+        <input
+          value={hex}
+          onChange={(e) => setHex(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') send(hex)
+          }}
+          placeholder="输入 hex 数据，如 03 03 00 01 00 04 15 C9"
+          className="ui-input flex-1 min-w-[200px] !py-1 !text-[12px]"
+        />
+        <button
+          onClick={() => send(hex)}
+          disabled={!hex.trim() || sending}
+          className="ui-action-btn !px-3 !py-1 !text-[12px]"
+        >
+          发送
+        </button>
+      </div>
+      <div className="flex items-center gap-1.5 flex-wrap">
+        {QUICK_HEX.filter((q) => q.channels.includes(channel)).map((q) => (
+          <button
+            key={q.label}
+            onClick={() => send(q.hex)}
+            disabled={sending}
+            title={q.hex}
+            className="px-2 py-0.5 rounded-full border border-outline-variant font-label-sm monospaced-data text-[11px] text-on-surface-variant hover:bg-primary hover:text-on-primary hover:border-primary transition-colors disabled:opacity-40"
+          >
+            {q.label}
+          </button>
+        ))}
       </div>
     </div>
   )

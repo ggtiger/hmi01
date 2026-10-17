@@ -126,6 +126,8 @@ export function useForce() {
       zero: withErrorHandling(ForceService.forceZero),
       calibrate: withErrorHandling(ForceService.forceCalibrate),
       resetMax: withErrorHandling(ForceService.forceResetMax),
+      sendRaw: withErrorHandling(ForceService.forceSendRaw),
+      rawMonitor: withErrorHandling(ForceService.forceRawMonitor),
       clearError: () => setError(null),
     }),
     [withErrorHandling]

@@ -32,3 +32,15 @@ export async function forceResetMax(channel: ForceChannel): Promise<void> {
 export async function forceGetState(): Promise<Record<string, ForceChannelState>> {
   return invoke('force_get_state');
 }
+
+// ============ 手动调试 ============
+
+/** 手动发送原始 hex 数据（如 "03 03 00 01 00 04 15 C9"） */
+export async function forceSendRaw(channel: ForceChannel, hex: string): Promise<void> {
+  return invoke('force_send_raw', { channel, hex });
+}
+
+/** 开关原始数据监视（每帧通知原始 hex 全量上报） */
+export async function forceRawMonitor(channel: ForceChannel, on: boolean): Promise<void> {
+  return invoke('force_raw_monitor', { channel, on });
+}
