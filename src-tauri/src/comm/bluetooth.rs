@@ -93,6 +93,8 @@ struct ChannelInner {
     max_n: f64,
     /// STEER：最新倾角 + 接收缓冲（透传流重组）
     latest_angle: Option<AngleData>,
+    /// 最近一次收到角度帧的时刻（波特率校准用）
+    last_angle_at: Option<Instant>,
     rx_buf: Vec<u8>,
 }
 
@@ -491,32 +493,34 @@ impl ForceManager {
             );
         }
 
-        // STEER 通道：确保 WCH 透传模块 UART 波特率与传感器一致（115200 8N1）
-        // （传感器 SCT726T-M 要求 115200；透传模块波特率不匹配时命令到不了传感器）
+        // STEER 通道：读取 WCH 模块当前串口配置（诊断波特率状态）
         if channel == "STEER" {
             if let Some(ref cfg_c) = config_write_char {
-                let cfg_frame = tilt_protocol::build_wch_uart_config(115200, 8, 1, 0);
-                let wt = if cfg_c.properties.contains(CharPropFlags::WRITE) {
-                    WriteType::WithResponse
-                } else {
-                    WriteType::WithoutResponse
-                };
-                match tokio::time::timeout(
-                    tokio::time::Duration::from_secs(3),
-                    peripheral.write(cfg_c, &cfg_frame, wt),
-                )
-                .await
-                {
-                    Ok(Ok(())) => {
-                        log::info!("[Force:STEER] WCH 透传波特率已确保 115200 8N1");
-                        // 模块应用配置需要一点时间
-                        tokio::time::sleep(tokio::time::Duration::from_millis(300)).await;
+                if cfg_c.properties.contains(CharPropFlags::READ) {
+                    match tokio::time::timeout(
+                        tokio::time::Duration::from_secs(3),
+                        peripheral.read(cfg_c),
+                    )
+                    .await
+                    {
+                        Ok(Ok(data)) => {
+                            let hex: Vec<String> =
+                                data.iter().map(|b| format!("{:02X}", b)).collect();
+                            let _ = app.emit(
+                                "force-debug",
+                                serde_json::json!({
+                                    "channel": channel,
+                                    "message": format!(
+                                        "模块当前串口配置（FFF3 读回）: {}（88 应答帧的字节 4-5 为配置位）",
+                                        hex.join(" ")
+                                    ),
+                                }),
+                            );
+                        }
+                        Ok(Err(e)) => log::warn!("[Force:STEER] 读取模块配置失败: {}", e),
+                        Err(_) => log::warn!("[Force:STEER] 读取模块配置超时"),
                     }
-                    Ok(Err(e)) => log::warn!("[Force:STEER] WCH 波特率配置写入失败（可能已匹配）: {}", e),
-                    Err(_) => log::warn!("[Force:STEER] WCH 波特率配置写入超时（可能已匹配）"),
                 }
-            } else {
-                log::info!("[Force:STEER] 无独立配置特征，跳过波特率设置");
             }
         }
 
@@ -529,21 +533,112 @@ impl ForceManager {
             Self::notification_loop(ch, peripheral_for_notify, channels_arc, app_notify).await;
         });
 
-        // STEER 通道：启动读角度轮询（Modbus RTU 问答式，10Hz）
+        // STEER 通道：启动读角度轮询（Modbus RTU 问答式，10Hz）+ 波特率自动校准
         if channel == "STEER" {
             if let Some(wc) = final_write_char {
+                let peripheral_for_poll = peripheral.clone();
                 let channels_arc2 = self.channels.clone();
                 let ch2 = channel.clone();
                 let app2 = app.clone();
                 tokio::spawn(async move {
-                    Self::steer_polling_loop(ch2, peripheral, wc, channels_arc2, app2).await;
+                    Self::steer_polling_loop(ch2, peripheral_for_poll, wc, channels_arc2, app2).await;
                 });
+                // 波特率校准：确保模块 UART 与传感器一致（先 115200，无应答再试 9600）
+                if let Some(cfg_c) = config_write_char {
+                    let channels_arc3 = self.channels.clone();
+                    let ch3 = channel.clone();
+                    let app3 = app.clone();
+                    tokio::spawn(async move {
+                        Self::steer_baud_calibration(ch3, peripheral, cfg_c, channels_arc3, app3)
+                            .await;
+                    });
+                }
             } else {
                 log::warn!("[Force:STEER] 无 Write 特征，无法轮询读角度");
             }
         }
 
         Ok(())
+    }
+
+    /// STEER 波特率自动校准：确保 WCH 透传 UART 与传感器波特率一致
+    ///
+    /// 流程：设 115200 → 观察是否收到角度帧 → 无则试 9600 → 仍无则恢复
+    /// 115200 并诊断（说明问题不在波特率，需查传感器地址/接线/供电）。
+    async fn steer_baud_calibration(
+        channel: String,
+        peripheral: Peripheral,
+        cfg_c: Characteristic,
+        channels: Arc<Mutex<HashMap<String, ChannelInner>>>,
+        app: AppHandle,
+    ) {
+        let wt = if cfg_c.properties.contains(CharPropFlags::WRITE) {
+            WriteType::WithResponse
+        } else {
+            WriteType::WithoutResponse
+        };
+        let emit = |app: &AppHandle, msg: String| {
+            let _ = app.emit(
+                "force-debug",
+                serde_json::json!({ "channel": channel, "message": msg }),
+            );
+        };
+
+        // 已有角度帧（上次会话残留的缓冲快速命中）则无需校准
+        tokio::time::sleep(tokio::time::Duration::from_millis(2500)).await;
+        let has_angle = channels
+            .lock()
+            .await
+            .get(&channel)
+            .and_then(|c| c.last_angle_at)
+            .is_some();
+        if has_angle {
+            emit(&app, "✅ 已收到角度数据（波特率 115200 匹配）".into());
+            return;
+        }
+
+        emit(
+            &app,
+            "未收到角度帧，尝试切换透传波特率为 9600（传感器出厂默认）...".into(),
+        );
+        let cfg = tilt_protocol::build_wch_uart_config(9600, 8, 1, 0);
+        if tokio::time::timeout(
+            tokio::time::Duration::from_secs(3),
+            peripheral.write(&cfg_c, &cfg, wt),
+        )
+        .await
+        .map(|r| r.is_ok())
+        .unwrap_or(false)
+        {
+            // 模块应用配置 + 观察窗口
+            tokio::time::sleep(tokio::time::Duration::from_millis(2500)).await;
+            let has_angle = channels
+                .lock()
+                .await
+                .get(&channel)
+                .and_then(|c| c.last_angle_at)
+                .map(|t| Instant::now().duration_since(t).as_secs() < 3)
+                .unwrap_or(false);
+            if has_angle {
+                emit(&app, "✅ 9600 波特率下已收到角度数据（传感器实际为 9600，已保存）".into());
+                return;
+            }
+        } else {
+            emit(&app, "9600 配置写入失败".into());
+        }
+
+        // 都不通：恢复 115200（用户设定的目标值）
+        let restore = tilt_protocol::build_wch_uart_config(115200, 8, 1, 0);
+        let _ = tokio::time::timeout(
+            tokio::time::Duration::from_secs(3),
+            peripheral.write(&cfg_c, &restore, wt),
+        )
+        .await;
+        tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+        emit(
+            &app,
+            "⚠ 115200 / 9600 均未收到角度帧——问题不在波特率。请检查：①传感器供电与 RS485 A/B 接线 ②Modbus 从站地址 ③用厂家调试软件直连验证传感器".into(),
+        );
     }
 
     /// STEER 通道轮询：周期发送 Modbus 读角度命令（应答经通知流异步返回）
@@ -698,6 +793,7 @@ impl ForceManager {
                             Ok(Some((angle, consumed))) => {
                                 inner.rx_buf.drain(..consumed);
                                 inner.latest_angle = Some(angle.clone());
+                                inner.last_angle_at = Some(Instant::now());
                                 let now = Instant::now();
                                 if now.duration_since(last_emit) >= throttle {
                                     let _ = app.emit(

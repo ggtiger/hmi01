@@ -10,7 +10,7 @@
 
 use serde::{Deserialize, Serialize};
 
-pub const MODBUS_ADDR: u8 = 0x03;
+pub const MODBUS_ADDR: u8 = 0x01;
 /// 本批传感器固件 CRC 计算时固定使用的地址（不随从站地址变化）
 const CRC_CALC_ADDR: u8 = 0x01;
 const FUNC_READ: u8 = 0x03;
@@ -162,13 +162,13 @@ mod tests {
         frame
     }
 
-    /// 命令构造：调试工具实测向量 `03 03 00 01 00 04 15 C9`
-    /// （地址 03 + 固件 CRC 按地址 01 计算）
+    /// 命令构造：文档向量 `01 03 00 01 00 04 15 C9`
+    /// （从站地址 01 / MODBUS_ADDR 常量控制；CRC_CALC_ADDR=01 时固件 CRC 与标准一致）
     #[test]
-    fn test_build_command_measured_vector() {
+    fn test_build_command_doc_vector() {
         assert_eq!(
             build_read_angle_command(),
-            vec![0x03, 0x03, 0x00, 0x01, 0x00, 0x04, 0x15, 0xC9]
+            vec![0x01, 0x03, 0x00, 0x01, 0x00, 0x04, 0x15, 0xC9]
         );
     }
 
@@ -195,10 +195,11 @@ mod tests {
         assert!((angle.angle_x - (-2.083)).abs() < 1e-6);
     }
 
-    /// 地址不符的帧不解析（从站地址 03，帧头 01 应跳过）
+    /// 地址不符的帧不解析（帧头从站地址与配置不符应跳过）
     #[test]
     fn test_wrong_addr_ignored() {
-        let mut reply = vec![0x01u8, 0x03, 0x08];
+        let wrong_addr = MODBUS_ADDR.wrapping_add(1);
+        let mut reply = vec![wrong_addr, 0x03, 0x08];
         reply.extend_from_slice(&(-2.083f32).to_be_bytes());
         reply.extend_from_slice(&1.485f32.to_be_bytes());
         let crc = crc16_fw(&reply);
