@@ -83,6 +83,8 @@ pub struct ForceConnectionEvent {
 struct ChannelInner {
     peripheral: Option<Peripheral>,
     write_char: Option<Characteristic>,
+    /// WCH 透传模块配置特征（FFF3，波特率/Modem 设置）
+    config_write_char: Option<Characteristic>,
     notify_char: Option<Characteristic>,
     is_connected: bool,
     device_name: String,
@@ -364,9 +366,9 @@ impl ForceManager {
                     }
                 }
             }
-            // 只有 FFF3 可写时才兜底使用
+            // 只有 FFF3 可写时才兜底使用（同时保留为配置特征）
             if write_char.is_none() {
-                write_char = config_write_char.take();
+                write_char = config_write_char.clone();
             }
         }
         let final_write_char = write_char.or(write_char_no_resp);
@@ -443,6 +445,7 @@ impl ForceManager {
             let inner = channels.get_mut(&channel).expect("channel exists");
             inner.peripheral = Some(peripheral.clone());
             inner.write_char = final_write_char.clone();
+            inner.config_write_char = config_write_char.clone();
             inner.notify_char = Some(notify_c);
             inner.is_connected = true;
             inner.device_name = device_name.clone();
@@ -461,6 +464,35 @@ impl ForceManager {
         }
 
         log::info!("[Force:{}] 设备已连接: {} ({})", channel, device_name, device_id);
+
+        // STEER 通道：确保 WCH 透传模块 UART 波特率与传感器一致（115200 8N1）
+        // （传感器 SCT726T-M 要求 115200；透传模块波特率不匹配时命令到不了传感器）
+        if channel == "STEER" {
+            if let Some(ref cfg_c) = config_write_char {
+                let cfg_frame = tilt_protocol::build_wch_uart_config(115200, 8, 1, 0);
+                let wt = if cfg_c.properties.contains(CharPropFlags::WRITE) {
+                    WriteType::WithResponse
+                } else {
+                    WriteType::WithoutResponse
+                };
+                match tokio::time::timeout(
+                    tokio::time::Duration::from_secs(3),
+                    peripheral.write(cfg_c, &cfg_frame, wt),
+                )
+                .await
+                {
+                    Ok(Ok(())) => {
+                        log::info!("[Force:STEER] WCH 透传波特率已确保 115200 8N1");
+                        // 模块应用配置需要一点时间
+                        tokio::time::sleep(tokio::time::Duration::from_millis(300)).await;
+                    }
+                    Ok(Err(e)) => log::warn!("[Force:STEER] WCH 波特率配置写入失败（可能已匹配）: {}", e),
+                    Err(_) => log::warn!("[Force:STEER] WCH 波特率配置写入超时（可能已匹配）"),
+                }
+            } else {
+                log::info!("[Force:STEER] 无独立配置特征，跳过波特率设置");
+            }
+        }
 
         // 启动通知接收循环
         let peripheral_for_notify = peripheral.clone();

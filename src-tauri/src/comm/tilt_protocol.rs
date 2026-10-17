@@ -39,6 +39,33 @@ pub fn crc16_modbus(data: &[u8]) -> u16 {
     crc
 }
 
+/// 构建 WCH 透传模块 UART 配置帧（发往 FFF3 配置特征，WCHBLEWxJsLib 约定）
+///
+/// 帧格式（12 字节）：`06 00 09 00 [波特率 u32 LE] [数据位] [停止位] [校验位] [累加和]`
+/// - 累加和 = index 3 起至数据位/停止位/校验位共 8 字节之和（u8 截断）
+/// - 校验位：0=无校验
+///
+/// 例：115200 8N1 → `06 00 09 00 00 C2 01 00 08 01 00 CC`
+pub fn build_wch_uart_config(baud: u32, data_bits: u8, stop_bits: u8, parity: u8) -> Vec<u8> {
+    let mut frame = vec![
+        0x06,
+        0x00,
+        0x09,
+        0x00,
+        (baud & 0xFF) as u8,
+        ((baud >> 8) & 0xFF) as u8,
+        ((baud >> 16) & 0xFF) as u8,
+        ((baud >> 24) & 0xFF) as u8,
+        data_bits,
+        stop_bits,
+        parity,
+    ];
+    // 累加和：从 index 3 到校验位前（共 8 字节）
+    let sum: u8 = frame[3..11].iter().fold(0u8, |acc, &b| acc.wrapping_add(b));
+    frame.push(sum);
+    frame
+}
+
 /// 构建读 X/Y 轴角度命令（文档向量）：`01 03 00 01 00 04 15 C9`
 pub fn build_read_angle_command() -> Vec<u8> {
     let mut frame = vec![
@@ -198,5 +225,17 @@ mod tests {
         let (angle, _) = parse_angle_stream(&frame).unwrap().expect("should parse");
         assert_eq!(angle.angle_x, 0.0);
         assert_eq!(angle.angle_y, 0.0);
+    }
+
+    /// WCH 透传 UART 配置帧：115200 8N1
+    #[test]
+    fn test_wch_uart_config_115200_8n1() {
+        let frame = build_wch_uart_config(115200, 8, 1, 0);
+        assert_eq!(
+            frame,
+            vec![0x06, 0x00, 0x09, 0x00, 0x00, 0xC2, 0x01, 0x00, 0x08, 0x01, 0x00, 0xCC]
+        );
+        // 累加和自洽
+        assert_eq!(frame[11], frame[3..11].iter().fold(0u8, |a, &b| a.wrapping_add(b)));
     }
 }
