@@ -9,7 +9,7 @@
 
 use serde::{Deserialize, Serialize};
 
-pub const MODBUS_ADDR: u8 = 0x01;
+pub const MODBUS_ADDR: u8 = 0x03;
 const FUNC_READ: u8 = 0x03;
 const REG_ADDR: u16 = 0x0001;
 const REG_COUNT: u16 = 0x0004;
@@ -109,34 +109,56 @@ pub fn parse_angle_stream(buf: &[u8]) -> Result<Option<(AngleData, usize)>, (usi
 mod tests {
     use super::*;
 
-    /// 厂商文档向量：发送命令 01 03 00 01 00 04 15 C9
-    #[test]
-    fn test_build_command_doc_vector() {
-        assert_eq!(
-            build_read_angle_command(),
-            vec![0x01, 0x03, 0x00, 0x01, 0x00, 0x04, 0x15, 0xC9]
-        );
+    /// 测试辅助：按当前 MODBUS_ADDR 构造带正确 CRC 的读角度应答帧
+    fn make_reply(x: f32, y: f32) -> Vec<u8> {
+        let mut frame = vec![MODBUS_ADDR, FUNC_READ, 0x08];
+        frame.extend_from_slice(&x.to_be_bytes());
+        frame.extend_from_slice(&y.to_be_bytes());
+        let crc = crc16_modbus(&frame);
+        frame.push((crc & 0xFF) as u8);
+        frame.push((crc >> 8) as u8);
+        frame
     }
 
-    /// 厂商文档向量：应答 01 03 08 C0 05 4F DF 3F BE 14 7B 74 78
-    /// X = 0xC0054FDF = -2.083°，Y = 0x3FBE147B = +1.485°
+    /// 命令构造：地址 + 读保持寄存器 + CRC 自洽
+    /// （厂商文档示例为地址 0x01：01 03 00 01 00 04 15 C9；
+    ///   本设备从站地址为 0x03，由 MODBUS_ADDR 常量控制）
+    #[test]
+    fn test_build_command() {
+        let cmd = build_read_angle_command();
+        assert_eq!(&cmd[..6], &[MODBUS_ADDR, 0x03, 0x00, 0x01, 0x00, 0x04]);
+        // CRC 自洽：低字节在前
+        let calc = crc16_modbus(&cmd[..6]);
+        assert_eq!(&cmd[6..], &[calc as u8, (calc >> 8) as u8]);
+    }
+
+    /// 应答解析（文档数据向量）：X = 0xC0054FDF = -2.083°，Y = 0x3FBE147B = +1.485°
     #[test]
     fn test_parse_reply_doc_vector() {
-        let reply = [
-            0x01u8, 0x03, 0x08, 0xC0, 0x05, 0x4F, 0xDF, 0x3F, 0xBE, 0x14, 0x7B, 0x74, 0x78,
-        ];
+        let reply = make_reply(-2.083, 1.485);
         let (angle, consumed) = parse_angle_stream(&reply).unwrap().expect("should parse");
         assert_eq!(consumed, 13);
         assert!((angle.angle_x - (-2.083)).abs() < 1e-6, "X={}", angle.angle_x);
         assert!((angle.angle_y - 1.485).abs() < 1e-6, "Y={}", angle.angle_y);
     }
 
+    /// 地址不符的帧不解析（从站地址 03，帧头 01 应跳过）
+    #[test]
+    fn test_wrong_addr_ignored() {
+        let mut reply = vec![0x01u8, 0x03, 0x08];
+        reply.extend_from_slice(&(-2.083f32).to_be_bytes());
+        reply.extend_from_slice(&1.485f32.to_be_bytes());
+        let crc = crc16_modbus(&reply);
+        reply.push((crc & 0xFF) as u8);
+        reply.push((crc >> 8) as u8);
+        // 缓冲里只有地址不符的帧 → 无合法帧，报错丢弃
+        assert!(matches!(parse_angle_stream(&reply), Err((n, _)) if n >= 1));
+    }
+
     /// 分包到达：先到 6 字节（不足），续传后完整解析
     #[test]
     fn test_fragmented_frame() {
-        let reply = [
-            0x01u8, 0x03, 0x08, 0xC0, 0x05, 0x4F, 0xDF, 0x3F, 0xBE, 0x14, 0x7B, 0x74, 0x78,
-        ];
+        let reply = make_reply(-2.083, 1.485);
         let (first, rest) = reply.split_at(6);
         assert!(parse_angle_stream(first).unwrap().is_none());
         let mut buf = first.to_vec();
@@ -149,9 +171,7 @@ mod tests {
     #[test]
     fn test_prefix_noise_before_frame() {
         let mut buf = vec![0x88, 0x07, 0x00, 0x00, 0x00, 0x00, 0x00, 0x55];
-        buf.extend_from_slice(&[
-            0x01u8, 0x03, 0x08, 0xC0, 0x05, 0x4F, 0xDF, 0x3F, 0xBE, 0x14, 0x7B, 0x74, 0x78,
-        ]);
+        buf.extend_from_slice(&make_reply(-2.083, 1.485));
         let (angle, consumed) = parse_angle_stream(&buf).unwrap().expect("should parse");
         assert_eq!(consumed, buf.len());
         assert!((angle.angle_x - (-2.083)).abs() < 1e-6);
@@ -160,25 +180,21 @@ mod tests {
     /// CRC 错误的帧不解析
     #[test]
     fn test_reject_bad_crc() {
-        let mut reply = vec![
-            0x01u8, 0x03, 0x08, 0xC0, 0x05, 0x4F, 0xDF, 0x3F, 0xBE, 0x14, 0x7B, 0x74, 0x79, // CRC 错
-        ];
-        // 头唯一且 CRC 错 → 报错丢弃
+        let mut reply = make_reply(-2.083, 1.485);
+        *reply.last_mut().unwrap() ^= 0xFF; // 破坏 CRC
         match parse_angle_stream(&reply.clone()) {
             Err((dropped, _)) => assert!(dropped >= 1),
             Ok(_) => panic!("bad CRC should not parse"),
         }
-        reply[12] = 0x78;
-        assert!(parse_angle_stream(&reply).unwrap().is_some());
+        // 恢复后可解析
+        let good = make_reply(-2.083, 1.485);
+        assert!(parse_angle_stream(&good).unwrap().is_some());
     }
 
-    /// 零角度帧：00 00 00 00 / 00 00 00 00
+    /// 零角度帧
     #[test]
     fn test_zero_angles() {
-        let mut frame = vec![0x01, 0x03, 0x08, 0, 0, 0, 0, 0, 0, 0, 0];
-        let crc = crc16_modbus(&frame);
-        frame.push((crc & 0xFF) as u8);
-        frame.push((crc >> 8) as u8);
+        let frame = make_reply(0.0, 0.0);
         let (angle, _) = parse_angle_stream(&frame).unwrap().expect("should parse");
         assert_eq!(angle.angle_x, 0.0);
         assert_eq!(angle.angle_y, 0.0);

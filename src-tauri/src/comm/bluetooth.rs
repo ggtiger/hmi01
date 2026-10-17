@@ -199,12 +199,23 @@ impl ForceManager {
     /// 全链路带超时（CoreBluetooth 在设备不可达时 connect() 会永久挂起，
     /// 无超时会导致前端 invoke 不返回、按钮永久禁用），任一步失败即清理
     /// 通道状态并上报，保证可立即重试。
+    ///
+    /// 设备查找：适配器缓存中没有该 id 时（应用重启后/断开较久后缓存为空）
+    /// 自动扫描 3 秒再找，用户无需手动点「扫描」即可重连。
     pub async fn connect(&self, channel: &str, device_id: &str, app: AppHandle) -> Result<(), String> {
         let channel = Self::normalize_channel(channel)?;
         let adapter = self.ensure_adapter().await?;
 
         // 若该通道已连接，先断开
         let _ = self.disconnect(&channel, app.clone()).await;
+
+        // 用平台标识匹配（macOS 不暴露 MAC，address 全零不可用）
+        let find_by_id = |peripherals: &[btleplug::platform::Peripheral]| {
+            peripherals
+                .iter()
+                .find(|p| p.id().to_string() == device_id)
+                .cloned()
+        };
 
         let peripherals = tokio::time::timeout(
             tokio::time::Duration::from_secs(5),
@@ -213,18 +224,36 @@ impl ForceManager {
         .await
         .map_err(|_| "获取设备列表超时".to_string())?
         .map_err(|e| format!("获取设备列表失败: {}", e))?;
+        let mut target = find_by_id(&peripherals);
 
-        // 用平台标识匹配（macOS 不暴露 MAC，address 全零不可用）
-        let mut target: Option<Peripheral> = None;
-        for p in peripherals {
-            if p.id().to_string() == device_id {
-                target = Some(p);
-                break;
+        // 缓存中没有 → 自动扫描 3 秒再找（重连开箱即用）
+        if target.is_none() {
+            log::info!(
+                "[Force:{}] 设备不在适配器缓存中，自动扫描 3 秒...",
+                channel
+            );
+            let scan_result = tokio::time::timeout(
+                tokio::time::Duration::from_secs(8),
+                async {
+                    adapter.start_scan(ScanFilter::default()).await?;
+                    tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
+                    adapter.stop_scan().await?;
+                    adapter.peripherals().await
+                },
+            )
+            .await;
+            match scan_result {
+                Ok(Ok(peripherals)) => {
+                    target = find_by_id(&peripherals);
+                }
+                Ok(Err(e)) => log::warn!("[Force:{}] 自动扫描失败: {}", channel, e),
+                Err(_) => log::warn!("[Force:{}] 自动扫描超时", channel),
             }
         }
+
         let peripheral = target.ok_or_else(|| {
             format!(
-                "未找到设备 {}（设备可能已下线，请重新扫描后再连接）",
+                "未找到设备 {}（设备可能已下线或不可达，请确认已开机后重试）",
                 &device_id[..8.min(device_id.len())]
             )
         })?;
