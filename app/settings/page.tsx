@@ -73,42 +73,61 @@ export default function SettingsPage() {
                 <span className="font-label-sm text-on-surface-variant flex-1 truncate">
                   {st.isConnected ? st.deviceName : '未连接'}
                 </span>
-                <span className="monospaced-data font-label-bold text-[13px]">
-                  实时 {fmtNum(st.isConnected ? st.latest?.weightN ?? null : null, 2)} N
-                </span>
-                <span className="monospaced-data font-label-sm text-outline">
-                  系数 {st.isConnected && st.latest ? (st.latest.weightN / (st.latest.weightG / 1000 * 9.80665 || 1)).toFixed(4) : '--'}
-                </span>
-                <button
-                  onClick={() => forceActions.zero(ch).catch(() => {})}
-                  disabled={!st.isConnected}
-                  className="ui-action-btn ui-action-btn-ghost !px-2 !py-0.5 !text-[11px]"
-                >
-                  清零
-                </button>
-                <input
-                  value={calWeights[ch]}
-                  onChange={(e) => setCalWeights((p) => ({ ...p, [ch]: e.target.value }))}
-                  inputMode="numeric"
-                  placeholder="砝码 g"
-                  disabled={!st.isConnected}
-                  className="ui-input w-20 !py-0.5 text-center"
-                />
-                <button
-                  onClick={() => {
-                    const w = Number(calWeights[ch])
-                    if (Number.isFinite(w) && w > 0) forceActions.calibrate(ch, Math.round(w)).catch(() => {})
-                  }}
-                  disabled={!st.isConnected || !calWeights[ch]}
-                  className="ui-action-btn !px-2 !py-0.5 !text-[11px]"
-                >
-                  校准
-                </button>
+                {ch === 'STEER' ? (
+                  <>
+                    <span className="monospaced-data font-label-bold text-[13px]">
+                      X {fmtNum(st.isConnected ? st.latestAngle?.angleX ?? null : null, 3)}°
+                    </span>
+                    <span className="monospaced-data font-label-bold text-[13px]">
+                      Y {fmtNum(st.isConnected ? st.latestAngle?.angleY ?? null : null, 3)}°
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <span className="monospaced-data font-label-bold text-[13px]">
+                      实时 {fmtNum(st.isConnected ? st.latest?.weightN ?? null : null, 2)} N
+                    </span>
+                    <span className="monospaced-data font-label-sm text-outline">
+                      系数 {st.isConnected && st.latest ? (st.latest.weightN / (st.latest.weightG / 1000 * 9.80665 || 1)).toFixed(4) : '--'}
+                    </span>
+                  </>
+                )}
+                {ch !== 'STEER' && (
+                  <button
+                    onClick={() => forceActions.zero(ch).catch(() => {})}
+                    disabled={!st.isConnected}
+                    className="ui-action-btn ui-action-btn-ghost !px-2 !py-0.5 !text-[11px]"
+                  >
+                    清零
+                  </button>
+                )}
+                {ch !== 'STEER' && (
+                  <>
+                    <input
+                      value={calWeights[ch]}
+                      onChange={(e) => setCalWeights((p) => ({ ...p, [ch]: e.target.value }))}
+                      inputMode="numeric"
+                      placeholder="砝码 g"
+                      disabled={!st.isConnected}
+                      className="ui-input w-20 !py-0.5 text-center"
+                    />
+                    <button
+                      onClick={() => {
+                        const w = Number(calWeights[ch])
+                        if (Number.isFinite(w) && w > 0) forceActions.calibrate(ch, Math.round(w)).catch(() => {})
+                      }}
+                      disabled={!st.isConnected || !calWeights[ch]}
+                      className="ui-action-btn !px-2 !py-0.5 !text-[11px]"
+                    >
+                      校准
+                    </button>
+                  </>
+                )}
               </div>
             )
           })}
           <div className="font-label-sm text-outline">
-            三个 BLE 力值模块独立连接；清零 = 零点校准，校准 = 砝码标定（需放置对应重量砝码后执行）
+            三个 BLE 模块独立连接；转向角通道为 Modbus RTU 倾角传感器（10Hz 轮询读 X/Y 角度）；力值通道清零 = 零点校准，校准 = 砝码标定
           </div>
         </div>
       </IndustrialCard>

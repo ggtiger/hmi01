@@ -128,43 +128,51 @@ export default function ForceModal({ open, onClose }: ForceModalProps) {
             </div>
           )}
 
-          {/* 三通道状态卡 */}
+          {/* 三通道状态卡（STEER 为角度通道，显示角度 X/Y） */}
           {CHANNELS.map((ch) => {
             const st = states[ch]
+            const isSteer = ch === 'STEER'
             return (
               <div key={ch} className="rounded-[10px] border border-surface-variant overflow-hidden">
                 <div className={`flex items-center justify-between px-3 py-2 ${st.isConnected ? 'bg-emerald-50' : 'bg-slate-50'}`}>
                   <div className="flex items-center gap-2 min-w-0">
                     <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${st.isConnected ? 'bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.6)]' : 'bg-slate-300'}`} />
-                    <span className="font-label-bold text-[13px]">{FORCE_CHANNEL_LABELS[ch]}</span>
+                    <span className="font-label-bold text-[13px] whitespace-nowrap">{FORCE_CHANNEL_LABELS[ch]}</span>
                     <span className="font-label-sm text-outline truncate">
                       {st.isConnected ? `${st.deviceName}（${displayAddr(st.deviceAddress)}）` : '未连接'}
                     </span>
                   </div>
                   <div className="flex items-center gap-1.5 flex-shrink-0">
-                    <span className="ui-data-box !py-0.5 !px-2">
-                      <span className="ui-label text-[11px]">力值</span>
-                      <span className="ui-value !text-[13px]">
-                        {fmtNum(st.latest?.weightN ?? null, 2)} N
-                      </span>
-                    </span>
-                    {st.isConnected && !st.latest && debugInfo[ch] && (
-                      <span
-                        className="font-label-sm text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-0.5 max-w-[280px] truncate"
-                        title={debugInfo[ch]}
-                      >
-                        {debugInfo[ch]}
+                    {isSteer ? (
+                      <>
+                        <span className="ui-data-box !py-0.5 !px-2">
+                          <span className="ui-label text-[11px]">角度 X</span>
+                          <span className="ui-value !text-[13px]">{fmtNum(st.latestAngle?.angleX ?? null, 3)}°</span>
+                        </span>
+                        <span className="ui-data-box !py-0.5 !px-2">
+                          <span className="ui-label text-[11px]">角度 Y</span>
+                          <span className="ui-value !text-[13px]">{fmtNum(st.latestAngle?.angleY ?? null, 3)}°</span>
+                        </span>
+                      </>
+                    ) : (
+                      <span className="ui-data-box !py-0.5 !px-2">
+                        <span className="ui-label text-[11px]">力值</span>
+                        <span className="ui-value !text-[13px]">
+                          {fmtNum(st.latest?.weightN ?? null, 2)} N
+                        </span>
                       </span>
                     )}
                     {st.isConnected ? (
                       <>
-                        <button
-                          onClick={() => actions.zero(ch).catch(() => {})}
-                          disabled={busy === ch}
-                          className="ui-action-btn ui-action-btn-ghost !px-2 !py-0.5 !text-[11px]"
-                        >
-                          清零
-                        </button>
+                        {!isSteer && (
+                          <button
+                            onClick={() => actions.zero(ch).catch(() => {})}
+                            disabled={busy === ch}
+                            className="ui-action-btn ui-action-btn-ghost !px-2 !py-0.5 !text-[11px]"
+                          >
+                            清零
+                          </button>
+                        )}
                         <button
                           onClick={() => handleDisconnect(ch)}
                           disabled={busy === ch}
@@ -186,8 +194,15 @@ export default function ForceModal({ open, onClose }: ForceModalProps) {
                   </div>
                 </div>
 
-                {/* 校准区（已连接时展开） */}
-                {st.isConnected && (
+                {/* 诊断信息（完整显示，不截断） */}
+                {st.isConnected && debugInfo[ch] && (
+                  <div className="px-3 py-1.5 border-t border-amber-200 bg-amber-50 text-amber-800 font-label-sm monospaced-data break-all">
+                    {debugInfo[ch]}
+                  </div>
+                )}
+
+                {/* 校准区（仅力值通道；已连接时展开） */}
+                {st.isConnected && !isSteer && (
                   <div className="flex items-center gap-2 px-3 py-2 border-t border-surface-variant">
                     <span className="font-label-sm text-on-surface-variant">最大力值 {fmtNum(st.maxN, 2)} N</span>
                     <button onClick={() => actions.resetMax(ch).catch(() => {})} className="font-label-sm text-outline hover:text-critical">重置</button>
