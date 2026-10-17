@@ -8,7 +8,7 @@ import IndustrialCard from '@/components/ui/IndustrialCard'
 import Button from '@/components/ui/Button'
 import ForceModal from '@/components/ui/ForceModal'
 
-const FORCE_CHANNELS: ForceChannel[] = ['A', 'B', 'STEER']
+const FORCE_CHANNELS: ForceChannel[] = ['A', 'B', 'STEER', 'SWITCH']
 
 export default function SettingsPage() {
   const { state, actions, error } = useDevice()
@@ -143,7 +143,7 @@ export default function SettingsPage() {
             )
           })}
           <div className="font-label-sm text-outline">
-            三个 BLE 模块独立连接；转向角通道为 Modbus RTU 倾角传感器（10Hz 轮询读 X/Y 角度）；力值通道清零 = 零点校准，校准 = 砝码标定
+            四个 BLE 模块独立连接；转向角通道为 Modbus RTU 倾角传感器（10Hz 轮询读 X/Y 角度）；二路开关为 EE 协议（继电器控制）；力值通道清零 = 零点校准，校准 = 砝码标定
           </div>
         </div>
       </IndustrialCard>

@@ -6,7 +6,7 @@ import type { ForceChannel, ForceDeviceInfo } from '@/lib/comm/types'
 import { FORCE_CHANNEL_LABELS } from '@/lib/comm/types'
 import { fmtNum } from '@/lib/comm/types'
 
-const CHANNELS: ForceChannel[] = ['A', 'B', 'STEER']
+const CHANNELS: ForceChannel[] = ['A', 'B', 'STEER', 'SWITCH']
 const LAST_ADDR_KEY = 'xdesin-force-last-dev'
 
 interface LastDevice {
