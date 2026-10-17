@@ -15,19 +15,20 @@ pub async fn force_scan(state: State<'_, ForceState>) -> Result<Vec<ForceDeviceI
 #[tauri::command]
 pub async fn force_connect(
     channel: String,
-    address: String,
+    device_id: String,
     state: State<'_, ForceState>,
     app: AppHandle,
 ) -> Result<(), String> {
-    state.connect(&channel, &address, app).await
+    state.connect(&channel, &device_id, app).await
 }
 
 #[tauri::command]
 pub async fn force_disconnect(
     channel: String,
     state: State<'_, ForceState>,
+    app: AppHandle,
 ) -> Result<(), String> {
-    state.disconnect(&channel).await
+    state.disconnect(&channel, app).await
 }
 
 #[tauri::command]

@@ -6,8 +6,8 @@ export async function forceScan(): Promise<ForceDeviceInfo[]> {
   return invoke('force_scan');
 }
 
-export async function forceConnect(channel: ForceChannel, address: string): Promise<void> {
-  return invoke('force_connect', { channel, address });
+export async function forceConnect(channel: ForceChannel, deviceId: string): Promise<void> {
+  return invoke('force_connect', { channel, deviceId });
 }
 
 export async function forceDisconnect(channel: ForceChannel): Promise<void> {

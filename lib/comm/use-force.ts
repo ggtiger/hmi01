@@ -24,6 +24,8 @@ const initialStates: ForceStates = {
 export function useForce() {
   const [states, setStates] = useState<ForceStates>(initialStates);
   const [error, setError] = useState<string | null>(null);
+  /** 每通道最近一条诊断信息（帧解析失败等） */
+  const [debugInfo, setDebugInfo] = useState<Partial<Record<ForceChannel, string>>>({});
   const unlistenRefs = useRef<UnlistenFn[]>([]);
 
   useEffect(() => {
@@ -50,7 +52,16 @@ export function useForce() {
           setStates((prev) => ({ ...prev, [channel]: state }));
         });
 
-        unlistenRefs.current = [unlistenData, unlistenConn];
+        const unlistenDebug = await listen<{ channel: ForceChannel; message: string }>(
+          'force-debug',
+          (event) => {
+            if (!mounted) return;
+            const { channel, message } = event.payload;
+            setDebugInfo((prev) => ({ ...prev, [channel]: message }));
+          }
+        );
+
+        unlistenRefs.current = [unlistenData, unlistenConn, unlistenDebug];
 
         // 获取初始全通道状态
         const all = await ForceService.forceGetState().catch(() => null);
@@ -104,5 +115,5 @@ export function useForce() {
     [withErrorHandling]
   );
 
-  return { states, actions, error };
+  return { states, actions, error, debugInfo };
 }

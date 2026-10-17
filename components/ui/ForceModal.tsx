@@ -7,9 +7,14 @@ import { FORCE_CHANNEL_LABELS } from '@/lib/comm/types'
 import { fmtNum } from '@/lib/comm/types'
 
 const CHANNELS: ForceChannel[] = ['A', 'B', 'STEER']
-const LAST_ADDR_KEY = 'xdesin-force-last-addr'
+const LAST_ADDR_KEY = 'xdesin-force-last-dev'
 
-function loadLastAddrs(): Partial<Record<ForceChannel, string>> {
+interface LastDevice {
+  id: string
+  name: string
+}
+
+function loadLastAddrs(): Partial<Record<ForceChannel, LastDevice>> {
   try {
     return JSON.parse(localStorage.getItem(LAST_ADDR_KEY) || '{}')
   } catch {
@@ -17,10 +22,15 @@ function loadLastAddrs(): Partial<Record<ForceChannel, string>> {
   }
 }
 
-function saveLastAddr(channel: ForceChannel, address: string) {
+function saveLastAddr(channel: ForceChannel, dev: LastDevice) {
   const addrs = loadLastAddrs()
-  addrs[channel] = address
+  addrs[channel] = dev
   localStorage.setItem(LAST_ADDR_KEY, JSON.stringify(addrs))
+}
+
+/** macOS 上地址全零，显示占位 */
+function displayAddr(address: string): string {
+  return !address || /^0{2}(:0{2}){5}$/.test(address) ? '—' : address
 }
 
 interface ForceModalProps {
@@ -33,13 +43,13 @@ interface ForceModalProps {
  * 扫描 → 选择通道连接 / 断开 / 清零 / 校准
  */
 export default function ForceModal({ open, onClose }: ForceModalProps) {
-  const { states, actions, error } = useForce()
+  const { states, actions, error, debugInfo } = useForce()
   const [devices, setDevices] = useState<ForceDeviceInfo[]>([])
   const [scanning, setScanning] = useState(false)
   const [pickChannel, setPickChannel] = useState<ForceChannel>('A')
   const [calWeight, setCalWeight] = useState<Record<ForceChannel, string>>({ A: '', B: '', STEER: '' })
   const [busy, setBusy] = useState<string | null>(null)
-  const [lastAddrs, setLastAddrs] = useState<Partial<Record<ForceChannel, string>>>({})
+  const [lastAddrs, setLastAddrs] = useState<Partial<Record<ForceChannel, LastDevice>>>({})
 
   useEffect(() => {
     if (open) {
@@ -62,13 +72,13 @@ export default function ForceModal({ open, onClose }: ForceModalProps) {
     }
   }
 
-  const handleConnect = async (channel: ForceChannel, address: string) => {
+  const handleConnect = async (channel: ForceChannel, deviceId: string, name: string) => {
     setBusy(channel)
-    // 点击即记录地址：连接失败也显示「重连」按钮，可直接重试
-    saveLastAddr(channel, address)
+    // 点击即记录设备：连接失败也显示「重连」按钮，可直接重试
+    saveLastAddr(channel, { id: deviceId, name })
     setLastAddrs(loadLastAddrs())
     try {
-      await actions.connect(channel, address)
+      await actions.connect(channel, deviceId)
     } catch {
       /* 错误已记录展示，通道状态由 Rust 侧清理并推送 */
     } finally {
@@ -128,7 +138,7 @@ export default function ForceModal({ open, onClose }: ForceModalProps) {
                     <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${st.isConnected ? 'bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.6)]' : 'bg-slate-300'}`} />
                     <span className="font-label-bold text-[13px]">{FORCE_CHANNEL_LABELS[ch]}</span>
                     <span className="font-label-sm text-outline truncate">
-                      {st.isConnected ? `${st.deviceName} (${st.deviceAddress})` : '未连接'}
+                      {st.isConnected ? `${st.deviceName}（${displayAddr(st.deviceAddress)}）` : '未连接'}
                     </span>
                   </div>
                   <div className="flex items-center gap-1.5 flex-shrink-0">
@@ -138,6 +148,14 @@ export default function ForceModal({ open, onClose }: ForceModalProps) {
                         {fmtNum(st.latest?.weightN ?? null, 2)} N
                       </span>
                     </span>
+                    {st.isConnected && !st.latest && debugInfo[ch] && (
+                      <span
+                        className="font-label-sm text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-0.5 max-w-[280px] truncate"
+                        title={debugInfo[ch]}
+                      >
+                        {debugInfo[ch]}
+                      </span>
+                    )}
                     {st.isConnected ? (
                       <>
                         <button
@@ -157,10 +175,10 @@ export default function ForceModal({ open, onClose }: ForceModalProps) {
                       </>
                     ) : lastAddrs[ch] ? (
                       <button
-                        onClick={() => handleConnect(ch, lastAddrs[ch]!)}
+                        onClick={() => handleConnect(ch, lastAddrs[ch]!.id, lastAddrs[ch]!.name)}
                         disabled={busy === ch}
                         className="ui-action-btn !px-2 !py-0.5 !text-[11px]"
-                        title={`重连上次设备 ${lastAddrs[ch]}`}
+                        title={`重连上次设备 ${lastAddrs[ch]!.name}`}
                       >
                         {busy === ch ? '连接中...' : '重连'}
                       </button>
@@ -225,13 +243,16 @@ export default function ForceModal({ open, onClose }: ForceModalProps) {
                 </div>
               )}
               {devices.map((d) => (
-                <div key={d.address} className="flex items-center justify-between px-3 py-1.5 border-t border-surface-variant hover:bg-slate-50">
+                <div key={d.id} className="flex items-center justify-between px-3 py-1.5 border-t border-surface-variant hover:bg-slate-50">
                   <div className="min-w-0">
                     <div className="font-label-bold text-[13px] truncate">{d.name}</div>
-                    <div className="font-label-sm text-outline monospaced-data">{d.address}{d.rssi != null ? ` · ${d.rssi}dBm` : ''}</div>
+                    <div className="font-label-sm text-outline monospaced-data">
+                      {d.rssi != null ? `${d.rssi}dBm` : ''}
+                      {d.rssi != null && d.rssi < -80 ? ' · 信号弱' : ''}
+                    </div>
                   </div>
                   <button
-                    onClick={() => handleConnect(pickChannel, d.address)}
+                    onClick={() => handleConnect(pickChannel, d.id, d.name)}
                     disabled={busy !== null}
                     className="ui-action-btn !px-3 !py-0.5 !text-[12px] flex-shrink-0"
                   >

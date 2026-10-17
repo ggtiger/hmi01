@@ -140,6 +140,8 @@ export interface ForceData {
 
 /** BLE 设备扫描结果 */
 export interface ForceDeviceInfo {
+  /** 平台设备标识（macOS 为 CoreBluetooth UUID，连接用；address 在 macOS 全零） */
+  id: string;
   name: string;
   address: string;
   rssi: number | null;

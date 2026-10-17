@@ -31,7 +31,10 @@ pub const CHANNELS: [&str; 3] = ["A", "B", "STEER"];
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ForceDeviceInfo {
+    /// 平台设备标识（macOS 上是 CoreBluetooth UUID；地址在 macOS 全零不可用于匹配）
+    pub id: String,
     pub name: String,
+    /// 显示用（macOS 上为全零，前端应显示占位）
     pub address: String,
     pub rssi: Option<i16>,
 }
@@ -163,6 +166,7 @@ impl ForceManager {
                 let name = props.local_name.unwrap_or_default();
                 if !name.is_empty() {
                     devices.push(ForceDeviceInfo {
+                        id: p.id().to_string(),
                         name,
                         address: props.address.to_string(),
                         rssi: props.rssi,
@@ -174,17 +178,17 @@ impl ForceManager {
         Ok(devices)
     }
 
-    /// 连接指定通道到指定地址
+    /// 连接指定通道到指定设备（device_id = scan 返回的平台标识）
     ///
     /// 全链路带超时（CoreBluetooth 在设备不可达时 connect() 会永久挂起，
     /// 无超时会导致前端 invoke 不返回、按钮永久禁用），任一步失败即清理
     /// 通道状态并上报，保证可立即重试。
-    pub async fn connect(&self, channel: &str, address: &str, app: AppHandle) -> Result<(), String> {
+    pub async fn connect(&self, channel: &str, device_id: &str, app: AppHandle) -> Result<(), String> {
         let channel = Self::normalize_channel(channel)?;
         let adapter = self.ensure_adapter().await?;
 
         // 若该通道已连接，先断开
-        let _ = self.disconnect(&channel).await;
+        let _ = self.disconnect(&channel, app.clone()).await;
 
         let peripherals = tokio::time::timeout(
             tokio::time::Duration::from_secs(5),
@@ -194,23 +198,22 @@ impl ForceManager {
         .map_err(|_| "获取设备列表超时".to_string())?
         .map_err(|e| format!("获取设备列表失败: {}", e))?;
 
+        // 用平台标识匹配（macOS 不暴露 MAC，address 全零不可用）
         let mut target: Option<Peripheral> = None;
         for p in peripherals {
-            if let Ok(Some(props)) = p.properties().await {
-                if props.address.to_string() == address {
-                    target = Some(p);
-                    break;
-                }
+            if p.id().to_string() == device_id {
+                target = Some(p);
+                break;
             }
         }
         let peripheral = target.ok_or_else(|| {
             format!(
-                "未找到设备: {}（设备可能已下线，请重新扫描后再连接）",
-                address
+                "未找到设备 {}（设备可能已下线，请重新扫描后再连接）",
+                &device_id[..8.min(device_id.len())]
             )
         })?;
 
-        log::info!("[Force:{}] 正在连接设备: {}", channel, address);
+        log::info!("[Force:{}] 正在连接设备: {}", channel, device_id);
 
         // connect 带超时：设备关机/超范围时 CoreBluetooth 会无限等待
         match tokio::time::timeout(
@@ -323,9 +326,11 @@ impl ForceManager {
         }
 
         let device_name = if let Ok(Some(props)) = peripheral.properties().await {
-            props.local_name.unwrap_or_else(|| address.to_string())
+            props
+                .local_name
+                .unwrap_or_else(|| format!("设备 {}", &device_id[..8.min(device_id.len())]))
         } else {
-            address.to_string()
+            format!("设备 {}", &device_id[..8.min(device_id.len())])
         };
 
         // 探测写入触发 Windows 配对（SSTS 成熟模式）
@@ -352,7 +357,7 @@ impl ForceManager {
             inner.notify_char = Some(notify_c);
             inner.is_connected = true;
             inner.device_name = device_name.clone();
-            inner.device_address = address.to_string();
+            inner.device_address = device_id.to_string();
             inner.latest = None;
             inner.max_n = 0.0;
             let _ = app.emit(
@@ -364,7 +369,7 @@ impl ForceManager {
             );
         }
 
-        log::info!("[Force:{}] 设备已连接: {} ({})", channel, device_name, address);
+        log::info!("[Force:{}] 设备已连接: {} ({})", channel, device_name, device_id);
 
         // 启动通知接收循环
         let channels_arc = self.channels.clone();
@@ -432,6 +437,23 @@ impl ForceManager {
                         "[Force:{}] 帧解析失败: {}, 原始数据: {:02X?}",
                         channel, e, &notification.value
                     );
+                    // 诊断事件（节流 1s）：前端可见设备实际发送的数据
+                    let now = Instant::now();
+                    if now.duration_since(last_emit) >= std::time::Duration::from_millis(1000) {
+                        let _ = app.emit(
+                            "force-debug",
+                            serde_json::json!({
+                                "channel": channel,
+                                "message": format!(
+                                    "收到 {} 字节但非有效帧（{}）: {:02X?}——可能不是力值模块",
+                                    notification.value.len(),
+                                    e,
+                                    &notification.value[..notification.value.len().min(16)]
+                                ),
+                            }),
+                        );
+                        last_emit = now;
+                    }
                 }
             }
         }
@@ -488,25 +510,61 @@ impl ForceManager {
     }
 
     /// 断开指定通道
-    pub async fn disconnect(&self, channel: &str) -> Result<(), String> {
+    ///
+    /// 先立即标记断开（通知循环自动退出、UI 即时恢复），底层
+    /// unsubscribe/disconnect 全部带超时且 best-effort——CoreBluetooth
+    /// 对无响应设备执行这些操作同样可能挂起，绝不能阻塞命令返回。
+    pub async fn disconnect(&self, channel: &str, app: AppHandle) -> Result<(), String> {
         let channel = Self::normalize_channel(channel)?;
 
-        let (peripheral, notify_c) = {
-            let channels = self.channels.lock().await;
-            let inner = channels.get(&channel).expect("channel exists");
-            (inner.peripheral.clone(), inner.notify_char.clone())
+        // 1. 立即标记断开并取出 peripheral（通知循环检测到 is_connected=false 自动退出）
+        let (peripheral, notify_c, device_name) = {
+            let mut channels = self.channels.lock().await;
+            let inner = channels.get_mut(&channel).expect("channel exists");
+            inner.is_connected = false;
+            let p = inner.peripheral.take();
+            inner.write_char = None;
+            let nc = inner.notify_char.take();
+            inner.latest = None;
+            let name = inner.device_name.clone();
+            inner.device_name.clear();
+            inner.device_address.clear();
+            (p, nc, name)
         };
 
-        if let Some(peripheral) = peripheral {
-            if let Some(ref nc) = notify_c {
-                let _ = peripheral.unsubscribe(nc).await;
+        // 2. 推送状态（UI 即时恢复为未连接）
+        {
+            let channels = self.channels.lock().await;
+            if let Some(inner) = channels.get(&channel) {
+                let _ = app.emit(
+                    "force-connection-changed",
+                    ForceConnectionEvent {
+                        channel: channel.clone(),
+                        state: inner.public_state(),
+                    },
+                );
             }
-            peripheral
-                .disconnect()
-                .await
-                .map_err(|e| format!("断开连接失败: {}", e))?;
         }
 
+        log::info!("[Force:{}] 已标记断开，开始底层清理: {}", channel, device_name);
+
+        // 3. best-effort 底层清理（带超时，失败/超时都直接放行）
+        if let Some(peripheral) = peripheral {
+            if let Some(ref nc) = notify_c {
+                let _ = tokio::time::timeout(
+                    tokio::time::Duration::from_secs(3),
+                    peripheral.unsubscribe(nc),
+                )
+                .await;
+            }
+            let _ = tokio::time::timeout(
+                tokio::time::Duration::from_secs(5),
+                peripheral.disconnect(),
+            )
+            .await;
+        }
+
+        log::info!("[Force:{}] 底层清理完成", channel);
         Ok(())
     }
 
@@ -576,20 +634,36 @@ impl ForceManager {
             }
         };
 
+        // 写入带 5s 超时（挂起的 write 同样会阻塞命令返回）
+        async fn try_write(
+            peripheral: &Peripheral,
+            write_c: &Characteristic,
+            data: &[u8],
+            wt: WriteType,
+        ) -> Result<Result<(), btleplug::Error>, tokio::time::error::Elapsed> {
+            tokio::time::timeout(
+                tokio::time::Duration::from_secs(5),
+                peripheral.write(write_c, data, wt),
+            )
+            .await
+        }
+
         let mut last_error = String::new();
         for write_type in &write_types {
-            match peripheral.write(&write_c, data, *write_type).await {
-                Ok(_) => return Ok(()),
-                Err(e) => last_error = format!("{}", e),
+            match try_write(&peripheral, &write_c, data, *write_type).await {
+                Ok(Ok(())) => return Ok(()),
+                Ok(Err(e)) => last_error = format!("{}", e),
+                Err(_) => last_error = "写入超时（5 秒）".to_string(),
             }
         }
 
         // 首轮失败延迟重试（Windows 配对延迟 / GATT 缓存未同步）
         tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
         for write_type in &write_types {
-            match peripheral.write(&write_c, data, *write_type).await {
-                Ok(_) => return Ok(()),
-                Err(e) => last_error = format!("{}", e),
+            match try_write(&peripheral, &write_c, data, *write_type).await {
+                Ok(Ok(())) => return Ok(()),
+                Ok(Err(e)) => last_error = format!("{}", e),
+                Err(_) => last_error = "写入超时（5 秒）".to_string(),
             }
         }
 
