@@ -44,3 +44,12 @@ export async function forceSendRaw(channel: ForceChannel, hex: string): Promise<
 export async function forceRawMonitor(channel: ForceChannel, on: boolean): Promise<void> {
   return invoke('force_raw_monitor', { channel, on });
 }
+
+/** 二路开关控制：action = on | off | momentary | query | delay_on | delay_off */
+export async function forceSwitchControl(
+  relay: 1 | 2,
+  action: 'on' | 'off' | 'momentary' | 'query' | 'delay_on' | 'delay_off',
+  seconds?: number
+): Promise<void> {
+  return invoke('force_switch_control', { relay, action, seconds: seconds ?? null });
+}

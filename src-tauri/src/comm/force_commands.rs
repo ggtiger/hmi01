@@ -106,3 +106,37 @@ pub async fn force_raw_monitor(
 ) -> Result<(), String> {
     state.set_raw_monitor(&channel, on).await
 }
+
+/// 二路开关控制（EE 协议，SWITCH 通道）
+///
+/// action: "on" | "off" | "momentary"（点动约 2s）| "query"（查询当前值）
+/// relay: 1 / 2；seconds: 延迟秒数（延迟开/关预留，action 为 delay_on/delay_off 时生效）
+#[tauri::command]
+pub async fn force_switch_control(
+    relay: u8,
+    action: String,
+    seconds: Option<u16>,
+    state: State<'_, ForceState>,
+) -> Result<(), String> {
+    if !(1..=2).contains(&relay) {
+        return Err("路数仅支持 1/2".into());
+    }
+    let frame = match action.as_str() {
+        "on" => super::switch_protocol::build_switch(relay, true),
+        "off" => super::switch_protocol::build_switch(relay, false),
+        "momentary" => super::switch_protocol::build_momentary(relay),
+        "query" => super::switch_protocol::build_query(),
+        "delay_on" => super::switch_protocol::build_delayed(
+            relay,
+            true,
+            seconds.ok_or("缺少延迟秒数")?,
+        ),
+        "delay_off" => super::switch_protocol::build_delayed(
+            relay,
+            false,
+            seconds.ok_or("缺少延迟秒数")?,
+        ),
+        other => return Err(format!("未知开关操作: {}", other)),
+    };
+    state.send_raw_bytes("SWITCH", &frame).await
+}

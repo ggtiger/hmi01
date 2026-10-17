@@ -118,14 +118,15 @@ export function pulsesToMm(pulses: number | null, pulsesPerMm = 320): number | n
   return pulses / pulsesPerMm;
 }
 
-// ===== 三通道 BLE 力值模块 =====
+// ===== 四通道 BLE 模块（力值 ×2 / 转向角 / 二路开关） =====
 
-export type ForceChannel = 'A' | 'B' | 'STEER';
+export type ForceChannel = 'A' | 'B' | 'STEER' | 'SWITCH';
 
 export const FORCE_CHANNEL_LABELS: Record<ForceChannel, string> = {
   A: '模块 A（踏板 A 加载力）',
   B: '模块 B（踏板 B 加载力）',
-  STEER: '转向角（转盘力值）',
+  STEER: '转向角（倾角传感器）',
+  SWITCH: '二路开关（加载控制）',
 };
 
 /** 力值数据（与 Rust ScaleData 对应，camelCase） */
@@ -162,6 +163,8 @@ export interface ForceChannelState {
   maxN: number;
   /** STEER 通道：最新倾角 */
   latestAngle: AngleData | null;
+  /** SWITCH 通道：开关状态 */
+  switchState: SwitchState | null;
 }
 
 /** force-data 事件负载 */
@@ -183,4 +186,15 @@ export const DEFAULT_FORCE_STATE: ForceChannelState = {
   latest: null,
   maxN: 0,
   latestAngle: null,
+  switchState: null,
 };
+
+// ===== 二路开关模块（SWITCH 通道，EE 协议） =====
+
+/** 开关状态（单路） */
+export interface SwitchState {
+  relay: number;
+  immediate: boolean;
+  on: boolean;
+  delaySecs: number;
+}

@@ -14,6 +14,7 @@ const initialStates: ForceStates = {
   A: { ...DEFAULT_FORCE_STATE },
   B: { ...DEFAULT_FORCE_STATE },
   STEER: { ...DEFAULT_FORCE_STATE },
+  SWITCH: { ...DEFAULT_FORCE_STATE },
 };
 
 /**
@@ -77,7 +78,19 @@ export function useForce() {
           }));
         });
 
-        unlistenRefs.current = [unlistenData, unlistenConn, unlistenDebug, unlistenAngle];
+        const unlistenSwitch = await listen<{
+          channel: ForceChannel;
+          state: { relay: number; immediate: boolean; on: boolean; delaySecs: number };
+        }>('switch-state', (event) => {
+          if (!mounted) return;
+          const { channel, state } = event.payload;
+          setStates((prev) => ({
+            ...prev,
+            [channel]: { ...prev[channel], switchState: state },
+          }));
+        });
+
+        unlistenRefs.current = [unlistenData, unlistenConn, unlistenDebug, unlistenAngle, unlistenSwitch];
 
         // 获取初始全通道状态
         const all = await ForceService.forceGetState().catch(() => null);
@@ -86,6 +99,7 @@ export function useForce() {
             A: all['A'] ?? prev.A,
             B: all['B'] ?? prev.B,
             STEER: all['STEER'] ?? prev.STEER,
+            SWITCH: all['SWITCH'] ?? prev.SWITCH,
           }));
         }
       } catch (e) {
@@ -128,6 +142,7 @@ export function useForce() {
       resetMax: withErrorHandling(ForceService.forceResetMax),
       sendRaw: withErrorHandling(ForceService.forceSendRaw),
       rawMonitor: withErrorHandling(ForceService.forceRawMonitor),
+      switchControl: withErrorHandling(ForceService.forceSwitchControl),
       clearError: () => setError(null),
     }),
     [withErrorHandling]

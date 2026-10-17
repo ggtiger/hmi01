@@ -47,7 +47,7 @@ export default function ForceModal({ open, onClose }: ForceModalProps) {
   const [devices, setDevices] = useState<ForceDeviceInfo[]>([])
   const [scanning, setScanning] = useState(false)
   const [pickChannel, setPickChannel] = useState<ForceChannel>('A')
-  const [calWeight, setCalWeight] = useState<Record<ForceChannel, string>>({ A: '', B: '', STEER: '' })
+  const [calWeight, setCalWeight] = useState<Record<ForceChannel, string>>({ A: '', B: '', STEER: '', SWITCH: '' })
   const [busy, setBusy] = useState<string | null>(null)
   const [lastAddrs, setLastAddrs] = useState<Partial<Record<ForceChannel, LastDevice>>>({})
   const [rawMonitor, setRawMonitor] = useState<Partial<Record<ForceChannel, boolean>>>({})
@@ -155,6 +155,24 @@ export default function ForceModal({ open, onClose }: ForceModalProps) {
                           <span className="ui-value !text-[13px]">{fmtNum(st.latestAngle?.angleY ?? null, 3)}°</span>
                         </span>
                       </>
+                    ) : ch === 'SWITCH' ? (
+                      <>
+                        {[1, 2].map((relay) => {
+                          const relayState =
+                            st.switchState?.relay === relay ? st.switchState : null
+                          const on = relayState?.on ?? false
+                          return (
+                            <span key={relay} className="ui-data-box !py-0.5 !px-2">
+                              <span className="ui-label text-[11px]">第{relay}路</span>
+                              <span
+                                className={`font-label-bold text-[12px] ${on ? 'text-emerald-600' : 'text-slate-400'}`}
+                              >
+                                {relayState ? (on ? '开' : '关') : '--'}
+                              </span>
+                            </span>
+                          )
+                        })}
+                      </>
                     ) : (
                       <span className="ui-data-box !py-0.5 !px-2">
                         <span className="ui-label text-[11px]">力值</span>
@@ -216,6 +234,49 @@ export default function ForceModal({ open, onClose }: ForceModalProps) {
                   setRawMonitor((p) => ({ ...p, [ch]: on }))
                   actions.rawMonitor(ch, on).catch(() => {})
                 }} />}
+
+                {/* 开关控制区（SWITCH 通道专用） */}
+                {st.isConnected && ch === 'SWITCH' && (
+                  <div className="px-3 py-2 border-t border-surface-variant space-y-1.5">
+                    <span className="font-label-bold text-[12px] text-on-surface-variant">开关控制</span>
+                    {[1, 2].map((relay) => (
+                      <div key={relay} className="flex items-center gap-1.5">
+                        <span className="font-label-bold text-[13px] w-14">第{relay}路</span>
+                        <button
+                          onClick={() => actions.switchControl(relay as 1 | 2, 'on').catch(() => {})}
+                          className="ui-action-btn !px-3 !py-0.5 !text-[11px]"
+                        >
+                          开
+                        </button>
+                        <button
+                          onClick={() => actions.switchControl(relay as 1 | 2, 'off').catch(() => {})}
+                          className="ui-action-btn ui-action-btn-ghost !px-3 !py-0.5 !text-[11px]"
+                        >
+                          关
+                        </button>
+                        <button
+                          onClick={() => actions.switchControl(relay as 1 | 2, 'momentary').catch(() => {})}
+                          className="ui-action-btn ui-action-btn-ghost !px-3 !py-0.5 !text-[11px]"
+                          title="点动：开约 2 秒后自动关"
+                        >
+                          点动
+                        </button>
+                      </div>
+                    ))}
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={() => actions.switchControl(1, 'query').catch(() => {})}
+                        className="ui-action-btn ui-action-btn-ghost !px-3 !py-0.5 !text-[11px]"
+                        title="查询当前开关状态（应答显示在调试日志）"
+                      >
+                        查询状态
+                      </button>
+                      <span className="font-label-sm text-outline">
+                        应答/上报自动更新上方状态徽标（E0 帧）
+                      </span>
+                    </div>
+                  </div>
+                )}
 
                 {/* 校准区（仅力值通道；已连接时展开） */}
                 {st.isConnected && !isSteer && (
@@ -306,6 +367,9 @@ const QUICK_HEX: { label: string; hex: string; channels: ForceChannel[] }[] = [
   { label: '读X(01)', hex: '01 03 00 01 00 02 95 CB', channels: ['STEER'] },
   { label: '读Y(01)', hex: '01 03 00 03 00 02 34 0B', channels: ['STEER'] },
   { label: '清零(AA帧)', hex: 'AA 01 03 08 A6 01 07 00', channels: ['A', 'B'] },
+  { label: '开第1路', hex: 'EE 03 E1 01 FF', channels: ['SWITCH'] },
+  { label: '关第1路', hex: 'EE 03 E1 01 00', channels: ['SWITCH'] },
+  { label: '查状态', hex: 'EE 01 E0', channels: ['SWITCH'] },
 ]
 
 /** 单通道手动调试区：原始数据监视开关 + hex 手动发送 + 快捷命令 */

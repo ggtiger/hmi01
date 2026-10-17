@@ -20,12 +20,13 @@ use tauri::Emitter;
 use tokio::sync::Mutex;
 
 use super::scale_protocol::{self, ScaleData};
+use super::switch_protocol::{self, SwitchState};
 use super::tilt_protocol::{self, AngleData};
 
 const NUS_RX_CHAR_UUID: &str = "6e400002-b5a3-f393-e0a9-e50e24dcca9e";
 const NUS_TX_CHAR_UUID: &str = "6e400003-b5a3-f393-e0a9-e50e24dcca9e";
 
-pub const CHANNELS: [&str; 3] = ["A", "B", "STEER"];
+pub const CHANNELS: [&str; 4] = ["A", "B", "STEER", "SWITCH"];
 
 // ============ 数据结构 ============
 
@@ -52,6 +53,8 @@ pub struct ForceChannelState {
     pub max_n: f64,
     /// STEER 通道：最新倾角（Modbus RTU 读角度）
     pub latest_angle: Option<AngleData>,
+    /// SWITCH 通道：两路开关状态
+    pub switch_state: Option<SwitchState>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -68,6 +71,14 @@ pub struct SteerAngleEvent {
     pub channel: String,
     pub angle_x: f64,
     pub angle_y: f64,
+}
+
+/// SWITCH 通道开关状态事件
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SwitchStateEvent {
+    pub channel: String,
+    pub state: SwitchState,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -93,6 +104,8 @@ struct ChannelInner {
     max_n: f64,
     /// STEER：最新倾角 + 接收缓冲（透传流重组）
     latest_angle: Option<AngleData>,
+    /// SWITCH：两路开关状态
+    switch_state: Option<SwitchState>,
     /// 最近一次收到角度帧的时刻（波特率校准用）
     last_angle_at: Option<Instant>,
     /// 手动调试：原始数据监视（每帧通知的原始 hex 全量上报）
@@ -109,6 +122,7 @@ impl ChannelInner {
             latest: self.latest.clone(),
             max_n: self.max_n,
             latest_angle: self.latest_angle.clone(),
+            switch_state: self.switch_state.clone(),
         }
     }
 }
@@ -460,6 +474,7 @@ impl ForceManager {
             inner.latest = None;
             inner.max_n = 0.0;
             inner.latest_angle = None;
+            inner.switch_state = None;
             inner.rx_buf.clear();
             let _ = app.emit(
                 "force-connection-changed",
@@ -770,6 +785,40 @@ impl ForceManager {
                         );
                     }
                 }
+            }
+
+            // SWITCH 通道：EE 协议开关应答解析
+            if channel == "SWITCH" {
+                match switch_protocol::parse_switch_frame(&notification.value) {
+                    Ok(Some(st)) => {
+                        let now = Instant::now();
+                        if now.duration_since(last_emit) >= throttle {
+                            {
+                                let mut guard = channels.lock().await;
+                                if let Some(inner) = guard.get_mut(&channel) {
+                                    inner.switch_state = Some(st.clone());
+                                }
+                            }
+                            let _ = app.emit(
+                                "switch-state",
+                                SwitchStateEvent {
+                                    channel: channel.clone(),
+                                    state: st,
+                                },
+                            );
+                            last_emit = now;
+                        }
+                    }
+                    Ok(None) => {} // 非本协议帧（调试模式已在上方上报）
+                    Err(e) => {
+                        let now = Instant::now();
+                        if now.duration_since(last_emit) >= std::time::Duration::from_millis(2000) {
+                            log::warn!("[Force:SWITCH] 应答解析失败: {}", e);
+                            last_emit = now;
+                        }
+                    }
+                }
+                continue;
             }
 
             // STEER 通道：Modbus RTU 倾角流解析（透传流含分帧/夹带，用缓冲重组）

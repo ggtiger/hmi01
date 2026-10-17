@@ -20,7 +20,7 @@ export default function SettingsPage() {
 
   const [plainConfirm, setPlainConfirm] = useState(false)
   const [forceModalOpen, setForceModalOpen] = useState(false)
-  const [calWeights, setCalWeights] = useState<Record<ForceChannel, string>>({ A: '', B: '', STEER: '' })
+  const [calWeights, setCalWeights] = useState<Record<ForceChannel, string>>({ A: '', B: '', STEER: '', SWITCH: '' })
   const [netSsid, setNetSsid] = useState('')
   const [netNewPass, setNetNewPass] = useState('')
   const [netOldPass, setNetOldPass] = useState('')
@@ -73,7 +73,23 @@ export default function SettingsPage() {
                 <span className="font-label-sm text-on-surface-variant flex-1 truncate">
                   {st.isConnected ? st.deviceName : '未连接'}
                 </span>
-                {ch === 'STEER' ? (
+                {ch === 'SWITCH' ? (
+                  <>
+                    {[1, 2].map((relay) => {
+                      const relayState =
+                        st.switchState?.relay === relay ? st.switchState : null
+                      const on = relayState?.on ?? false
+                      return (
+                        <span key={relay} className="monospaced-data font-label-bold text-[13px]">
+                          第{relay}路{' '}
+                          <span className={on ? 'text-emerald-600' : 'text-slate-400'}>
+                            {relayState ? (on ? '开' : '关') : '--'}
+                          </span>
+                        </span>
+                      )
+                    })}
+                  </>
+                ) : ch === 'STEER' ? (
                   <>
                     <span className="monospaced-data font-label-bold text-[13px]">
                       X {fmtNum(st.isConnected ? st.latestAngle?.angleX ?? null : null, 3)}°
