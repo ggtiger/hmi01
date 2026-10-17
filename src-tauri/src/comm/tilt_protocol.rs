@@ -1,15 +1,18 @@
-//! 倾角传感器 Modbus RTU 协议（转向角模块，经 WCH BLE 串口透传）
+//! 倾角传感器 Modbus RTU 协议（转向角模块 SCT726T-M，经 WCH BLE 串口透传）
 //!
-//! 读 X/Y 轴角度（厂商文档）：
-//! - 发送：`01 03 00 01 00 04 15 C9`
-//!   地址码(1) 功能码 0x03 读保持寄存器 寄存器地址 0x0001 数量 0x0004 CRC16(低前高后)
-//! - 应答：`01 03 08 [X Angle 4B] [Y Angle 4B] [CRC16 L] [CRC16 H]`
+//! 读 X/Y 轴角度（厂商文档 + 调试工具实测）：
+//! - 发送（本设备，从站地址 0x03）：`03 03 00 01 00 04 15 C9`
+//!   ⚠️ 固件特性：CRC 固定按地址 0x01 计算（15 C9 = `01 03 00 01 00 04` 的
+//!   标准 CRC），不随实际从站地址变化——实测工具验证，标准 CRC（14 2B）传感器不响应
+//! - 应答：`03 03 08 [X Angle 4B] [Y Angle 4B] [CRC16 L] [CRC16 H]`
 //!   角度为 IEEE754 32 位浮点，大端（高字节在前）
-//!   文档向量：0xC0054FDF = -2.083000°，0x3FBE147B = +1.485000°
+//!   文档向量（地址 01）：0xC0054FDF = -2.083000°，0x3FBE147B = +1.485000°
 
 use serde::{Deserialize, Serialize};
 
 pub const MODBUS_ADDR: u8 = 0x03;
+/// 本批传感器固件 CRC 计算时固定使用的地址（不随从站地址变化）
+const CRC_CALC_ADDR: u8 = 0x01;
 const FUNC_READ: u8 = 0x03;
 const REG_ADDR: u16 = 0x0001;
 const REG_COUNT: u16 = 0x0004;
@@ -39,6 +42,13 @@ pub fn crc16_modbus(data: &[u8]) -> u16 {
     crc
 }
 
+/// 按本批固件的 CRC 约定计算：地址字节视为 CRC_CALC_ADDR（0x01）
+fn crc16_fw(frame_with_addr: &[u8]) -> u16 {
+    let mut data = frame_with_addr.to_vec();
+    data[0] = CRC_CALC_ADDR;
+    crc16_modbus(&data)
+}
+
 /// 构建 WCH 透传模块 UART 配置帧（发往 FFF3 配置特征，WCHBLEWxJsLib 约定）
 ///
 /// 帧格式（12 字节）：`06 00 09 00 [波特率 u32 LE] [数据位] [停止位] [校验位] [累加和]`
@@ -66,7 +76,8 @@ pub fn build_wch_uart_config(baud: u32, data_bits: u8, stop_bits: u8, parity: u8
     frame
 }
 
-/// 构建读 X/Y 轴角度命令（文档向量）：`01 03 00 01 00 04 15 C9`
+/// 构建读 X/Y 轴角度命令（调试工具实测向量）：`03 03 00 01 00 04 15 C9`
+/// CRC 按固件约定（地址视为 0x01）计算
 pub fn build_read_angle_command() -> Vec<u8> {
     let mut frame = vec![
         MODBUS_ADDR,
@@ -76,13 +87,15 @@ pub fn build_read_angle_command() -> Vec<u8> {
         (REG_COUNT >> 8) as u8,
         (REG_COUNT & 0xFF) as u8,
     ];
-    let crc = crc16_modbus(&frame);
+    let crc = crc16_fw(&frame);
     frame.push((crc & 0xFF) as u8); // CRC16 L
     frame.push((crc >> 8) as u8); // CRC16 H
     frame
 }
 
 /// 从缓冲解析一帧读角度应答。
+///
+/// CRC 兼容两种（本批固件按地址 0x01 计算 / 标准 Modbus 覆盖实际地址）。
 ///
 /// 返回：
 /// - `Ok(None)`：缓冲不足一帧（等待更多数据）
@@ -102,10 +115,12 @@ pub fn parse_angle_stream(buf: &[u8]) -> Result<Option<(AngleData, usize)>, (usi
             continue;
         }
         let frame = &f[..ANGLE_REPLY_LEN];
-        // CRC：低字节在前
-        let calc = crc16_modbus(&frame[..ANGLE_REPLY_LEN - 2]);
+        // CRC：低字节在前，仅覆盖 CRC 前的字节；兼容固件约定（地址视为 01）与标准算法
+        let payload = &frame[..ANGLE_REPLY_LEN - 2];
+        let calc_fw = crc16_fw(payload);
+        let calc_std = crc16_modbus(payload);
         let recv = u16::from_le_bytes([frame[ANGLE_REPLY_LEN - 2], frame[ANGLE_REPLY_LEN - 1]]);
-        if calc != recv {
+        if calc_fw != recv && calc_std != recv {
             // 头匹配但 CRC 不对：跳过该位置继续找
             continue;
         }
@@ -136,30 +151,28 @@ pub fn parse_angle_stream(buf: &[u8]) -> Result<Option<(AngleData, usize)>, (usi
 mod tests {
     use super::*;
 
-    /// 测试辅助：按当前 MODBUS_ADDR 构造带正确 CRC 的读角度应答帧
+    /// 测试辅助：按当前 MODBUS_ADDR 构造读角度应答帧（固件 CRC：地址视为 01）
     fn make_reply(x: f32, y: f32) -> Vec<u8> {
         let mut frame = vec![MODBUS_ADDR, FUNC_READ, 0x08];
         frame.extend_from_slice(&x.to_be_bytes());
         frame.extend_from_slice(&y.to_be_bytes());
-        let crc = crc16_modbus(&frame);
+        let crc = crc16_fw(&frame);
         frame.push((crc & 0xFF) as u8);
         frame.push((crc >> 8) as u8);
         frame
     }
 
-    /// 命令构造：地址 + 读保持寄存器 + CRC 自洽
-    /// （厂商文档示例为地址 0x01：01 03 00 01 00 04 15 C9；
-    ///   本设备从站地址为 0x03，由 MODBUS_ADDR 常量控制）
+    /// 命令构造：调试工具实测向量 `03 03 00 01 00 04 15 C9`
+    /// （地址 03 + 固件 CRC 按地址 01 计算）
     #[test]
-    fn test_build_command() {
-        let cmd = build_read_angle_command();
-        assert_eq!(&cmd[..6], &[MODBUS_ADDR, 0x03, 0x00, 0x01, 0x00, 0x04]);
-        // CRC 自洽：低字节在前
-        let calc = crc16_modbus(&cmd[..6]);
-        assert_eq!(&cmd[6..], &[calc as u8, (calc >> 8) as u8]);
+    fn test_build_command_measured_vector() {
+        assert_eq!(
+            build_read_angle_command(),
+            vec![0x03, 0x03, 0x00, 0x01, 0x00, 0x04, 0x15, 0xC9]
+        );
     }
 
-    /// 应答解析（文档数据向量）：X = 0xC0054FDF = -2.083°，Y = 0x3FBE147B = +1.485°
+    /// 应答解析（文档数据向量 + 固件 CRC）：X = 0xC0054FDF = -2.083°，Y = 0x3FBE147B = +1.485°
     #[test]
     fn test_parse_reply_doc_vector() {
         let reply = make_reply(-2.083, 1.485);
@@ -169,13 +182,26 @@ mod tests {
         assert!((angle.angle_y - 1.485).abs() < 1e-6, "Y={}", angle.angle_y);
     }
 
+    /// 兼容标准 CRC 的应答（部分固件可能按标准算法）
+    #[test]
+    fn test_parse_reply_standard_crc() {
+        let mut frame = vec![MODBUS_ADDR, FUNC_READ, 0x08];
+        frame.extend_from_slice(&(-2.083f32).to_be_bytes());
+        frame.extend_from_slice(&1.485f32.to_be_bytes());
+        let crc = crc16_modbus(&frame);
+        frame.push((crc & 0xFF) as u8);
+        frame.push((crc >> 8) as u8);
+        let (angle, _) = parse_angle_stream(&frame).unwrap().expect("should parse");
+        assert!((angle.angle_x - (-2.083)).abs() < 1e-6);
+    }
+
     /// 地址不符的帧不解析（从站地址 03，帧头 01 应跳过）
     #[test]
     fn test_wrong_addr_ignored() {
         let mut reply = vec![0x01u8, 0x03, 0x08];
         reply.extend_from_slice(&(-2.083f32).to_be_bytes());
         reply.extend_from_slice(&1.485f32.to_be_bytes());
-        let crc = crc16_modbus(&reply);
+        let crc = crc16_fw(&reply);
         reply.push((crc & 0xFF) as u8);
         reply.push((crc >> 8) as u8);
         // 缓冲里只有地址不符的帧 → 无合法帧，报错丢弃
