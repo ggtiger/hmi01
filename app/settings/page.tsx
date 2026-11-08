@@ -203,7 +203,15 @@ function ModuleRow({
               value={calibrated ? `${fmtNum(displayN, 2)} N` : '未标定'}
               accent={calibrated ? '' : '!text-amber-600'}
             />
-            <ValueBox label="系数" value={coefficient.toFixed(5)} />
+            <ValueBox
+              label="系数"
+              value={
+                adCal !== undefined && adCal.nPerAd !== 0
+                  ? /* AD 标定路径：显示实际换算比例 N/AD */
+                    adCal.nPerAd.toFixed(5)
+                  : coefficient.toFixed(5)
+              }
+            />
           </>
         )}
         {isSwitch &&

@@ -300,7 +300,9 @@ export default function ForceModal({ open, onClose }: ForceModalProps) {
                     <span className="font-label-sm text-on-surface-variant">
                       系数{' '}
                       <span className="monospaced-data font-label-bold text-on-surface">
-                        {forceCoefficient(forceCoefficients, ch).toFixed(5)}
+                        {adCalibration[ch] && adCalibration[ch].nPerAd !== 0
+                          ? adCalibration[ch].nPerAd.toFixed(5)
+                          : forceCoefficient(forceCoefficients, ch).toFixed(5)}
                       </span>
                     </span>
                     <div className="flex-1" />
