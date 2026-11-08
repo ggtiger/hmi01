@@ -75,10 +75,22 @@ function ModuleRow({
     onDeviceCalibrate(grams)
   }
 
+  /** 校准不可用原因（用于按钮提示） */
+  const calibrateBlockedReason = !calWeight.trim()
+    ? '请先填写标准 N'
+    : !Number.isFinite(standardN) || standardN <= 0
+      ? '标准 N 必须大于 0'
+      : adCal === undefined
+        ? '请先空载点「清零」记录 AD 零点'
+        : adCode === null
+          ? '未收到传感器数据'
+          : Math.abs(adCode - adCal.zeroAd) < 1
+            ? `当前 AD 与零点差值不足（Δ${adCode - adCal.zeroAd}），请先加力`
+            : null
+
   /** AD 标定：nPerAd = 标准载荷 / (当前 AD − 零点 AD) */
   const handleAdCalibrate = () => {
-    if (!Number.isFinite(standardN) || standardN <= 0) return
-    if (!adReady || adCal === undefined || adCode === null) return
+    if (calibrateBlockedReason || !adReady || adCal === undefined || adCode === null) return
     onAdCalibrate(standardN, adCal.zeroAd)
   }
 
@@ -103,6 +115,12 @@ function ModuleRow({
             {adCal && adCal.nPerAd !== 0 ? adCal.nPerAd.toExponential(4) : '--'}
             {' · '}原始 {st.latest?.weightRaw ?? '--'} N
             {' · '}零点 {adCal?.zeroAd ?? '--'}
+          </div>
+        )}
+        {/* 校准不可用原因（可见提示，不再只是按钮禁用） */}
+        {isForce && st.isConnected && calibrateBlockedReason && (
+          <div className="font-label-sm text-amber-700 leading-tight mt-0.5">
+            ⚠ {calibrateBlockedReason}
           </div>
         )}
       </div>
@@ -160,13 +178,9 @@ function ModuleRow({
           />
           <button
             onClick={handleAdCalibrate}
-            disabled={!st.isConnected || !calWeight || !adReady}
+            disabled={!st.isConnected || calibrateBlockedReason !== null}
             className="ui-action-btn !px-3 !py-1.5 !text-[12px]"
-            title={
-              adCal === undefined
-                ? '请先在空载状态点「清零」记录 AD 零点'
-                : '以「标准载荷 ÷ (当前 AD − 零点 AD)」标定 AD 换算比例'
-            }
+            title={calibrateBlockedReason ?? '以「标准载荷 ÷ (当前 AD − 零点 AD)」标定 AD 换算比例'}
           >
             校准
           </button>
