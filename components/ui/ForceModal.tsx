@@ -5,7 +5,7 @@ import { useForce } from '@/lib/comm'
 import type { ForceChannel, ForceDeviceInfo } from '@/lib/comm/types'
 import { FORCE_CHANNEL_LABELS } from '@/lib/comm/types'
 import { fmtNum } from '@/lib/comm/types'
-import { useSettingsStore, forceCoefficient } from '@/lib/store'
+import { useSettingsStore, channelForceN, forceCoefficient } from '@/lib/store'
 
 const CHANNELS: ForceChannel[] = ['A', 'B', 'STEER', 'SWITCH', 'TORQUE']
 const LAST_ADDR_KEY = 'xdesin-force-last-dev'
@@ -46,6 +46,7 @@ interface ForceModalProps {
 export default function ForceModal({ open, onClose }: ForceModalProps) {
   const { states, actions, error, debugInfo } = useForce()
   const forceCoefficients = useSettingsStore((s) => s.forceCoefficients)
+  const adCalibration = useSettingsStore((s) => s.adCalibration)
   const setForceCoefficient = useSettingsStore((s) => s.setForceCoefficient)
   const [devices, setDevices] = useState<ForceDeviceInfo[]>([])
   const [scanning, setScanning] = useState(false)
@@ -181,9 +182,7 @@ export default function ForceModal({ open, onClose }: ForceModalProps) {
                         <span className="ui-label text-[11px]">力值</span>
                         <span className="ui-value !text-[13px]">
                           {fmtNum(
-                            st.latest
-                              ? st.latest.weightN * forceCoefficient(forceCoefficients, ch)
-                              : null,
+                            channelForceN(st, ch, forceCoefficients, adCalibration),
                             2
                           )}{' '}N
                         </span>

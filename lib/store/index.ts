@@ -1,5 +1,5 @@
 export { useAppStore } from './app-store'
-export { useSettingsStore, forceCoefficient } from './settings-store'
+export { useSettingsStore, forceCoefficient, channelForceN, type AdCalibration } from './settings-store'
 export {
   usePedalStore,
   type SideSelection,

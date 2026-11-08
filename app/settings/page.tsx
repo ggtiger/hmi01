@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useDevice, useForce } from '@/lib/comm'
 import { fmtNum, type ForceChannel, type ForceChannelState } from '@/lib/comm/types'
-import { useSettingsStore, forceCoefficient } from '@/lib/store'
+import { useSettingsStore, channelForceN, forceCoefficient, type AdCalibration } from '@/lib/store'
 import IndustrialCard from '@/components/ui/IndustrialCard'
 import Button from '@/components/ui/Button'
 import ForceModal from '@/components/ui/ForceModal'
@@ -36,29 +36,36 @@ function ValueBox({ label, value, accent }: { label: string; value: string; acce
 interface ModuleRowProps {
   channel: ForceChannel
   st: ForceChannelState
-  /** 校正系数（默认 1） */
+  /** 当前显示力值（N，已应用 AD 标定与校正系数） */
+  displayN: number | null
+  /** 校正系数（默认 1，仅显示） */
   coefficient: number
+  /** AD 标定（零点） */
+  adCal: AdCalibration | undefined
   calWeight: string
   onCalWeightChange: (v: string) => void
+  /** 清零：记录空载零点 AD + 设备零点命令 */
   onZero: () => void
-  onSetCoefficient: (coef: number) => void
+  /** AD 标定：standardN 施加载荷 + zeroAd 零点，计算 nPerAd */
+  onAdCalibrate: (standardN: number, zeroAd: number) => void
   /** 设备砝码标定（发 0xAA 0x09 命令，让设备开始换算重量） */
   onDeviceCalibrate: (grams: number) => void
 }
 
 /** 单个蓝牙模块行：状态 / 设备名 / 业务数值 / 操作 */
 function ModuleRow({
-  channel, st, coefficient, calWeight, onCalWeightChange, onZero, onSetCoefficient,
-  onDeviceCalibrate,
+  channel, st, displayN, coefficient, adCal, calWeight, onCalWeightChange, onZero,
+  onAdCalibrate, onDeviceCalibrate,
 }: ModuleRowProps) {
   const isAngle = channel === 'STEER'
   const isSwitch = channel === 'SWITCH'
   const isForce = !isAngle && !isSwitch
-  const rawN = st.isConnected ? st.latest?.weightN ?? null : null
-  // 显示值 = 传感器读数 × 校正系数（默认 1）
-  const displayN = rawN === null ? null : rawN * coefficient
+  const adCode = st.isConnected ? st.latest?.adCode ?? null : null
   /** 输入的施加载荷（N） */
   const standardN = Number(calWeight)
+  /** AD 标定要求：已记录零点，且当前 AD 与零点有明显差异 */
+  const adReady =
+    adCode !== null && adCal !== undefined && Math.abs(adCode - adCal.zeroAd) >= 1
 
   /** 设备标定：告诉设备当前施加的标准载荷（协议以克为单位，按 N 换算后发送） */
   const handleDeviceCalibrate = () => {
@@ -68,13 +75,11 @@ function ModuleRow({
     onDeviceCalibrate(grams)
   }
 
-  /** 系数校准：以「标准载荷 ÷ 当前读数」计算软件校正系数 */
-  const handleCoefficientCalibrate = () => {
+  /** AD 标定：nPerAd = 标准载荷 / (当前 AD − 零点 AD) */
+  const handleAdCalibrate = () => {
     if (!Number.isFinite(standardN) || standardN <= 0) return
-    if (rawN === null || Math.abs(rawN) < 0.01) return
-    const coef = standardN / rawN
-    if (!Number.isFinite(coef) || coef <= 0 || coef > 1000) return
-    onSetCoefficient(Number(coef.toFixed(5)))
+    if (!adReady || adCal === undefined || adCode === null) return
+    onAdCalibrate(standardN, adCal.zeroAd)
   }
 
   return (
@@ -89,10 +94,11 @@ function ModuleRow({
         <div className="font-label-sm text-outline truncate" title={st.deviceName}>
           {st.isConnected ? st.deviceName : '未连接'}
         </div>
-        {/* 原始诊断：AD 内码 + 设备回传重量，用于判断"力值为 0"的根因 */}
+        {/* 原始诊断：AD 内码 / 设备回传重量 / AD 零点 */}
         {isForce && st.isConnected && (
           <div className="font-label-sm monospaced-data text-outline/80">
-            AD {st.latest?.adCode ?? '--'} · 原始 {st.latest?.weightRaw ?? '--'} N
+            AD {adCode ?? '--'} · 原始 {st.latest?.weightRaw ?? '--'} N · 零点{' '}
+            {adCal?.zeroAd ?? '--'}
           </div>
         )}
       </div>
@@ -149,20 +155,24 @@ function ModuleRow({
             title="施加已知载荷（N）后填写"
           />
           <button
+            onClick={handleAdCalibrate}
+            disabled={!st.isConnected || !calWeight || !adReady}
+            className="ui-action-btn !px-3 !py-1.5 !text-[12px]"
+            title={
+              adCal === undefined
+                ? '请先在空载状态点「清零」记录 AD 零点'
+                : '以「标准载荷 ÷ (当前 AD − 零点 AD)」标定 AD 换算比例'
+            }
+          >
+            校准
+          </button>
+          <button
             onClick={handleDeviceCalibrate}
             disabled={!st.isConnected || !calWeight}
-            className="ui-action-btn !px-3 !py-1.5 !text-[12px]"
+            className="ui-action-btn ui-action-btn-ghost !px-3 !py-1.5 !text-[12px]"
             title="发送设备标定命令：告诉设备当前施加的标准载荷，设备据此换算重量"
           >
             设备标定
-          </button>
-          <button
-            onClick={handleCoefficientCalibrate}
-            disabled={!st.isConnected || !calWeight || rawN === null || Math.abs(rawN) < 0.01}
-            className="ui-action-btn ui-action-btn-ghost !px-3 !py-1.5 !text-[12px]"
-            title="以「标准载荷 ÷ 当前读数」计算软件校正系数"
-          >
-            系数校准
           </button>
         </div>
       )}
@@ -211,7 +221,8 @@ export default function SettingsPage() {
   const { states: forceStates, actions: forceActions } = useForce()
   const {
     reportHz, pulsesPerMm, levelRatio,
-    forceCoefficients, setForceCoefficient,
+    forceCoefficients, adCalibration,
+    setForceCoefficient, setAdZero, setAdCalibration,
     setReportHz, setPulsesPerMm, setLevelRatio,
   } = useSettingsStore()
 
@@ -293,11 +304,31 @@ export default function SettingsPage() {
                     key={ch}
                     channel={ch}
                     st={forceStates[ch]}
+                    displayN={channelForceN(
+                      forceStates[ch],
+                      ch,
+                      forceCoefficients,
+                      adCalibration
+                    )}
                     coefficient={forceCoefficient(forceCoefficients, ch)}
+                    adCal={adCalibration[ch]}
                     calWeight={calWeights[ch]}
                     onCalWeightChange={(v) => setCalWeights((p) => ({ ...p, [ch]: v }))}
-                    onZero={() => forceActions.zero(ch).catch(() => {})}
-                    onSetCoefficient={(c) => setForceCoefficient(ch, String(c))}
+                    onZero={() => {
+                      // 记录空载 AD 零点，同时下发设备零点校准
+                      const ad = forceStates[ch].latest?.adCode
+                      if (ad !== undefined) setAdZero(ch, ad)
+                      forceActions.zero(ch).catch(() => {})
+                    }}
+                    onAdCalibrate={(standardN, zeroAd) => {
+                      const ad = forceStates[ch].latest?.adCode
+                      if (ad === undefined) return
+                      const delta = ad - zeroAd
+                      if (Math.abs(delta) < 1) return
+                      const nPerAd = standardN / delta
+                      if (!Number.isFinite(nPerAd) || nPerAd === 0) return
+                      setAdCalibration(ch, { zeroAd, nPerAd })
+                    }}
                     onDeviceCalibrate={(g) => forceActions.calibrate(ch, g).catch(() => {})}
                   />
                 ))}
@@ -307,19 +338,21 @@ export default function SettingsPage() {
           <div className="rounded-[10px] bg-surface-container-low px-3 py-2.5 space-y-1">
             <div className="font-label-bold text-[12px] text-on-surface-variant">力值校准使用说明</div>
             <div className="font-label-sm text-outline leading-relaxed">
-              ① <span className="font-label-bold text-on-surface">清零</span>：空载状态下点击，将当前负载标定为 0 N（下发设备零点校准命令）。
+              ① <span className="font-label-bold text-on-surface">清零</span>：空载点击——记录 AD 零点并下发设备零点命令。
               <br />
-              ② <span className="font-label-bold text-on-surface">设备标定</span>：施加已知载荷（N）并填写后点击，发送设备标定命令，
-              使设备开始按载荷换算重量输出（原始重量恒定时使用）。
+              ② <span className="font-label-bold text-on-surface">校准（AD）</span>：施加已知载荷（N）→ 填写标准 N → 点击「校准」，
+              系统按「标准载荷 ÷（当前 AD − 零点 AD）」标定换算比例；实时力值 =（AD − 零点 AD）× 比例。
               <br />
-              ③ <span className="font-label-bold text-on-surface">系数校准</span>：设备已输出有效重量后使用——按「标准载荷(N) ÷ 当前读数(N)」计算软件校正系数（默认 1.00000）。
+              ③ <span className="font-label-bold text-on-surface">设备标定</span>：发送设备标定命令（仅当设备支持重量输出时使用）。
               <br />
-              ④ <span className="font-label-bold text-on-surface">系数</span>：所有力值显示 = 传感器读数 × 系数；系数按通道独立保存，重启后保留。
+              ④ <span className="font-label-bold text-on-surface">系数</span>：在 AD 标定基础上再做软件微调（默认 1.00000）；标定参数按通道保存，重启后保留。
             </div>
             <button
               onClick={() => {
                 for (const ch of ['A', 'B', 'TORQUE'] as ForceChannel[]) {
                   setForceCoefficient(ch, '1')
+                  const existing = adCalibration[ch]
+                  if (existing) setAdCalibration(ch, { zeroAd: existing.zeroAd, nPerAd: 0 })
                 }
               }}
               className="font-label-sm text-primary hover:underline"

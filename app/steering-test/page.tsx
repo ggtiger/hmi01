@@ -6,7 +6,7 @@ import {
 } from 'recharts'
 import { useForce } from '@/lib/comm'
 import { fmtNum } from '@/lib/comm/types'
-import { useSettingsStore, forceCoefficient } from '@/lib/store'
+import { useSettingsStore, channelForceN } from '@/lib/store'
 import { exportWorkbook, renderLineChartPng } from '@/lib/export-excel'
 import ForceModal from '@/components/ui/ForceModal'
 
@@ -95,13 +95,10 @@ export default function SteeringTestPage() {
   const tiltX = angle?.angleX ?? null
   const tiltY = angle?.angleY ?? null
 
-  // 转向力（显示值 = 传感器读数 × 校正系数，系数默认 1）
-  const torqueCoef = forceCoefficient(
-    useSettingsStore((s) => s.forceCoefficients),
-    'TORQUE'
-  )
-  const torqueRawN = torqueCh.isConnected ? torqueCh.latest?.weightN ?? null : null
-  const torqueLive = torqueRawN === null ? null : torqueRawN * torqueCoef
+  // 转向力：优先使用 AD 内码标定（设备不输出重量时可用），否则回退设备重量
+  const forceCoefficients = useSettingsStore((s) => s.forceCoefficients)
+  const adCalibration = useSettingsStore((s) => s.adCalibration)
+  const torqueLive = channelForceN(torqueCh, 'TORQUE', forceCoefficients, adCalibration)
 
   const [busy, setBusy] = useState(false)
   const [forceModalOpen, setForceModalOpen] = useState(false)

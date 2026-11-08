@@ -7,7 +7,7 @@ import {
 import { useDevice, useForce } from '@/lib/comm'
 import { fmtNum } from '@/lib/comm/types'
 import {
-  usePedalStore, useSettingsStore, forceCoefficient,
+  usePedalStore, useSettingsStore, channelForceN, forceCoefficient,
   type PedalSide, RECORD_POINT_LABELS, type RecordPointKey,
 } from '@/lib/store'
 import PedalDataPanel from '@/components/ui/PedalDataPanel'
@@ -57,14 +57,13 @@ export default function PedalTestPage() {
   const work = sides[workSide]
   const snap = snapshots[workSide]
   const forceCh = forceStates[workSide]
-  // 显示值 = 传感器读数 × 校正系数（默认 1）
-  const forceCoef = forceCoefficient(
-    useSettingsStore((s) => s.forceCoefficients),
-    workSide
-  )
-  const forceRawN = forceCh.isConnected ? forceCh.latest?.weightN ?? null : null
-  const forceLive = forceRawN === null ? null : forceRawN * forceCoef
-  const forceMax = forceCh.isConnected ? forceCh.maxN * forceCoef : null
+  // 力值：优先 AD 内码标定，否则回退设备重量（均应用软件系数）
+  const forceCoefficients = useSettingsStore((s) => s.forceCoefficients)
+  const adCalibration = useSettingsStore((s) => s.adCalibration)
+  const forceLive = channelForceN(forceCh, workSide, forceCoefficients, adCalibration)
+  const forceMax = forceCh.isConnected
+    ? forceCh.maxN * forceCoefficient(forceCoefficients, workSide)
+    : null
 
   // 进程力值：测试流程进行中实时跟踪，停止后保持最后值
   const phaseRef = useRef(work.phase)
