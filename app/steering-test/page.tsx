@@ -108,8 +108,8 @@ export default function SteeringTestPage() {
   const [zeroOffset, setZeroOffset] = useState(0)
   const [cwAngle, setCwAngle] = useState<number | null>(null)
   const [ccwAngle, setCcwAngle] = useState<number | null>(null)
-  /** 最大力值（本地跟踪，清除时归零） */
-  const [torqueMax, setTorqueMax] = useState(0)
+  /** 最大力值（不自动跟踪：点「记录」时捕获当前实时力值） */
+  const [torqueMax, setTorqueMax] = useState<number | null>(null)
   const lastTrendPush = useRef(0)
 
   // 自由转角 = 当前倾角 X − 清零基准
@@ -136,11 +136,12 @@ export default function SteeringTestPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [angle?.angleX, angle?.angleY, torqueLive])
 
-  // 最大力值本地跟踪（转向力模块）
-  useEffect(() => {
+  // 最大力值：不自动跟踪——点「记录」时把当前实时力值写入峰值行 + 历史记录表
+  const recordTorqueMax = () => {
     if (torqueLive === null) return
-    setTorqueMax((prev) => (torqueLive > prev ? torqueLive : prev))
-  }, [torqueLive])
+    setTorqueMax(torqueLive)
+    addRecord('最大力值', torqueLive, 'N')
+  }
 
   // 顺/逆时针峰值：不自动跟踪——点「记录」时把当前自由转角值写入峰值行 + 历史记录表
   const recordCwPeak = () => {
@@ -181,7 +182,7 @@ export default function SteeringTestPage() {
     setTesting(true)
     setCwAngle(null)
     setCcwAngle(null)
-    setTorqueMax(0)
+    setTorqueMax(null)
     forceActions.resetMax('TORQUE').catch(() => {})
   }
 
@@ -379,14 +380,14 @@ export default function SteeringTestPage() {
               actions={
                 <>
                   <MiniBtn
-                    onClick={() => addRecord('最大力值', torqueMax, 'N')}
-                    disabled={!torqueConnected}
+                    onClick={recordTorqueMax}
+                    disabled={torqueLive === null}
                   >
                     记录
                   </MiniBtn>
                   <MiniBtn
                     onClick={() => {
-                      setTorqueMax(0)
+                      setTorqueMax(null)
                       forceActions.resetMax('TORQUE').catch(() => {})
                     }}
                     disabled={!torqueConnected}
