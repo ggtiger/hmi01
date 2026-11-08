@@ -140,14 +140,16 @@ export default function SteeringTestPage() {
     setTorqueMax((prev) => (torqueLive > prev ? torqueLive : prev))
   }, [torqueLive])
 
-  // 顺/逆时针峰值：不自动跟踪——点「记录」时把当前自由转角值写入对应方向
+  // 顺/逆时针峰值：不自动跟踪——点「记录」时把当前自由转角值写入峰值行 + 历史记录表
   const recordCwPeak = () => {
     if (freeAngle === null || freeAngle <= 0.001) return
     setCwAngle(freeAngle)
+    addRecord('顺时针峰值', freeAngle)
   }
   const recordCcwPeak = () => {
     if (freeAngle === null || freeAngle >= -0.001) return
     setCcwAngle(freeAngle)
+    addRecord('逆时针峰值', freeAngle)
   }
 
   const run = async (fn: () => Promise<void>) => {
