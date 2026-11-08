@@ -6,7 +6,7 @@ import {
 } from 'recharts'
 import { useDevice, useForce } from '@/lib/comm'
 import { fmtNum } from '@/lib/comm/types'
-import { exportWorkbook } from '@/lib/export-excel'
+import { exportWorkbook, renderLineChartPng } from '@/lib/export-excel'
 import EstopButton from '@/components/ui/EstopButton'
 import ForceModal from '@/components/ui/ForceModal'
 
@@ -24,6 +24,7 @@ interface TrendPoint {
   tilt_x: number | null
   tilt_y: number | null
   free: number | null
+  torque: number | null
 }
 
 const MAX_TREND = 100
@@ -116,9 +117,9 @@ export default function SteeringTestPage() {
   const direction: 'cw' | 'ccw' | null =
     freeAngle === null || Math.abs(freeAngle) < 0.001 ? null : freeAngle > 0 ? 'cw' : 'ccw'
 
-  // 角度 → 趋势（200ms 采样门控）
+  // 角度 + 力值 → 趋势（200ms 采样门控）
   useEffect(() => {
-    if (tiltX === null && tiltY === null) return
+    if (tiltX === null && tiltY === null && torqueLive === null) return
     const now = Date.now()
     if (now - lastTrendPush.current < 200) return
     lastTrendPush.current = now
@@ -129,11 +130,11 @@ export default function SteeringTestPage() {
       .padStart(2, '0')}`
     const free = tiltX === null ? null : tiltX - zeroOffset
     setTrend((prev) => {
-      const next = [...prev, { label, tilt_x: tiltX, tilt_y: tiltY, free }]
+      const next = [...prev, { label, tilt_x: tiltX, tilt_y: tiltY, free, torque: torqueLive }]
       return next.length > MAX_TREND ? next.slice(-MAX_TREND) : next
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [angle?.angleX, angle?.angleY])
+  }, [angle?.angleX, angle?.angleY, torqueLive])
 
   // 最大力值本地跟踪（转向力模块）
   useEffect(() => {
@@ -184,9 +185,26 @@ export default function SteeringTestPage() {
     forceActions.resetMax('TORQUE').catch(() => {})
   }
 
-  /** 导出两个 Sheet：记录值 + 实时曲线数据 */
+  /** 导出两个 Sheet：记录值 + 实时曲线（含顶部曲线图与实时力值列） */
   const exportExcel = async () => {
     try {
+      const round = (v: number | null, d = 3) => (v === null ? null : Number(v.toFixed(d)))
+      const labels = trend.map((p) => p.label)
+      const chartImage =
+        trend.length > 1
+          ? renderLineChartPng(labels, [
+              { name: '倾角 X (°)', color: '#041627', values: trend.map((p) => p.tilt_x) },
+              { name: '倾角 Y (°)', color: '#8192a7', values: trend.map((p) => p.tilt_y) },
+              { name: '自由转角 (°)', color: '#f59e0b', values: trend.map((p) => p.free) },
+              {
+                name: '实时力值 (N)',
+                color: '#16a34a',
+                values: trend.map((p) => p.torque),
+                separateScale: true,
+              },
+            ])
+          : null
+
       await exportWorkbook(`steer-records-${Date.now()}.xlsx`, [
         {
           name: '记录值',
@@ -196,20 +214,22 @@ export default function SteeringTestPage() {
               r.index,
               r.timestamp,
               r.key,
-              r.value === null ? null : Number(r.value.toFixed(3)),
+              round(r.value),
               r.unit,
             ]),
           ],
         },
         {
           name: '实时曲线',
+          chartImage: chartImage ?? undefined,
           rows: [
-            ['时间', '倾角 X (°)', '倾角 Y (°)', '自由转角 (°)'],
+            ['时间', '倾角 X (°)', '倾角 Y (°)', '自由转角 (°)', '实时力值 (N)'],
             ...trend.map((p) => [
               p.label,
-              p.tilt_x === null ? null : Number(p.tilt_x.toFixed(3)),
-              p.tilt_y === null ? null : Number(p.tilt_y.toFixed(3)),
-              p.free === null ? null : Number(p.free.toFixed(3)),
+              round(p.tilt_x),
+              round(p.tilt_y),
+              round(p.free),
+              round(p.torque, 2),
             ]),
           ],
         },
