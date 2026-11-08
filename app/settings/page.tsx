@@ -138,6 +138,40 @@ function ModuleRow({
             ⚠ {hint ?? '未标定：施加标准载荷（N）后点「校准」'}
           </div>
         )}
+        {/* 恢复出厂（独立行，行内二次确认，避免挤爆操作区） */}
+        {isForce && st.isConnected && (
+          <div className="flex items-center gap-2 mt-0.5">
+            {confirmReset ? (
+              <>
+                <span className="font-label-sm text-critical whitespace-nowrap">确认恢复出厂？</span>
+                <button
+                  onClick={() => {
+                    setConfirmReset(false)
+                    onFactoryReset()
+                  }}
+                  className="font-label-sm font-label-bold text-critical hover:underline"
+                  title="设备零点/标定/参数将恢复出厂值，本地标定同步清除"
+                >
+                  确认
+                </button>
+                <button
+                  onClick={() => setConfirmReset(false)}
+                  className="font-label-sm text-outline hover:text-primary"
+                >
+                  取消
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={() => setConfirmReset(true)}
+                className="font-label-sm text-critical hover:underline"
+                title="恢复出厂设置（Modbus 写寄存器 0x00FE）"
+              >
+                恢复出厂设置
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="flex-1" />
@@ -203,36 +237,6 @@ function ModuleRow({
           >
             校准
           </button>
-          {confirmReset ? (
-            <>
-              <span className="font-label-sm text-critical whitespace-nowrap">确认恢复出厂？</span>
-              <button
-                onClick={() => {
-                  setConfirmReset(false)
-                  onFactoryReset()
-                }}
-                className="ui-action-btn ui-action-btn-danger !px-3 !py-1.5 !text-[12px]"
-                title="设备零点/标定/参数将恢复出厂值，本地标定同步清除"
-              >
-                确认
-              </button>
-              <button
-                onClick={() => setConfirmReset(false)}
-                className="ui-action-btn ui-action-btn-ghost !px-3 !py-1.5 !text-[12px]"
-              >
-                取消
-              </button>
-            </>
-          ) : (
-            <button
-              onClick={() => setConfirmReset(true)}
-              disabled={!st.isConnected}
-              className="ui-action-btn ui-action-btn-danger !px-3 !py-1.5 !text-[12px]"
-              title="恢复出厂设置（Modbus 写寄存器 0x00FE）"
-            >
-              恢复出厂
-            </button>
-          )}
         </div>
       )}
     </div>
