@@ -73,10 +73,7 @@ function ModuleRow({ channel, st, calWeight, onCalWeightChange, onZero, onCalibr
           </>
         )}
         {isForce && (
-          <>
-            <ValueBox label="实时" value={`${fmtNum(st.isConnected ? st.latest?.weightN ?? null : null, 2)} N`} />
-            <ValueBox label="最大" value={`${fmtNum(st.isConnected ? st.maxN : null, 2)} N`} />
-          </>
+          <ValueBox label="实时" value={`${fmtNum(st.isConnected ? st.latest?.weightN ?? null : null, 2)} N`} />
         )}
         {isSwitch &&
           [1, 2].map((relay) => {
