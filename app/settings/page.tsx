@@ -78,6 +78,12 @@ function ModuleRow({
         <div className="font-label-sm text-outline truncate" title={st.deviceName}>
           {st.isConnected ? st.deviceName : '未连接'}
         </div>
+        {/* 原始诊断：AD 内码 + 设备回传重量，用于判断"力值为 0"的根因 */}
+        {isForce && st.isConnected && (
+          <div className="font-label-sm monospaced-data text-outline/80">
+            AD {st.latest?.adCode ?? '--'} · 原始 {st.latest?.weightMg ?? '--'} mg
+          </div>
+        )}
       </div>
 
       <div className="flex-1" />
@@ -289,6 +295,16 @@ export default function SettingsPage() {
               ③ <span className="font-label-bold text-on-surface">系数</span>：所有力值显示 = 传感器读数 × 系数；
               校准后放上砝码，实时力值应与砝码重量一致。系数按通道独立保存，重启后保留。
             </div>
+            <button
+              onClick={() => {
+                for (const ch of ['A', 'B', 'TORQUE'] as ForceChannel[]) {
+                  setForceCoefficient(ch, '1')
+                }
+              }}
+              className="font-label-sm text-primary hover:underline"
+            >
+              重置全部力值系数为 1
+            </button>
           </div>
         </div>
       </IndustrialCard>
