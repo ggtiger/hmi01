@@ -47,6 +47,11 @@ function ModuleRow({ channel, st, calWeight, onCalWeightChange, onZero, onCalibr
   const isAngle = channel === 'STEER'
   const isSwitch = channel === 'SWITCH'
   const isForce = !isAngle && !isSwitch
+  // 校准系数 = 当前克数 ÷ AD 内码（设备回传），反映标定后的换算比例
+  const coef =
+    st.isConnected && st.latest && st.latest.adCode !== 0
+      ? st.latest.weightG / st.latest.adCode
+      : null
 
   return (
     <div className="flex items-center gap-3 rounded-xl border border-surface-variant bg-white px-4 py-3">
@@ -73,7 +78,10 @@ function ModuleRow({ channel, st, calWeight, onCalWeightChange, onZero, onCalibr
           </>
         )}
         {isForce && (
-          <ValueBox label="实时" value={`${fmtNum(st.isConnected ? st.latest?.weightN ?? null : null, 2)} N`} />
+          <>
+            <ValueBox label="实时" value={`${fmtNum(st.isConnected ? st.latest?.weightN ?? null : null, 2)} N`} />
+            <ValueBox label="系数" value={coef === null ? '--' : coef.toFixed(5)} />
+          </>
         )}
         {isSwitch &&
           [1, 2].map((relay) => {
@@ -257,9 +265,17 @@ export default function SettingsPage() {
               </div>
             </div>
           ))}
-          <div className="font-label-sm text-outline leading-relaxed">
-            清零 = 设备零点校准（当前负载视为 0）；校准 = 放置对应重量砝码后执行砝码标定。
-            倾角模块为 Modbus RTU 10Hz 轮询；二路开关为 EE 协议继电器控制。
+          <div className="rounded-[10px] bg-surface-container-low px-3 py-2.5 space-y-1">
+            <div className="font-label-bold text-[12px] text-on-surface-variant">力值校准使用说明</div>
+            <div className="font-label-sm text-outline leading-relaxed">
+              ① <span className="font-label-bold text-on-surface">清零</span>：空载状态下点击，将当前负载标定为 0 N（设备零点校准）。
+              <br />
+              ② <span className="font-label-bold text-on-surface">校准</span>：放置已知重量的砝码 → 输入砝码重量（g）→ 点击「校准」，
+              设备以砝码为基准计算并保存换算系数。
+              <br />
+              ③ <span className="font-label-bold text-on-surface">系数</span>：显示当前换算比例（克 ÷ AD 内码），
+              标定正确后放上砝码时实时力值应与砝码重量一致、系数趋于稳定。
+            </div>
           </div>
         </div>
       </IndustrialCard>

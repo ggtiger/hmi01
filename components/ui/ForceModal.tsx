@@ -283,6 +283,12 @@ export default function ForceModal({ open, onClose }: ForceModalProps) {
                   <div className="flex items-center gap-2 px-3 py-2 border-t border-surface-variant">
                     <span className="font-label-sm text-on-surface-variant">最大力值 {fmtNum(st.maxN, 2)} N</span>
                     <button onClick={() => actions.resetMax(ch).catch(() => {})} className="font-label-sm text-outline hover:text-critical">重置</button>
+                    <span className="font-label-sm text-on-surface-variant">
+                      系数{' '}
+                      <span className="monospaced-data font-label-bold text-on-surface">
+                        {st.latest && st.latest.adCode !== 0 ? (st.latest.weightG / st.latest.adCode).toFixed(5) : '--'}
+                      </span>
+                    </span>
                     <div className="flex-1" />
                     <span className="font-label-sm text-on-surface-variant">砝码标定</span>
                     <input
