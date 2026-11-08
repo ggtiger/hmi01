@@ -118,8 +118,9 @@ export default function SteeringTestPage() {
   const direction: 'cw' | 'ccw' | null =
     freeAngle === null || Math.abs(freeAngle) < 0.001 ? null : freeAngle > 0 ? 'cw' : 'ccw'
 
-  // 角度 + 力值 → 趋势（200ms 采样门控）
+  // 角度 + 力值 → 趋势（仅测试中记录，200ms 采样门控）
   useEffect(() => {
+    if (!testing) return
     if (tiltX === null && tiltY === null && torqueLive === null) return
     const now = Date.now()
     if (now - lastTrendPush.current < 200) return
@@ -135,7 +136,7 @@ export default function SteeringTestPage() {
       return next.length > MAX_TREND ? next.slice(-MAX_TREND) : next
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [angle?.angleX, angle?.angleY, torqueLive])
+  }, [angle?.angleX, angle?.angleY, torqueLive, testing])
 
   // 最大力值：不自动跟踪——点「记录」时把当前实时力值写入峰值行 + 历史记录表
   const recordTorqueMax = () => {
@@ -181,6 +182,9 @@ export default function SteeringTestPage() {
 
   const startTest = () => {
     setTesting(true)
+    // 新一次测试重新记录曲线
+    setTrend([])
+    lastTrendPush.current = 0
     setCwAngle(null)
     setCcwAngle(null)
     setTorqueMax(null)
