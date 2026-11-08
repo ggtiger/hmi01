@@ -2,13 +2,168 @@
 
 import { useState } from 'react'
 import { useDevice, useForce } from '@/lib/comm'
-import { fmtNum, FORCE_CHANNEL_LABELS, type ForceChannel } from '@/lib/comm/types'
+import { fmtNum, type ForceChannel, type ForceChannelState } from '@/lib/comm/types'
 import { useSettingsStore } from '@/lib/store'
 import IndustrialCard from '@/components/ui/IndustrialCard'
 import Button from '@/components/ui/Button'
 import ForceModal from '@/components/ui/ForceModal'
 
-const FORCE_CHANNELS: ForceChannel[] = ['A', 'B', 'STEER', 'SWITCH', 'TORQUE']
+/** 按业务场景分组的蓝牙模块 */
+const BLUETOOTH_GROUPS: { title: string; desc: string; channels: ForceChannel[] }[] = [
+  { title: '转盘测试', desc: '倾角 + 转向力采集', channels: ['STEER', 'TORQUE'] },
+  { title: '踏板测试', desc: 'A / B 侧加载力采集', channels: ['A', 'B'] },
+  { title: '辅助设备', desc: '继电器开关控制', channels: ['SWITCH'] },
+]
+
+const CHANNEL_SHORT: Record<ForceChannel, string> = {
+  A: '模块 A · 踏板 A 加载力',
+  B: '模块 B · 踏板 B 加载力',
+  STEER: '倾角模块 · 转盘 X/Y',
+  TORQUE: '转向力 · 转盘力值',
+  SWITCH: '二路开关 · 加载控制',
+}
+
+/** 模块数值块 */
+function ValueBox({ label, value, accent }: { label: string; value: string; accent?: string }) {
+  return (
+    <span className="ui-data-box !py-1.5 !px-3 min-w-[92px]">
+      <span className="ui-label text-[12px]">{label}</span>
+      <span className={`ui-value !text-[14px] ${accent ?? ''}`}>{value}</span>
+    </span>
+  )
+}
+
+interface ModuleRowProps {
+  channel: ForceChannel
+  st: ForceChannelState
+  calWeight: string
+  onCalWeightChange: (v: string) => void
+  onZero: () => void
+  onCalibrate: (grams: number) => void
+}
+
+/** 单个蓝牙模块行：状态 / 设备名 / 业务数值 / 操作 */
+function ModuleRow({ channel, st, calWeight, onCalWeightChange, onZero, onCalibrate }: ModuleRowProps) {
+  const isAngle = channel === 'STEER'
+  const isSwitch = channel === 'SWITCH'
+  const isForce = !isAngle && !isSwitch
+
+  return (
+    <div className="flex items-center gap-3 rounded-xl border border-surface-variant bg-white px-4 py-3">
+      <span
+        className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${
+          st.isConnected ? 'bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.55)]' : 'bg-slate-300'
+        }`}
+      />
+      <div className="min-w-0 w-[210px] flex-shrink-0">
+        <div className="font-label-bold text-[14px] text-on-surface">{CHANNEL_SHORT[channel]}</div>
+        <div className="font-label-sm text-outline truncate" title={st.deviceName}>
+          {st.isConnected ? st.deviceName : '未连接'}
+        </div>
+      </div>
+
+      <div className="flex-1" />
+
+      {/* 业务数值区 */}
+      <div className="flex items-center gap-2 flex-shrink-0">
+        {isAngle && (
+          <>
+            <ValueBox label="倾角 X" value={`${fmtNum(st.isConnected ? st.latestAngle?.angleX ?? null : null, 3)}°`} />
+            <ValueBox label="倾角 Y" value={`${fmtNum(st.isConnected ? st.latestAngle?.angleY ?? null : null, 3)}°`} />
+          </>
+        )}
+        {isForce && (
+          <>
+            <ValueBox label="实时" value={`${fmtNum(st.isConnected ? st.latest?.weightN ?? null : null, 2)} N`} />
+            <ValueBox label="最大" value={`${fmtNum(st.isConnected ? st.maxN : null, 2)} N`} />
+          </>
+        )}
+        {isSwitch &&
+          [1, 2].map((relay) => {
+            const relayState = st.switchState?.relay === relay ? st.switchState : null
+            const on = relayState?.on ?? false
+            return (
+              <ValueBox
+                key={relay}
+                label={`第${relay}路`}
+                value={relayState ? (on ? '开' : '关') : '--'}
+                accent={relayState ? (on ? '!text-emerald-600' : '!text-slate-400') : ''}
+              />
+            )
+          })}
+      </div>
+
+      {/* 操作区（仅力值模块：零点校准 + 砝码标定） */}
+      {isForce && (
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <button
+            onClick={onZero}
+            disabled={!st.isConnected}
+            className="ui-action-btn ui-action-btn-ghost !px-3 !py-1.5 !text-[12px]"
+            title="零点校准：当前负载视为 0 N"
+          >
+            清零
+          </button>
+          <input
+            value={calWeight}
+            onChange={(e) => onCalWeightChange(e.target.value)}
+            inputMode="numeric"
+            placeholder="砝码 g"
+            disabled={!st.isConnected}
+            className="ui-input w-24 !py-1.5 text-center !text-[12px]"
+            title="放置对应重量砝码后点击校准"
+          />
+          <button
+            onClick={() => {
+              const w = Number(calWeight)
+              if (Number.isFinite(w) && w > 0) onCalibrate(Math.round(w))
+            }}
+            disabled={!st.isConnected || !calWeight}
+            className="ui-action-btn !px-3 !py-1.5 !text-[12px]"
+          >
+            校准
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** 设备参数行 */
+function SettingRow({
+  label, hint, unit, value, onChange, onApply, applyLabel, disabled,
+}: {
+  label: string
+  hint: string
+  unit: string
+  value: string
+  onChange: (v: string) => void
+  onApply: () => void
+  applyLabel: string
+  disabled: boolean
+}) {
+  return (
+    <div className="flex items-center gap-4 py-3 border-b border-surface-variant last:border-b-0">
+      <div className="flex-1 min-w-0">
+        <div className="font-label-bold text-[14px] text-on-surface">{label}</div>
+        <div className="font-label-sm text-outline">{hint}</div>
+      </div>
+      <div className="flex items-center gap-2 flex-shrink-0">
+        <input
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          inputMode="decimal"
+          disabled={disabled}
+          className="ui-input w-28 text-center !text-[14px]"
+        />
+        <span className="font-label-sm text-outline w-8">{unit}</span>
+        <button onClick={onApply} disabled={disabled} className="ui-action-btn !px-4 !py-2 !text-[13px]">
+          {applyLabel}
+        </button>
+      </div>
+    </div>
+  )
+}
 
 export default function SettingsPage() {
   const { state, actions, error } = useDevice()
@@ -20,7 +175,9 @@ export default function SettingsPage() {
 
   const [plainConfirm, setPlainConfirm] = useState(false)
   const [forceModalOpen, setForceModalOpen] = useState(false)
-  const [calWeights, setCalWeights] = useState<Record<ForceChannel, string>>({ A: '', B: '', STEER: '', SWITCH: '', TORQUE: '' })
+  const [calWeights, setCalWeights] = useState<Record<ForceChannel, string>>({
+    A: '', B: '', STEER: '', SWITCH: '', TORQUE: '',
+  })
   const [netSsid, setNetSsid] = useState('')
   const [netNewPass, setNetNewPass] = useState('')
   const [netOldPass, setNetOldPass] = useState('')
@@ -28,19 +185,21 @@ export default function SettingsPage() {
   const [netcfg, setNetcfg] = useState<{ ssid: string; pass: string } | null>(null)
 
   const connected = state.is_connected
+  const bleChannels: ForceChannel[] = BLUETOOTH_GROUPS.flatMap((g) => g.channels)
+  const bleConnected = bleChannels.filter((c) => forceStates[c].isConnected).length
 
   const handleQueryNet = async () => {
     try {
       const cfg = await actions.netGetcfg()
       setNetcfg(cfg)
       setNetSsid(cfg.ssid)
-    } catch { /* */ }
+    } catch { /* 错误已由 useDevice 记录 */ }
   }
 
   return (
-    <div className="h-full overflow-y-auto p-6 space-y-4 max-w-3xl mx-auto">
+    <div className="h-full overflow-y-auto p-6 space-y-4 max-w-4xl mx-auto">
       {error && (
-        <div className="flex items-center justify-between px-4 py-2 rounded-lg bg-red-50 border border-red-200 text-red-700 font-label-bold">
+        <div className="flex items-center justify-between px-4 py-2 rounded-[10px] bg-red-50 border border-red-200 text-red-700 font-label-bold">
           <span className="flex items-center gap-2">
             <span className="material-symbols-outlined text-[18px]">error</span>
             {error}
@@ -48,206 +207,164 @@ export default function SettingsPage() {
           <button onClick={actions.clearError} className="material-symbols-outlined text-[18px]">close</button>
         </div>
       )}
-      {!connected && (
-        <div className="px-4 py-2 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 font-label-sm">
-          未连接设备——设置将在连接后生效
-        </div>
-      )}
 
-      {/* 力值模块（BLE，slide 5 设置模块） */}
+      {/* ===== 状态概览 ===== */}
+      <div className="flex items-center gap-3 rounded-xl border border-surface-variant bg-white px-4 py-3">
+        <div className="flex items-center gap-2">
+          <span className="material-symbols-outlined text-[20px] text-primary">bluetooth</span>
+          <span className="font-label-bold text-[14px]">蓝牙模块</span>
+          <span className={`font-label-bold text-[14px] ${bleConnected > 0 ? 'text-emerald-600' : 'text-slate-400'}`}>
+            {bleConnected}/{bleChannels.length} 已连接
+          </span>
+        </div>
+        <div className="w-px h-5 bg-surface-variant" />
+        <div className="flex items-center gap-2">
+          <span className="material-symbols-outlined text-[20px] text-primary">lan</span>
+          <span className="font-label-bold text-[14px]">WiFi 设备</span>
+          <span className={`font-label-bold text-[14px] ${connected ? 'text-emerald-600' : 'text-slate-400'}`}>
+            {connected ? '已连接' : '未连接'}
+          </span>
+        </div>
+        <div className="flex-1" />
+        <span className="font-label-sm text-outline">蓝牙采集不依赖 WiFi 连接</span>
+      </div>
+
+      {/* ===== 蓝牙采集模块（按业务场景分组） ===== */}
       <IndustrialCard
-        title="力值模块（蓝牙）"
+        title="蓝牙采集模块"
         headerRight={
-          <Button variant="ghost" onClick={() => setForceModalOpen(true)} className="!py-1">
+          <Button variant="ghost" onClick={() => setForceModalOpen(true)} className="!py-1.5">
             蓝牙模块联结
           </Button>
         }
       >
-        <div className="p-4 space-y-2">
-          {FORCE_CHANNELS.map((ch) => {
-            const st = forceStates[ch]
-            return (
-              <div key={ch} className="flex items-center gap-3 rounded-[10px] border border-surface-variant px-3 py-2">
-                <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${st.isConnected ? 'bg-emerald-500' : 'bg-slate-300'}`} />
-                <span className="font-label-bold text-[13px] w-44 flex-shrink-0">{FORCE_CHANNEL_LABELS[ch]}</span>
-                <span className="font-label-sm text-on-surface-variant flex-1 truncate">
-                  {st.isConnected ? st.deviceName : '未连接'}
-                </span>
-                {ch === 'SWITCH' ? (
-                  <>
-                    {[1, 2].map((relay) => {
-                      const relayState =
-                        st.switchState?.relay === relay ? st.switchState : null
-                      const on = relayState?.on ?? false
-                      return (
-                        <span key={relay} className="monospaced-data font-label-bold text-[13px]">
-                          第{relay}路{' '}
-                          <span className={on ? 'text-emerald-600' : 'text-slate-400'}>
-                            {relayState ? (on ? '开' : '关') : '--'}
-                          </span>
-                        </span>
-                      )
-                    })}
-                  </>
-                ) : ch === 'STEER' ? (
-                  <>
-                    <span className="monospaced-data font-label-bold text-[13px]">
-                      X {fmtNum(st.isConnected ? st.latestAngle?.angleX ?? null : null, 3)}°
-                    </span>
-                    <span className="monospaced-data font-label-bold text-[13px]">
-                      Y {fmtNum(st.isConnected ? st.latestAngle?.angleY ?? null : null, 3)}°
-                    </span>
-                  </>
-                ) : (
-                  <>
-                    <span className="monospaced-data font-label-bold text-[13px]">
-                      实时 {fmtNum(st.isConnected ? st.latest?.weightN ?? null : null, 2)} N
-                    </span>
-                    <span className="monospaced-data font-label-sm text-outline">
-                      系数 {st.isConnected && st.latest ? (st.latest.weightN / (st.latest.weightG / 1000 * 9.80665 || 1)).toFixed(4) : '--'}
-                    </span>
-                  </>
-                )}
-                {ch !== 'STEER' && (
-                  <button
-                    onClick={() => forceActions.zero(ch).catch(() => {})}
-                    disabled={!st.isConnected}
-                    className="ui-action-btn ui-action-btn-ghost !px-2 !py-0.5 !text-[11px]"
+        <div className="p-4 space-y-4">
+          {BLUETOOTH_GROUPS.map((group) => (
+            <div key={group.title}>
+              <div className="flex items-baseline gap-2 mb-2">
+                <span className="font-label-bold text-[13px] text-primary tracking-wide">{group.title}</span>
+                <span className="font-label-sm text-outline">{group.desc}</span>
+              </div>
+              <div className="space-y-2">
+                {group.channels.map((ch) => (
+                  <ModuleRow
+                    key={ch}
+                    channel={ch}
+                    st={forceStates[ch]}
+                    calWeight={calWeights[ch]}
+                    onCalWeightChange={(v) => setCalWeights((p) => ({ ...p, [ch]: v }))}
+                    onZero={() => forceActions.zero(ch).catch(() => {})}
+                    onCalibrate={(g) => forceActions.calibrate(ch, g).catch(() => {})}
+                  />
+                ))}
+              </div>
+            </div>
+          ))}
+          <div className="font-label-sm text-outline leading-relaxed">
+            清零 = 设备零点校准（当前负载视为 0）；校准 = 放置对应重量砝码后执行砝码标定。
+            倾角模块为 Modbus RTU 10Hz 轮询；二路开关为 EE 协议继电器控制。
+          </div>
+        </div>
+      </IndustrialCard>
+
+      {/* ===== 设备参数（SET，需 WiFi 连接） ===== */}
+      <IndustrialCard
+        title="设备参数（SET）"
+        headerRight={
+          <span className={`font-label-sm ${connected ? 'text-emerald-600' : 'text-amber-600'}`}>
+            {connected ? '已连接设备' : '未连接设备 · 修改将在连接后生效'}
+          </span>
+        }
+      >
+        <div className="px-4">
+          <SettingRow
+            label="遥测上报频率"
+            hint="设备向主机上报遥测的周期，1–50 Hz"
+            unit="Hz"
+            value={reportHz}
+            onChange={setReportHz}
+            onApply={() => actions.setReport(Number(reportHz)).catch(() => {})}
+            applyLabel="应用"
+            disabled={!connected}
+          />
+          <SettingRow
+            label="推杆脉冲当量"
+            hint="推杆位置脉冲换算毫米的比例，10–10000 脉冲/mm"
+            unit="P/mm"
+            value={pulsesPerMm}
+            onChange={setPulsesPerMm}
+            onApply={() => actions.setPushPulsesPerMm(Number(pulsesPerMm)).catch(() => {})}
+            applyLabel="应用（NVS）"
+            disabled={!connected}
+          />
+          <SettingRow
+            label="调平传动比"
+            hint="倾角补偿量与电机角度的换算系数，0.01–100"
+            unit=""
+            value={levelRatio}
+            onChange={setLevelRatio}
+            onApply={() => actions.setLevelRatio(Number(levelRatio)).catch(() => {})}
+            applyLabel="应用（NVS）"
+            disabled={!connected}
+          />
+        </div>
+      </IndustrialCard>
+
+      {/* ===== 通信调试 ===== */}
+      <IndustrialCard title="通信调试">
+        <div className="px-4 py-3 space-y-3">
+          <div className="flex items-center gap-4">
+            <div className="flex-1">
+              <div className="font-label-bold text-[14px]">传输加密模式</div>
+              <div className="font-label-sm text-outline">
+                当前：{state.plain_mode ? '明文（无加密，仅联调抓包使用）' : '加密（AES-128-CTR + HMAC-MD5）'}
+                ；断开重连后自动复位为加密
+              </div>
+            </div>
+            {!state.plain_mode ? (
+              plainConfirm ? (
+                <div className="flex items-center gap-2">
+                  <span className="font-label-bold text-critical text-[13px]">确认切换明文？</span>
+                  <Button
+                    variant="critical"
+                    onClick={async () => {
+                      setPlainConfirm(false)
+                      await actions.plainModeSet(true)
+                    }}
+                    disabled={!connected}
                   >
-                    清零
-                  </button>
-                )}
-                {ch !== 'STEER' && (
-                  <>
-                    <input
-                      value={calWeights[ch]}
-                      onChange={(e) => setCalWeights((p) => ({ ...p, [ch]: e.target.value }))}
-                      inputMode="numeric"
-                      placeholder="砝码 g"
-                      disabled={!st.isConnected}
-                      className="ui-input w-20 !py-0.5 text-center"
-                    />
-                    <button
-                      onClick={() => {
-                        const w = Number(calWeights[ch])
-                        if (Number.isFinite(w) && w > 0) forceActions.calibrate(ch, Math.round(w)).catch(() => {})
-                      }}
-                      disabled={!st.isConnected || !calWeights[ch]}
-                      className="ui-action-btn !px-2 !py-0.5 !text-[11px]"
-                    >
-                      校准
-                    </button>
-                  </>
-                )}
-              </div>
-            )
-          })}
-          <div className="font-label-sm text-outline">
-            四个 BLE 模块独立连接；转向角通道为 Modbus RTU 倾角传感器（10Hz 轮询读 X/Y 角度）；二路开关为 EE 协议（继电器控制）；力值通道清零 = 零点校准，校准 = 砝码标定
-          </div>
-        </div>
-      </IndustrialCard>
-
-      {/* SET 参数 */}
-      <IndustrialCard title="设备参数（SET）">
-        <div className="p-4 space-y-3">
-          <div className="flex items-end gap-3">
-            <div className="w-40">
-              <label className="font-label-sm text-on-surface-variant">遥测上报频率 (1-50)</label>
-              <input
-                value={reportHz}
-                onChange={(e) => setReportHz(e.target.value)}
-                inputMode="numeric"
-                className="mt-0.5 w-full px-3 py-2 rounded-lg border border-outline-variant monospaced-data text-body-md focus:outline-none focus:border-primary"
-              />
-            </div>
-            <Button onClick={() => actions.setReport(Number(reportHz)).catch(() => {})} disabled={!connected}>
-              应用
-            </Button>
-          </div>
-
-          <div className="flex items-end gap-3">
-            <div className="w-40">
-              <label className="font-label-sm text-on-surface-variant">推杆脉冲当量 (10-10000)</label>
-              <input
-                value={pulsesPerMm}
-                onChange={(e) => setPulsesPerMm(e.target.value)}
-                inputMode="decimal"
-                className="mt-0.5 w-full px-3 py-2 rounded-lg border border-outline-variant monospaced-data text-body-md focus:outline-none focus:border-primary"
-              />
-            </div>
-            <Button onClick={() => actions.setPushPulsesPerMm(Number(pulsesPerMm)).catch(() => {})} disabled={!connected}>
-              应用（NVS 保存）
-            </Button>
-          </div>
-
-          <div className="flex items-end gap-3">
-            <div className="w-40">
-              <label className="font-label-sm text-on-surface-variant">调平传动比 (0.01-100)</label>
-              <input
-                value={levelRatio}
-                onChange={(e) => setLevelRatio(e.target.value)}
-                inputMode="decimal"
-                className="mt-0.5 w-full px-3 py-2 rounded-lg border border-outline-variant monospaced-data text-body-md focus:outline-none focus:border-primary"
-              />
-            </div>
-            <Button onClick={() => actions.setLevelRatio(Number(levelRatio)).catch(() => {})} disabled={!connected}>
-              应用（NVS 保存）
-            </Button>
-          </div>
-        </div>
-      </IndustrialCard>
-
-      {/* 明文调试模式 */}
-      <IndustrialCard title="明文调试模式">
-        <div className="p-4 space-y-3">
-          <div className="font-label-sm text-on-surface-variant">
-            当前模式：<span className="font-label-bold text-on-surface">{state.plain_mode ? '明文（无加密）' : '加密（AES-128-CTR + HMAC-MD5）'}</span>
-            <br />
-            明文模式仅用于联调抓包分析；断开重连后自动复位为加密模式。
-          </div>
-          {!state.plain_mode ? (
-            plainConfirm ? (
-              <div className="flex items-center gap-3">
-                <span className="font-label-bold text-critical">确认切换为明文传输？</span>
-                <Button
-                  variant="critical"
-                  onClick={async () => {
-                    setPlainConfirm(false)
-                    await actions.plainModeSet(true)
-                  }}
-                  disabled={!connected}
-                >
-                  确认开启
+                    确认开启
+                  </Button>
+                  <Button variant="ghost" onClick={() => setPlainConfirm(false)}>取消</Button>
+                </div>
+              ) : (
+                <Button variant="ghost" icon="warning" onClick={() => setPlainConfirm(true)} disabled={!connected}>
+                  开启明文模式
                 </Button>
-                <Button variant="ghost" onClick={() => setPlainConfirm(false)}>取消</Button>
-              </div>
+              )
             ) : (
-              <Button variant="ghost" icon="warning" onClick={() => setPlainConfirm(true)} disabled={!connected}>
-                开启明文模式
+              <Button onClick={() => actions.plainModeSet(false)} disabled={!connected} icon="lock">
+                切回加密模式
               </Button>
-            )
-          ) : (
-            <Button onClick={() => actions.plainModeSet(false)} disabled={!connected} icon="lock">
-              切回加密模式
-            </Button>
-          )}
+            )}
+          </div>
         </div>
       </IndustrialCard>
 
-      {/* NET 网络配置 */}
+      {/* ===== 网络配置（NET，需 WiFi 连接） ===== */}
       <IndustrialCard
         title="网络配置（NET）"
         headerRight={
-          <Button variant="ghost" onClick={handleQueryNet} disabled={!connected} className="!py-1">
+          <Button variant="ghost" onClick={handleQueryNet} disabled={!connected} className="!py-1.5">
             查询当前配置
           </Button>
         }
       >
-        <div className="p-4 space-y-3">
+        <div className="p-4 space-y-4">
           {netcfg && (
-            <div className="font-label-sm monospaced-data text-on-surface-variant">
-              当前 SSID：{netcfg.ssid} · 密码：{netcfg.pass}
+            <div className="rounded-[10px] bg-surface-container-low px-3 py-2 font-label-sm monospaced-data text-on-surface-variant">
+              当前 SSID：<span className="font-label-bold text-on-surface">{netcfg.ssid}</span>
+              　密码：{netcfg.pass}
             </div>
           )}
           <div className="grid grid-cols-3 gap-3 items-end">
@@ -257,52 +374,61 @@ export default function SettingsPage() {
                 value={netOldPass}
                 onChange={(e) => setNetOldPass(e.target.value)}
                 type="password"
-                className="mt-0.5 w-full px-3 py-2 rounded-lg border border-outline-variant monospaced-data text-body-md focus:outline-none focus:border-primary"
+                disabled={!connected}
+                className="ui-input mt-1 w-full !py-2"
               />
             </div>
             <div>
-              <label className="font-label-sm text-on-surface-variant">新 SSID (1-32)</label>
+              <label className="font-label-sm text-on-surface-variant">新 SSID（1–32）</label>
               <input
                 value={netSsid}
                 onChange={(e) => setNetSsid(e.target.value)}
-                className="mt-0.5 w-full px-3 py-2 rounded-lg border border-outline-variant monospaced-data text-body-md focus:outline-none focus:border-primary"
+                disabled={!connected}
+                className="ui-input mt-1 w-full !py-2"
               />
             </div>
             <div>
-              <label className="font-label-sm text-on-surface-variant">新密码 (8-64，支持空格)</label>
+              <label className="font-label-sm text-on-surface-variant">新密码（8–64）</label>
               <input
                 value={netNewPass}
                 onChange={(e) => setNetNewPass(e.target.value)}
-                className="mt-0.5 w-full px-3 py-2 rounded-lg border border-outline-variant monospaced-data text-body-md focus:outline-none focus:border-primary"
-              />
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <Button
-              onClick={() => actions.netSetcfg(netOldPass, netSsid, netNewPass).catch(() => {})}
-              disabled={!connected || !netOldPass || !netSsid || !netNewPass}
-            >
-              保存网络配置（重启后生效）
-            </Button>
-          </div>
-
-          <div className="border-t border-surface-variant pt-3 flex items-end gap-3">
-            <div className="w-56">
-              <label className="font-label-sm text-on-surface-variant">恢复默认（当前密码或紧急密码 XDESIN2026）</label>
-              <input
-                value={netResetPass}
-                onChange={(e) => setNetResetPass(e.target.value)}
                 type="password"
-                className="mt-0.5 w-full px-3 py-2 rounded-lg border border-outline-variant monospaced-data text-body-md focus:outline-none focus:border-primary"
+                disabled={!connected}
+                className="ui-input mt-1 w-full !py-2"
               />
             </div>
-            <Button
-              variant="critical"
-              onClick={() => actions.netReset(netResetPass).catch(() => {})}
-              disabled={!connected || !netResetPass}
-            >
-              恢复默认配置
-            </Button>
+          </div>
+          <Button
+            onClick={() => actions.netSetcfg(netOldPass, netSsid, netNewPass).catch(() => {})}
+            disabled={!connected || !netOldPass || !netSsid || !netNewPass}
+          >
+            保存网络配置（重启后生效）
+          </Button>
+
+          <div className="border-t border-surface-variant pt-4">
+            <div className="font-label-bold text-[14px] text-critical">恢复默认配置</div>
+            <div className="font-label-sm text-outline mb-2">
+              清空 WiFi 配置并恢复出厂网络设置（需当前密码或紧急密码 XDESIN2026）
+            </div>
+            <div className="flex items-end gap-3">
+              <div className="w-56">
+                <input
+                  value={netResetPass}
+                  onChange={(e) => setNetResetPass(e.target.value)}
+                  type="password"
+                  placeholder="密码"
+                  disabled={!connected}
+                  className="ui-input w-full !py-2"
+                />
+              </div>
+              <Button
+                variant="critical"
+                onClick={() => actions.netReset(netResetPass).catch(() => {})}
+                disabled={!connected || !netResetPass}
+              >
+                恢复默认
+              </Button>
+            </div>
           </div>
         </div>
       </IndustrialCard>
