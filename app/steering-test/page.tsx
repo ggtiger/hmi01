@@ -6,6 +6,7 @@ import {
 } from 'recharts'
 import { useDevice, useForce } from '@/lib/comm'
 import { fmtNum } from '@/lib/comm/types'
+import { exportWorkbook } from '@/lib/export-excel'
 import EstopButton from '@/components/ui/EstopButton'
 import ForceModal from '@/components/ui/ForceModal'
 
@@ -183,20 +184,39 @@ export default function SteeringTestPage() {
     forceActions.resetMax('TORQUE').catch(() => {})
   }
 
-  const exportCsv = () => {
-    const lines = [
-      ['#', '时间', '记录项', '值'].join(','),
-      ...records.map((r) =>
-        [r.index, r.timestamp, r.key, r.value === null ? '--' : `${r.value.toFixed(3)}${r.unit}`].join(',')
-      ),
-    ]
-    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `steer-records-${Date.now()}.csv`
-    a.click()
-    URL.revokeObjectURL(url)
+  /** 导出两个 Sheet：记录值 + 实时曲线数据 */
+  const exportExcel = async () => {
+    try {
+      await exportWorkbook(`steer-records-${Date.now()}.xlsx`, [
+        {
+          name: '记录值',
+          rows: [
+            ['序号', '时间', '记录项', '值', '单位'],
+            ...records.map((r) => [
+              r.index,
+              r.timestamp,
+              r.key,
+              r.value === null ? null : Number(r.value.toFixed(3)),
+              r.unit,
+            ]),
+          ],
+        },
+        {
+          name: '实时曲线',
+          rows: [
+            ['时间', '倾角 X (°)', '倾角 Y (°)', '自由转角 (°)'],
+            ...trend.map((p) => [
+              p.label,
+              p.tilt_x === null ? null : Number(p.tilt_x.toFixed(3)),
+              p.tilt_y === null ? null : Number(p.tilt_y.toFixed(3)),
+              p.free === null ? null : Number(p.free.toFixed(3)),
+            ]),
+          ],
+        },
+      ])
+    } catch (err) {
+      console.error('[Steer] 导出失败:', err)
+    }
   }
 
   const clearTrendAndRecords = () => {
@@ -366,11 +386,12 @@ export default function SteeringTestPage() {
                 {testing ? '停止测试' : '开始测试'}
               </button>
               <button
-                onClick={exportCsv}
-                disabled={records.length === 0}
+                onClick={exportExcel}
+                disabled={records.length === 0 && trend.length === 0}
                 className="ui-action-btn ui-action-btn-ghost !px-6 !py-2.5"
+                title="导出 Excel：记录值 + 实时曲线两个 Sheet"
               >
-                导出
+                导出 Excel
               </button>
             </div>
             {!bleReady && (
