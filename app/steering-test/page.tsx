@@ -283,14 +283,34 @@ export default function SteeringTestPage() {
               unit="°"
               value={cwAngle}
               digits={3}
-              actions={<MiniBtn onClick={() => setCwAngle(null)} disabled={!testing}>清除</MiniBtn>}
+              actions={
+                <>
+                  <MiniBtn onClick={() => setCwAngle(null)} disabled={!testing}>清除</MiniBtn>
+                  <MiniBtn
+                    onClick={() => addRecord('顺时针峰值', cwAngle)}
+                    disabled={!tiltConnected || cwAngle === null}
+                  >
+                    记录
+                  </MiniBtn>
+                </>
+              }
             />
             <DataRow
               label="逆时针峰值"
               unit="°"
               value={ccwAngle}
               digits={3}
-              actions={<MiniBtn onClick={() => setCcwAngle(null)} disabled={!testing}>清除</MiniBtn>}
+              actions={
+                <>
+                  <MiniBtn onClick={() => setCcwAngle(null)} disabled={!testing}>清除</MiniBtn>
+                  <MiniBtn
+                    onClick={() => addRecord('逆时针峰值', ccwAngle)}
+                    disabled={!tiltConnected || ccwAngle === null}
+                  >
+                    记录
+                  </MiniBtn>
+                </>
+              }
             />
 
             <DataRow
