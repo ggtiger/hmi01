@@ -18,7 +18,9 @@ pub struct ScaleFrame {
     pub method: u8,
     pub module_id: u8,
     pub ad_code: i32,
-    pub weight_mg: i64,
+    /// 设备回传的重量原始值，单位 **N**（WEIGHT_SO3 实测；原 SSTS 称重模块为 mg，
+    /// 本平台设备使用 N——若按 mg 换算会缩小 1e6 倍导致力值恒为 0）
+    pub weight_raw: i64,
     pub status: u8,
     pub timestamp: u16,
 }
@@ -28,8 +30,11 @@ pub struct ScaleFrame {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ScaleData {
-    pub weight_mg: i64,
+    /// 设备回传的重量原始值（单位 N）
+    pub weight_raw: i64,
+    /// 由 N 反算的克数（N / 9.80665 × 1000）
     pub weight_g: f64,
+    /// 力值（N）
     pub weight_n: f64,
     pub ad_code: i32,
     pub status: u8,
@@ -38,10 +43,11 @@ pub struct ScaleData {
 
 impl From<ScaleFrame> for ScaleData {
     fn from(frame: ScaleFrame) -> Self {
-        let weight_g = frame.weight_mg as f64 / 1000.0;
-        let weight_n = (frame.weight_mg as f64 / 1_000_000.0) * 9.80665;
+        // 设备重量字段单位即 N，直接使用；克数仅用于显示换算
+        let weight_n = frame.weight_raw as f64;
+        let weight_g = (weight_n / 9.80665) * 1000.0;
         Self {
-            weight_mg: frame.weight_mg,
+            weight_raw: frame.weight_raw,
             weight_g,
             weight_n,
             ad_code: frame.ad_code,
@@ -131,8 +137,8 @@ pub fn parse_scale_frame(data: &[u8]) -> Result<ScaleFrame, ScaleError> {
     // AD 内码：4 字节大端序（索引 8..12）
     let ad_code = i32::from_be_bytes([data[8], data[9], data[10], data[11]]);
 
-    // 重量数据：8 字节大端序（索引 12..20），单位 mg
-    let weight_mg = i64::from_be_bytes([
+    // 重量数据：8 字节大端序（索引 12..20），单位 N（本平台 WEIGHT_SO3 实测）
+    let weight_raw = i64::from_be_bytes([
         data[12], data[13], data[14], data[15],
         data[16], data[17], data[18], data[19],
     ]);
@@ -147,7 +153,7 @@ pub fn parse_scale_frame(data: &[u8]) -> Result<ScaleFrame, ScaleError> {
         method,
         module_id,
         ad_code,
-        weight_mg,
+        weight_raw,
         status,
         timestamp,
     })
@@ -226,14 +232,32 @@ mod tests {
             method: METHOD_WEIGHT_DATA,
             module_id: 0x01,
             ad_code: 100000,
-            weight_mg: 500_000, // 500g = 500000mg
+            // 设备重量字段单位 N：5 N ≈ 509.86 g
+            weight_raw: 5,
             status: 0x01,
             timestamp: 1000,
         };
         let data: ScaleData = frame.into();
-        assert_eq!(data.weight_mg, 500_000);
-        assert!((data.weight_g - 500.0).abs() < f64::EPSILON);
-        // 0.5kg * 9.80665 = 4.903325 N
-        assert!((data.weight_n - 4.903325).abs() < 0.0001);
+        assert_eq!(data.weight_raw, 5);
+        // N 直接作为力值（不再按 mg 缩小 1e6 倍）
+        assert!((data.weight_n - 5.0).abs() < f64::EPSILON);
+        // 克数 = N / 9.80665 × 1000
+        assert!((data.weight_g - (5.0 / 9.80665 * 1000.0)).abs() < 0.01);
+    }
+
+    /// 实际场景：设备回传 20 N → 显示 20 N（不再被当成 20 mg 缩小为 0）
+    #[test]
+    fn test_weight_unit_is_newton() {
+        let frame = ScaleFrame {
+            method: METHOD_WEIGHT_DATA,
+            module_id: 0x01,
+            ad_code: 32909,
+            weight_raw: 20,
+            status: 0x01,
+            timestamp: 1000,
+        };
+        let data: ScaleData = frame.into();
+        assert_eq!(data.weight_n, 20.0);
+        assert!((data.weight_g - (20.0 / 9.80665 * 1000.0)).abs() < 0.01);
     }
 }

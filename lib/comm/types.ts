@@ -132,8 +132,11 @@ export const FORCE_CHANNEL_LABELS: Record<ForceChannel, string> = {
 
 /** 力值数据（与 Rust ScaleData 对应，camelCase） */
 export interface ForceData {
-  weightMg: number;
+  /** 设备回传重量原始值（单位 N） */
+  weightRaw: number;
+  /** 由 N 反算的克数 */
   weightG: number;
+  /** 力值（N） */
   weightN: number;
   adCode: number;
   status: number;

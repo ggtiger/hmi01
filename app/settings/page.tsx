@@ -42,11 +42,14 @@ interface ModuleRowProps {
   onCalWeightChange: (v: string) => void
   onZero: () => void
   onSetCoefficient: (coef: number) => void
+  /** 设备砝码标定（发 0xAA 0x09 命令，让设备开始换算重量） */
+  onDeviceCalibrate: (grams: number) => void
 }
 
 /** 单个蓝牙模块行：状态 / 设备名 / 业务数值 / 操作 */
 function ModuleRow({
   channel, st, coefficient, calWeight, onCalWeightChange, onZero, onSetCoefficient,
+  onDeviceCalibrate,
 }: ModuleRowProps) {
   const isAngle = channel === 'STEER'
   const isSwitch = channel === 'SWITCH'
@@ -54,12 +57,17 @@ function ModuleRow({
   const rawN = st.isConnected ? st.latest?.weightN ?? null : null
   // 显示值 = 传感器读数 × 校正系数（默认 1）
   const displayN = rawN === null ? null : rawN * coefficient
+  /** 设备尚未输出重量（读数≈0）→ 需要设备砝码标定 */
+  const deviceCalNeeded = rawN === null || Math.abs(rawN) < 0.01
 
-  /** 校准：以「标准砝码重量 ÷ 当前读数」计算校正系数 */
+  /** 校准：设备未换算重量时先发设备标定；已有读数时计算软件校正系数 */
   const handleCalibrate = () => {
     const grams = Number(calWeight)
     if (!Number.isFinite(grams) || grams <= 0) return
-    if (rawN === null || Math.abs(rawN) < 0.01) return
+    if (deviceCalNeeded) {
+      onDeviceCalibrate(Math.round(grams))
+      return
+    }
     const standardN = (grams * 9.80665) / 1000
     const coef = standardN / rawN
     if (!Number.isFinite(coef) || coef <= 0 || coef > 1000) return
@@ -81,7 +89,7 @@ function ModuleRow({
         {/* 原始诊断：AD 内码 + 设备回传重量，用于判断"力值为 0"的根因 */}
         {isForce && st.isConnected && (
           <div className="font-label-sm monospaced-data text-outline/80">
-            AD {st.latest?.adCode ?? '--'} · 原始 {st.latest?.weightMg ?? '--'} mg
+            AD {st.latest?.adCode ?? '--'} · 原始 {st.latest?.weightRaw ?? '--'} N
           </div>
         )}
       </div>
@@ -139,11 +147,15 @@ function ModuleRow({
           />
           <button
             onClick={handleCalibrate}
-            disabled={!st.isConnected || !calWeight || rawN === null || Math.abs(rawN) < 0.01}
+            disabled={!st.isConnected || !calWeight}
             className="ui-action-btn !px-3 !py-1.5 !text-[12px]"
-            title="以「标准砝码重量 ÷ 当前读数」计算校正系数"
+            title={
+              deviceCalNeeded
+                ? '设备未输出重量：发送设备砝码标定命令，让设备按砝码换算重量'
+                : '以「标准砝码重量 ÷ 当前读数」计算校正系数'
+            }
           >
-            校准
+            {deviceCalNeeded ? '设备标定' : '系数校准'}
           </button>
         </div>
       )}
@@ -279,6 +291,7 @@ export default function SettingsPage() {
                     onCalWeightChange={(v) => setCalWeights((p) => ({ ...p, [ch]: v }))}
                     onZero={() => forceActions.zero(ch).catch(() => {})}
                     onSetCoefficient={(c) => setForceCoefficient(ch, String(c))}
+                    onDeviceCalibrate={(g) => forceActions.calibrate(ch, g).catch(() => {})}
                   />
                 ))}
               </div>
@@ -289,11 +302,12 @@ export default function SettingsPage() {
             <div className="font-label-sm text-outline leading-relaxed">
               ① <span className="font-label-bold text-on-surface">清零</span>：空载状态下点击，将当前负载标定为 0 N（下发设备零点校准命令）。
               <br />
-              ② <span className="font-label-bold text-on-surface">校准</span>：放置已知重量的砝码 → 输入砝码重量（g）→ 点击「校准」，
-              系统按「标准值 ÷ 当前读数」计算校正系数并保存（默认 1.00000）。
+              ② <span className="font-label-bold text-on-surface">设备标定</span>：原始重量接近 0 时出现——放置砝码并输入重量（g）后点击，
+              发送设备砝码标定命令，设备据此开始换算重量。
               <br />
-              ③ <span className="font-label-bold text-on-surface">系数</span>：所有力值显示 = 传感器读数 × 系数；
-              校准后放上砝码，实时力值应与砝码重量一致。系数按通道独立保存，重启后保留。
+              ③ <span className="font-label-bold text-on-surface">系数校准</span>：设备已输出重量后出现——按「标准值 ÷ 当前读数」计算软件校正系数并保存（默认 1.00000）。
+              <br />
+              ④ <span className="font-label-bold text-on-surface">系数</span>：所有力值显示 = 传感器读数 × 系数；系数按通道独立保存，重启后保留。
             </div>
             <button
               onClick={() => {
