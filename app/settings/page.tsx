@@ -50,12 +50,14 @@ interface ModuleRowProps {
   onAdCalibrate: (standardN: number, zeroAd: number) => void
   /** 软件校正系数（设备读数可用时） */
   onSetCoefficient: (coef: number) => void
+  /** 恢复出厂设置（Modbus 写 0x00FE） */
+  onFactoryReset: () => void
 }
 
 /** 单个蓝牙模块行：状态 / 设备名 / 业务数值 / 操作 */
 function ModuleRow({
   channel, st, displayN, coefficient, adCal, calWeight, onCalWeightChange, onZero,
-  onAdCalibrate, onSetCoefficient,
+  onAdCalibrate, onSetCoefficient, onFactoryReset,
 }: ModuleRowProps) {
   const isAngle = channel === 'STEER'
   const isSwitch = channel === 'SWITCH'
@@ -198,6 +200,24 @@ function ModuleRow({
             title="施加标准载荷（N）后点击：系统自动按当前读数完成标定"
           >
             校准
+          </button>
+          <button
+            onClick={() => {
+              if (
+                window.confirm(
+                  `确认将「${CHANNEL_SHORT[channel]}」恢复出厂设置？\n\n` +
+                    '设备零点、砝码标定与参数将恢复出厂值，本地标定参数同时清除。\n' +
+                    '恢复后请重新清零并标定。'
+                )
+              ) {
+                onFactoryReset()
+              }
+            }}
+            disabled={!st.isConnected}
+            className="ui-action-btn ui-action-btn-danger !px-3 !py-1.5 !text-[12px]"
+            title="恢复出厂设置（Modbus 写寄存器 0x00FE）"
+          >
+            恢复出厂
           </button>
         </div>
       )}
@@ -355,6 +375,13 @@ export default function SettingsPage() {
                       setAdCalibration(ch, { zeroAd, nPerAd })
                     }}
                     onSetCoefficient={(c) => setForceCoefficient(ch, String(c))}
+                    onFactoryReset={() => {
+                      forceActions.factoryReset(ch).catch(() => {})
+                      // 设备参数已恢复出厂，本地 AD 标定比例与软件系数同步清除
+                      const existing = adCalibration[ch]
+                      if (existing) setAdCalibration(ch, { zeroAd: existing.zeroAd, nPerAd: 0 })
+                      setForceCoefficient(ch, '1')
+                    }}
                   />
                 ))}
               </div>

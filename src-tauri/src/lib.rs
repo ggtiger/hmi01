@@ -985,6 +985,7 @@ pub fn run() {
             comm::force_commands::force_get_state,
             comm::force_commands::force_send_raw,
             comm::force_commands::force_raw_monitor,
+            comm::force_commands::force_factory_reset,
             comm::force_commands::force_switch_control,
         ])
         .build(tauri::generate_context!())

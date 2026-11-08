@@ -111,6 +111,15 @@ pub async fn force_raw_monitor(
 ///
 /// action: "on" | "off" | "momentary"（点动约 2s）| "query"（查询当前值）
 /// relay: 1 / 2；seconds: 延迟秒数（延迟开/关预留，action 为 delay_on/delay_off 时生效）
+/// 恢复出厂设置（DSX_weight_01 Modbus 写 0x00FE）
+#[tauri::command]
+pub async fn force_factory_reset(
+    channel: String,
+    state: State<'_, ForceState>,
+) -> Result<(), String> {
+    state.factory_reset(&channel).await
+}
+
 #[tauri::command]
 pub async fn force_switch_control(
     relay: u8,

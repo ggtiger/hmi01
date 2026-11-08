@@ -144,6 +144,7 @@ export function useForce() {
       resetMax: withErrorHandling(ForceService.forceResetMax),
       sendRaw: withErrorHandling(ForceService.forceSendRaw),
       rawMonitor: withErrorHandling(ForceService.forceRawMonitor),
+      factoryReset: withErrorHandling(ForceService.forceFactoryReset),
       switchControl: withErrorHandling(ForceService.forceSwitchControl),
       clearError: () => setError(null),
     }),

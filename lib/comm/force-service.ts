@@ -53,3 +53,8 @@ export async function forceSwitchControl(
 ): Promise<void> {
   return invoke('force_switch_control', { relay, action, seconds: seconds ?? null });
 }
+
+/** 恢复出厂设置（DSX_weight_01：Modbus 写寄存器 0x00FE） */
+export async function forceFactoryReset(channel: ForceChannel): Promise<void> {
+  return invoke('force_factory_reset', { channel });
+}

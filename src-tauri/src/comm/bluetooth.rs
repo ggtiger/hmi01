@@ -1097,6 +1097,18 @@ impl ForceManager {
         self.write_to_device(channel, &cmd).await
     }
 
+    /// 恢复出厂设置（DSX_weight_01 手册：Modbus RTU 写寄存器 0x00FE = 1）
+    ///
+    /// 帧：`01 06 00 FE 00 01 [CRC16 L] [CRC16 H]`
+    /// 恢复后设备的零点/砝码标定/参数回到出厂值，建议重新连接并重新标定。
+    pub async fn factory_reset(&self, channel: &str) -> Result<(), String> {
+        let mut frame: Vec<u8> = vec![0x01, 0x06, 0x00, 0xFE, 0x00, 0x01];
+        let crc = tilt_protocol::crc16_modbus(&frame);
+        frame.push((crc & 0xFF) as u8);
+        frame.push((crc >> 8) as u8);
+        self.write_to_device(channel, &frame).await
+    }
+
     /// 砝码标定（校准）
     pub async fn weight_calibration(&self, channel: &str, weight_g: u32) -> Result<(), String> {
         let cmd = scale_protocol::build_calibrate_command(weight_g);
