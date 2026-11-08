@@ -124,10 +124,10 @@ export default function SteeringTestPage() {
     if (now - lastTrendPush.current < 200) return
     lastTrendPush.current = now
     const d = new Date()
-    const label = `${d.getMinutes().toString().padStart(2, '0')}:${d
-      .getSeconds()
+    const label = `${d.getHours().toString().padStart(2, '0')}:${d
+      .getMinutes()
       .toString()
-      .padStart(2, '0')}`
+      .padStart(2, '0')}:${d.getSeconds().toString().padStart(2, '0')}`
     const free = tiltX === null ? null : tiltX - zeroOffset
     setTrend((prev) => {
       const next = [...prev, { label, tilt_x: tiltX, tilt_y: tiltY, free, torque: torqueLive }]
