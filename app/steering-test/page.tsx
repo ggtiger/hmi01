@@ -4,10 +4,9 @@ import { useEffect, useRef, useState } from 'react'
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts'
-import { useDevice, useForce } from '@/lib/comm'
+import { useForce } from '@/lib/comm'
 import { fmtNum } from '@/lib/comm/types'
 import { exportWorkbook, renderLineChartPng } from '@/lib/export-excel'
-import EstopButton from '@/components/ui/EstopButton'
 import ForceModal from '@/components/ui/ForceModal'
 
 /** 记录点（转盘测试本地记录） */
@@ -41,9 +40,9 @@ function DataRow({
   actions?: React.ReactNode
 }) {
   return (
-    <div className="flex items-center gap-1.5">
-      <div className="ui-data-box flex-1">
-        <span className="ui-label">
+    <div className="flex items-center gap-2">
+      <div className="ui-data-box flex-1 !py-3 !px-3">
+        <span className="ui-label text-[15px]">
           {label} <span className="text-outline">{unit}</span>
           {direction && (
             <span className={`ml-1 font-label-bold ${direction === 'cw' ? 'text-sky-600' : 'text-violet-600'}`}>
@@ -51,7 +50,7 @@ function DataRow({
             </span>
           )}
         </span>
-        <span className="ui-value">{fmtNum(value, digits)}</span>
+        <span className="ui-value !text-[17px]">{fmtNum(value, digits)}</span>
       </div>
       {actions}
     </div>
@@ -69,7 +68,7 @@ function MiniBtn({
     <button
       onClick={onClick}
       disabled={disabled}
-      className="ui-action-btn !px-2.5 !py-1 !text-[12px] flex-shrink-0"
+      className="ui-action-btn !px-4 !py-2.5 !text-[14px] !rounded-[10px] min-w-[64px] flex-shrink-0"
     >
       {children}
     </button>
@@ -82,7 +81,6 @@ function MiniBtn({
  * 无 WiFi / TCP 依赖，两个模块连接成功即可开始测试
  */
 export default function SteeringTestPage() {
-  const { actions: deviceActions } = useDevice()
   const { states: forceStates, actions: forceActions } = useForce()
 
   const tiltCh = forceStates.STEER
@@ -248,61 +246,61 @@ export default function SteeringTestPage() {
   return (
     <div className="h-full flex flex-col gap-2 p-3 overflow-hidden">
       {/* ===== 顶部行：蓝牙连接状态（无 WiFi 依赖） ===== */}
-      <div className="flex items-stretch gap-1.5">
+      <div className="flex items-stretch gap-2">
         <button
           onClick={() => setForceModalOpen(true)}
-          className={`ui-action-btn ${bleReady ? '' : 'ui-action-btn-ghost'} !px-3`}
+          className={`ui-action-btn ${bleReady ? '' : 'ui-action-btn-ghost'} !px-5 !py-3 !text-[15px]`}
           title="蓝牙模块管理"
         >
-          <span className="material-symbols-outlined text-[16px]">bluetooth</span>
+          <span className="material-symbols-outlined text-[20px]">bluetooth</span>
           蓝牙模块联结
-          <span className="text-[11px] opacity-70">
+          <span className="text-[12px] opacity-70">
             {[tiltConnected, torqueConnected].filter(Boolean).length}/2
           </span>
         </button>
-        <div className={`ui-data-box !px-3 ${tiltConnected ? '!border-success' : '!border-critical'}`}>
-          <span className="ui-label">倾角模块</span>
-          <span className={`ui-value ${tiltConnected ? '!text-success' : '!text-critical'}`}>
+        <div className={`ui-data-box !px-4 !py-3 ${tiltConnected ? '!border-success' : '!border-critical'}`}>
+          <span className="ui-label text-[14px]">倾角模块</span>
+          <span className={`ui-value !text-[15px] ${tiltConnected ? '!text-success' : '!text-critical'}`}>
             {tiltConnected ? '已连接' : '未连接'}
           </span>
         </div>
-        <div className={`ui-data-box !px-3 ${torqueConnected ? '!border-success' : '!border-critical'}`}>
-          <span className="ui-label">转向力模块</span>
-          <span className={`ui-value ${torqueConnected ? '!text-success' : '!text-critical'}`}>
+        <div className={`ui-data-box !px-4 !py-3 ${torqueConnected ? '!border-success' : '!border-critical'}`}>
+          <span className="ui-label text-[14px]">转向力模块</span>
+          <span className={`ui-value !text-[15px] ${torqueConnected ? '!text-success' : '!text-critical'}`}>
             {torqueConnected ? '已连接' : '未连接'}
           </span>
         </div>
-        <div className="ui-data-box">
-          <span className="ui-label">测试状态</span>
-          <span className={`ui-value ${testing ? '!text-success' : ''}`}>
+        <div className="ui-data-box !px-4 !py-3">
+          <span className="ui-label text-[14px]">测试状态</span>
+          <span className={`ui-value !text-[15px] ${testing ? '!text-success' : ''}`}>
             {testing ? '测试中' : '待机'}
           </span>
         </div>
         <div className="flex-1" />
-        <div className="ui-data-box">
-          <span className="ui-label">倾角 X</span>
-          <span className="ui-value">{fmtNum(tiltX, 3)}°</span>
+        <div className="ui-data-box !px-4 !py-3">
+          <span className="ui-label text-[14px]">倾角 X</span>
+          <span className="ui-value !text-[16px]">{fmtNum(tiltX, 3)}°</span>
         </div>
         <div className="ui-data-box">
-          <span className="ui-label">倾角 Y</span>
-          <span className="ui-value">{fmtNum(tiltY, 3)}°</span>
+          <span className="ui-label text-[14px]">倾角 Y</span>
+          <span className="ui-value !text-[16px]">{fmtNum(tiltY, 3)}°</span>
         </div>
       </div>
 
       {/* ===== 主体：左侧数据面板 + 右侧图表区 ===== */}
       <div className="flex-1 min-h-0 flex gap-2">
         {/* 左侧数据面板 */}
-        <div className="w-[460px] flex-shrink-0 industrial-card rounded-xl p-2.5">
-          <div className="flex flex-col gap-1.5 h-full justify-center">
-            <div className="ui-data-box !bg-primary !border-primary">
-              <span className="font-label-bold text-on-primary tracking-widest">转盘测试</span>
-              <span className="ui-value !text-on-primary/70 text-[11px]">蓝牙采集</span>
+        <div className="w-[540px] flex-shrink-0 industrial-card rounded-xl p-3">
+          <div className="flex flex-col gap-2">
+            <div className="ui-data-box !bg-primary !border-primary !py-3">
+              <span className="font-label-bold text-on-primary tracking-widest text-[15px]">转盘测试</span>
+              <span className="ui-value !text-on-primary/70 text-[12px]">蓝牙采集</span>
             </div>
 
             {/* 倾角 X/Y 合并一行展示 */}
-            <div className="ui-data-box">
-              <span className="ui-label">倾角 X / Y <span className="text-outline">°</span></span>
-              <span className="ui-value">
+            <div className="ui-data-box !py-3 !px-3">
+              <span className="ui-label text-[15px]">倾角 X / Y <span className="text-outline">°</span></span>
+              <span className="ui-value !text-[17px]">
                 {fmtNum(tiltX, 3)} / {fmtNum(tiltY, 3)}
               </span>
             </div>
@@ -314,12 +312,20 @@ export default function SteeringTestPage() {
               digits={3}
               direction={direction}
               actions={
-                <MiniBtn
-                  onClick={() => setZeroOffset(tiltX ?? 0)}
-                  disabled={tiltX === null}
-                >
-                  清零
-                </MiniBtn>
+                <>
+                  <MiniBtn
+                    onClick={() => setZeroOffset(tiltX ?? 0)}
+                    disabled={tiltX === null}
+                  >
+                    清零
+                  </MiniBtn>
+                  <MiniBtn
+                    onClick={() => addRecord('自由转角', freeAngle)}
+                    disabled={freeAngle === null}
+                  >
+                    记录
+                  </MiniBtn>
+                </>
               }
             />
 
@@ -364,12 +370,20 @@ export default function SteeringTestPage() {
               value={torqueLive}
               digits={2}
               actions={
-                <MiniBtn
-                  onClick={() => run(() => forceActions.zero('TORQUE'))}
-                  disabled={!torqueConnected || busy}
-                >
-                  清零
-                </MiniBtn>
+                <>
+                  <MiniBtn
+                    onClick={() => run(() => forceActions.zero('TORQUE'))}
+                    disabled={!torqueConnected || busy}
+                  >
+                    清零
+                  </MiniBtn>
+                  <MiniBtn
+                    onClick={() => addRecord('实时力值', torqueLive, 'N')}
+                    disabled={torqueLive === null}
+                  >
+                    记录
+                  </MiniBtn>
+                </>
               }
             />
             <DataRow
@@ -398,18 +412,18 @@ export default function SteeringTestPage() {
               }
             />
 
-            <div className="flex items-center gap-1.5 mt-2">
+            <div className="flex items-center gap-2 mt-3">
               <button
                 onClick={() => (testing ? setTesting(false) : startTest())}
                 disabled={!bleReady}
-                className={`ui-action-btn flex-1 !py-2.5 !text-[14px] ${testing ? 'ui-action-btn-danger' : ''}`}
+                className={`ui-action-btn flex-1 !py-4 !text-[17px] ${testing ? 'ui-action-btn-danger' : ''}`}
               >
                 {testing ? '停止测试' : '开始测试'}
               </button>
               <button
                 onClick={exportExcel}
                 disabled={records.length === 0 && trend.length === 0}
-                className="ui-action-btn ui-action-btn-ghost !px-6 !py-2.5"
+                className="ui-action-btn ui-action-btn-ghost !px-8 !py-4 !text-[16px]"
                 title="导出 Excel：记录值 + 实时曲线两个 Sheet"
               >
                 导出 Excel
@@ -432,10 +446,10 @@ export default function SteeringTestPage() {
             <span className="font-label-bold text-label-bold uppercase tracking-widest text-on-surface-variant">
               角度趋势
             </span>
-            {/* 清空趋势曲线 + 全部历史记录 */}
+            {/* 清空趋势曲线 + 全部历史记录（触屏加大） */}
             <button
               onClick={clearTrendAndRecords}
-              className="font-label-sm text-outline hover:text-critical"
+              className="px-4 py-2 rounded-[10px] border border-outline-variant font-label-bold text-[14px] text-on-surface-variant hover:bg-primary hover:text-on-primary hover:border-primary transition-colors"
               title="清空趋势曲线与全部历史记录"
             >
               清空
@@ -486,7 +500,7 @@ export default function SteeringTestPage() {
                               prev.filter((x) => x.index !== r.index).map((x, i) => ({ ...x, index: i + 1 }))
                             )
                           }
-                          className="material-symbols-outlined text-[14px] text-outline hover:text-critical"
+                          className="material-symbols-outlined text-[22px] text-outline hover:text-critical px-2 py-1"
                         >
                           close
                         </button>
@@ -498,21 +512,6 @@ export default function SteeringTestPage() {
             </div>
           )}
         </div>
-      </div>
-
-      {/* ===== 底部操作栏 ===== */}
-      <div className="flex items-center gap-1.5">
-        <div className="flex-1" />
-        {/* 急停仅对已连 TCP 的运动控制生效；纯蓝牙场景未连接时静默 */}
-        <EstopButton
-          onEstop={async () => {
-            try {
-              await deviceActions.estop()
-            } catch {
-              /* 未连接 WiFi 设备 */
-            }
-          }}
-        />
       </div>
 
       <ForceModal open={forceModalOpen} onClose={() => setForceModalOpen(false)} />
