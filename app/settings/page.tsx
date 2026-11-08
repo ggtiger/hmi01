@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useDevice, useForce } from '@/lib/comm'
 import { fmtNum, type ForceChannel, type ForceChannelState } from '@/lib/comm/types'
-import { useSettingsStore } from '@/lib/store'
+import { useSettingsStore, forceCoefficient } from '@/lib/store'
 import IndustrialCard from '@/components/ui/IndustrialCard'
 import Button from '@/components/ui/Button'
 import ForceModal from '@/components/ui/ForceModal'
@@ -36,22 +36,35 @@ function ValueBox({ label, value, accent }: { label: string; value: string; acce
 interface ModuleRowProps {
   channel: ForceChannel
   st: ForceChannelState
+  /** 校正系数（默认 1） */
+  coefficient: number
   calWeight: string
   onCalWeightChange: (v: string) => void
   onZero: () => void
-  onCalibrate: (grams: number) => void
+  onSetCoefficient: (coef: number) => void
 }
 
 /** 单个蓝牙模块行：状态 / 设备名 / 业务数值 / 操作 */
-function ModuleRow({ channel, st, calWeight, onCalWeightChange, onZero, onCalibrate }: ModuleRowProps) {
+function ModuleRow({
+  channel, st, coefficient, calWeight, onCalWeightChange, onZero, onSetCoefficient,
+}: ModuleRowProps) {
   const isAngle = channel === 'STEER'
   const isSwitch = channel === 'SWITCH'
   const isForce = !isAngle && !isSwitch
-  // 校准系数 = 当前克数 ÷ AD 内码（设备回传），反映标定后的换算比例
-  const coef =
-    st.isConnected && st.latest && st.latest.adCode !== 0
-      ? st.latest.weightG / st.latest.adCode
-      : null
+  const rawN = st.isConnected ? st.latest?.weightN ?? null : null
+  // 显示值 = 传感器读数 × 校正系数（默认 1）
+  const displayN = rawN === null ? null : rawN * coefficient
+
+  /** 校准：以「标准砝码重量 ÷ 当前读数」计算校正系数 */
+  const handleCalibrate = () => {
+    const grams = Number(calWeight)
+    if (!Number.isFinite(grams) || grams <= 0) return
+    if (rawN === null || Math.abs(rawN) < 0.01) return
+    const standardN = (grams * 9.80665) / 1000
+    const coef = standardN / rawN
+    if (!Number.isFinite(coef) || coef <= 0 || coef > 1000) return
+    onSetCoefficient(Number(coef.toFixed(5)))
+  }
 
   return (
     <div className="flex items-center gap-3 rounded-xl border border-surface-variant bg-white px-4 py-3">
@@ -79,8 +92,8 @@ function ModuleRow({ channel, st, calWeight, onCalWeightChange, onZero, onCalibr
         )}
         {isForce && (
           <>
-            <ValueBox label="实时" value={`${fmtNum(st.isConnected ? st.latest?.weightN ?? null : null, 2)} N`} />
-            <ValueBox label="系数" value={coef === null ? '--' : coef.toFixed(5)} />
+            <ValueBox label="实时" value={`${fmtNum(displayN, 2)} N`} />
+            <ValueBox label="系数" value={coefficient.toFixed(5)} />
           </>
         )}
         {isSwitch &&
@@ -119,12 +132,10 @@ function ModuleRow({ channel, st, calWeight, onCalWeightChange, onZero, onCalibr
             title="放置对应重量砝码后点击校准"
           />
           <button
-            onClick={() => {
-              const w = Number(calWeight)
-              if (Number.isFinite(w) && w > 0) onCalibrate(Math.round(w))
-            }}
-            disabled={!st.isConnected || !calWeight}
+            onClick={handleCalibrate}
+            disabled={!st.isConnected || !calWeight || rawN === null || Math.abs(rawN) < 0.01}
             className="ui-action-btn !px-3 !py-1.5 !text-[12px]"
+            title="以「标准砝码重量 ÷ 当前读数」计算校正系数"
           >
             校准
           </button>
@@ -175,6 +186,7 @@ export default function SettingsPage() {
   const { states: forceStates, actions: forceActions } = useForce()
   const {
     reportHz, pulsesPerMm, levelRatio,
+    forceCoefficients, setForceCoefficient,
     setReportHz, setPulsesPerMm, setLevelRatio,
   } = useSettingsStore()
 
@@ -256,10 +268,11 @@ export default function SettingsPage() {
                     key={ch}
                     channel={ch}
                     st={forceStates[ch]}
+                    coefficient={forceCoefficient(forceCoefficients, ch)}
                     calWeight={calWeights[ch]}
                     onCalWeightChange={(v) => setCalWeights((p) => ({ ...p, [ch]: v }))}
                     onZero={() => forceActions.zero(ch).catch(() => {})}
-                    onCalibrate={(g) => forceActions.calibrate(ch, g).catch(() => {})}
+                    onSetCoefficient={(c) => setForceCoefficient(ch, String(c))}
                   />
                 ))}
               </div>
@@ -268,13 +281,13 @@ export default function SettingsPage() {
           <div className="rounded-[10px] bg-surface-container-low px-3 py-2.5 space-y-1">
             <div className="font-label-bold text-[12px] text-on-surface-variant">力值校准使用说明</div>
             <div className="font-label-sm text-outline leading-relaxed">
-              ① <span className="font-label-bold text-on-surface">清零</span>：空载状态下点击，将当前负载标定为 0 N（设备零点校准）。
+              ① <span className="font-label-bold text-on-surface">清零</span>：空载状态下点击，将当前负载标定为 0 N（下发设备零点校准命令）。
               <br />
               ② <span className="font-label-bold text-on-surface">校准</span>：放置已知重量的砝码 → 输入砝码重量（g）→ 点击「校准」，
-              设备以砝码为基准计算并保存换算系数。
+              系统按「标准值 ÷ 当前读数」计算校正系数并保存（默认 1.00000）。
               <br />
-              ③ <span className="font-label-bold text-on-surface">系数</span>：显示当前换算比例（克 ÷ AD 内码），
-              标定正确后放上砝码时实时力值应与砝码重量一致、系数趋于稳定。
+              ③ <span className="font-label-bold text-on-surface">系数</span>：所有力值显示 = 传感器读数 × 系数；
+              校准后放上砝码，实时力值应与砝码重量一致。系数按通道独立保存，重启后保留。
             </div>
           </div>
         </div>

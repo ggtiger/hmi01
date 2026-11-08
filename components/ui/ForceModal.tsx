@@ -5,6 +5,7 @@ import { useForce } from '@/lib/comm'
 import type { ForceChannel, ForceDeviceInfo } from '@/lib/comm/types'
 import { FORCE_CHANNEL_LABELS } from '@/lib/comm/types'
 import { fmtNum } from '@/lib/comm/types'
+import { useSettingsStore, forceCoefficient } from '@/lib/store'
 
 const CHANNELS: ForceChannel[] = ['A', 'B', 'STEER', 'SWITCH', 'TORQUE']
 const LAST_ADDR_KEY = 'xdesin-force-last-dev'
@@ -44,6 +45,8 @@ interface ForceModalProps {
  */
 export default function ForceModal({ open, onClose }: ForceModalProps) {
   const { states, actions, error, debugInfo } = useForce()
+  const forceCoefficients = useSettingsStore((s) => s.forceCoefficients)
+  const setForceCoefficient = useSettingsStore((s) => s.setForceCoefficient)
   const [devices, setDevices] = useState<ForceDeviceInfo[]>([])
   const [scanning, setScanning] = useState(false)
   const [pickChannel, setPickChannel] = useState<ForceChannel>('A')
@@ -177,7 +180,12 @@ export default function ForceModal({ open, onClose }: ForceModalProps) {
                       <span className="ui-data-box !py-0.5 !px-2">
                         <span className="ui-label text-[11px]">力值</span>
                         <span className="ui-value !text-[13px]">
-                          {fmtNum(st.latest?.weightN ?? null, 2)} N
+                          {fmtNum(
+                            st.latest
+                              ? st.latest.weightN * forceCoefficient(forceCoefficients, ch)
+                              : null,
+                            2
+                          )}{' '}N
                         </span>
                       </span>
                     )}
@@ -286,7 +294,7 @@ export default function ForceModal({ open, onClose }: ForceModalProps) {
                     <span className="font-label-sm text-on-surface-variant">
                       系数{' '}
                       <span className="monospaced-data font-label-bold text-on-surface">
-                        {st.latest && st.latest.adCode !== 0 ? (st.latest.weightG / st.latest.adCode).toFixed(5) : '--'}
+                        {forceCoefficient(forceCoefficients, ch).toFixed(5)}
                       </span>
                     </span>
                     <div className="flex-1" />
@@ -300,11 +308,19 @@ export default function ForceModal({ open, onClose }: ForceModalProps) {
                     />
                     <button
                       onClick={() => {
-                        const w = Number(calWeight[ch])
-                        if (Number.isFinite(w) && w > 0) actions.calibrate(ch, Math.round(w)).catch(() => {})
+                        const grams = Number(calWeight[ch])
+                        const rawN = st.latest?.weightN ?? null
+                        if (!Number.isFinite(grams) || grams <= 0) return
+                        if (rawN === null || Math.abs(rawN) < 0.01) return
+                        const standardN = (grams * 9.80665) / 1000
+                        const coef = standardN / rawN
+                        if (Number.isFinite(coef) && coef > 0 && coef <= 1000) {
+                          setForceCoefficient(ch, String(Number(coef.toFixed(5))))
+                        }
                       }}
-                      disabled={!calWeight[ch]}
+                      disabled={!calWeight[ch] || !st.latest || Math.abs(st.latest.weightN) < 0.01}
                       className="ui-action-btn !px-2 !py-0.5 !text-[11px]"
+                      title="以「标准砝码重量 ÷ 当前读数」计算校正系数"
                     >
                       校准
                     </button>

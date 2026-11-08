@@ -6,6 +6,7 @@ import {
 } from 'recharts'
 import { useForce } from '@/lib/comm'
 import { fmtNum } from '@/lib/comm/types'
+import { useSettingsStore, forceCoefficient } from '@/lib/store'
 import { exportWorkbook, renderLineChartPng } from '@/lib/export-excel'
 import ForceModal from '@/components/ui/ForceModal'
 
@@ -94,8 +95,13 @@ export default function SteeringTestPage() {
   const tiltX = angle?.angleX ?? null
   const tiltY = angle?.angleY ?? null
 
-  // 转向力
-  const torqueLive = torqueCh.isConnected ? torqueCh.latest?.weightN ?? null : null
+  // 转向力（显示值 = 传感器读数 × 校正系数，系数默认 1）
+  const torqueCoef = forceCoefficient(
+    useSettingsStore((s) => s.forceCoefficients),
+    'TORQUE'
+  )
+  const torqueRawN = torqueCh.isConnected ? torqueCh.latest?.weightN ?? null : null
+  const torqueLive = torqueRawN === null ? null : torqueRawN * torqueCoef
 
   const [busy, setBusy] = useState(false)
   const [forceModalOpen, setForceModalOpen] = useState(false)
