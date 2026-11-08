@@ -9,7 +9,7 @@ import { fmtNum } from '@/lib/comm/types'
 import EstopButton from '@/components/ui/EstopButton'
 import ForceModal from '@/components/ui/ForceModal'
 
-/** 记录点（转盘测试本地记录，协议 STEER 为预留功能） */
+/** 记录点（转盘测试本地记录） */
 interface SteerRecord {
   index: number
   timestamp: string
@@ -20,20 +20,22 @@ interface SteerRecord {
 
 interface TrendPoint {
   label: string
-  steer_x: number | null
-  steer_y: number | null
+  tilt_x: number | null
+  tilt_y: number | null
+  free: number | null
 }
 
 const MAX_TREND = 100
 
 /** 数据行（与踏板页数据面板同风格） */
 function DataRow({
-  label, value, unit, digits = 2, actions,
+  label, value, unit, digits = 2, direction, actions,
 }: {
   label: string
   value: number | null
   unit: string
   digits?: number
+  direction?: 'cw' | 'ccw' | null
   actions?: React.ReactNode
 }) {
   return (
@@ -41,6 +43,11 @@ function DataRow({
       <div className="ui-data-box flex-1">
         <span className="ui-label">
           {label} <span className="text-outline">{unit}</span>
+          {direction && (
+            <span className={`ml-1 font-label-bold ${direction === 'cw' ? 'text-sky-600' : 'text-violet-600'}`}>
+              {direction === 'cw' ? '顺时针' : '逆时针'}
+            </span>
+          )}
         </span>
         <span className="ui-value">{fmtNum(value, digits)}</span>
       </div>
@@ -68,79 +75,85 @@ function MiniBtn({
 }
 
 /**
- * 转盘测试（PPT 设计稿 slide 4）
- * 协议 §2.9 STEER START/STOP + 遥测 steer_x/steer_y（方向盘 X/Y 角度）
+ * 转盘测试
+ * 仅依赖蓝牙两个采集模块：倾角模块（STEER 通道，Modbus RTU）+ 转向力模块（TORQUE 通道，0xAA 帧）
+ * 无 WiFi / TCP 依赖，两个模块连接成功即可开始测试
  */
 export default function SteeringTestPage() {
-  const { state, actions, error } = useDevice()
-  const { states: forceStates } = useForce()
-  const t = state.telemetry
-  const connected = state.is_connected
-  const running = t.state === 'STEER_RUN'
+  const { actions: deviceActions } = useDevice()
+  const { states: forceStates, actions: forceActions } = useForce()
 
-  const steerForce = forceStates.STEER
-  const forceLive = steerForce.isConnected ? steerForce.latest?.weightN ?? null : null
-  const forceMax = steerForce.isConnected ? steerForce.maxN : null
+  const tiltCh = forceStates.STEER
+  const torqueCh = forceStates.TORQUE
+  const tiltConnected = tiltCh.isConnected
+  const torqueConnected = torqueCh.isConnected
+  const bleReady = tiltConnected && torqueConnected
 
-  // 方向盘角度：BLE 倾角模块（Modbus RTU）优先，TCP 遥测兜底
-  const bleAngle = steerForce.isConnected ? steerForce.latestAngle : null
-  const dispSteerX = bleAngle ? bleAngle.angleX : t.steer_x
-  const dispSteerY = bleAngle ? bleAngle.angleY : t.steer_y
-  const angleSource = bleAngle ? '蓝牙倾角模块' : 'TCP 遥测'
+  // 倾角（方向盘 X/Y 合并来源）
+  const angle = tiltCh.isConnected ? tiltCh.latestAngle : null
+  const tiltX = angle?.angleX ?? null
+  const tiltY = angle?.angleY ?? null
+
+  // 转向力
+  const torqueLive = torqueCh.isConnected ? torqueCh.latest?.weightN ?? null : null
 
   const [busy, setBusy] = useState(false)
   const [forceModalOpen, setForceModalOpen] = useState(false)
-  const [processForce, setProcessForce] = useState<number | null>(null)
+  const [testing, setTesting] = useState(false)
   const [trend, setTrend] = useState<TrendPoint[]>([])
   const [records, setRecords] = useState<SteerRecord[]>([])
-  const [freeAngle, setFreeAngle] = useState<number | null>(null)
+  /** 自由转角基准（清零时保存当前倾角 X） */
+  const [zeroOffset, setZeroOffset] = useState(0)
   const [cwAngle, setCwAngle] = useState<number | null>(null)
   const [ccwAngle, setCcwAngle] = useState<number | null>(null)
+  /** 最大力值（本地跟踪，清除时归零） */
+  const [torqueMax, setTorqueMax] = useState(0)
   const lastTrendPush = useRef(0)
-  const prevSteerSign = useRef(0)
 
-  // 角度 → 趋势（200ms 采样门控；BLE 已连时每次角度事件都触发）
+  // 自由转角 = 当前倾角 X − 清零基准
+  const freeAngle = tiltX === null ? null : tiltX - zeroOffset
+  const direction: 'cw' | 'ccw' | null =
+    freeAngle === null || Math.abs(freeAngle) < 0.001 ? null : freeAngle > 0 ? 'cw' : 'ccw'
+
+  // 角度 → 趋势（200ms 采样门控）
   useEffect(() => {
+    if (tiltX === null && tiltY === null) return
     const now = Date.now()
     if (now - lastTrendPush.current < 200) return
-    if (dispSteerX === null && dispSteerY === null) return
-    if (!bleAngle && t.t <= 0) return
     lastTrendPush.current = now
     const d = new Date()
     const label = `${d.getMinutes().toString().padStart(2, '0')}:${d
       .getSeconds()
       .toString()
       .padStart(2, '0')}`
+    const free = tiltX === null ? null : tiltX - zeroOffset
     setTrend((prev) => {
-      const next = [...prev, { label, steer_x: dispSteerX, steer_y: dispSteerY }]
+      const next = [...prev, { label, tilt_x: tiltX, tilt_y: tiltY, free }]
       return next.length > MAX_TREND ? next.slice(-MAX_TREND) : next
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bleAngle?.angleX, bleAngle?.angleY, t.steer_x, t.steer_y])
+  }, [angle?.angleX, angle?.angleY])
 
-  // 顺时针/逆时针峰值跟踪 + 进程力值跟踪（测试运行中或 BLE 数据流中自动更新）
+  // 最大力值本地跟踪（转向力模块）
   useEffect(() => {
-    if (!running && !bleAngle) return
-    if (forceLive !== null) setProcessForce(forceLive)
-    if (dispSteerX === null) return
-    const x = dispSteerX
-    if (x > 0 && (cwAngle === null || x > cwAngle)) setCwAngle(x)
-    if (x < 0 && (ccwAngle === null || x < ccwAngle)) setCcwAngle(x)
-    // 自由转角 = 方向反转点的幅值（近似）
-    const sign = Math.sign(x)
-    if (sign !== 0 && prevSteerSign.current !== 0 && sign !== prevSteerSign.current) {
-      setFreeAngle(Math.abs(x))
-    }
-    if (sign !== 0) prevSteerSign.current = sign
+    if (torqueLive === null) return
+    setTorqueMax((prev) => (torqueLive > prev ? torqueLive : prev))
+  }, [torqueLive])
+
+  // 顺/逆时针峰值跟踪（基于自由转角；测试中更新）
+  useEffect(() => {
+    if (!testing || freeAngle === null) return
+    if (freeAngle > 0 && (cwAngle === null || freeAngle > cwAngle)) setCwAngle(freeAngle)
+    if (freeAngle < 0 && (ccwAngle === null || freeAngle < ccwAngle)) setCcwAngle(freeAngle)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dispSteerX, running, forceLive, !!bleAngle])
+  }, [freeAngle, testing])
 
   const run = async (fn: () => Promise<void>) => {
     setBusy(true)
     try {
       await fn()
     } catch {
-      /* useDevice 已记录错误 */
+      /* useForce 已记录错误 */
     } finally {
       setBusy(false)
     }
@@ -158,11 +171,19 @@ export default function SteeringTestPage() {
       },
     ])
 
+  const startTest = () => {
+    setTesting(true)
+    setCwAngle(null)
+    setCcwAngle(null)
+    setTorqueMax(0)
+    forceActions.resetMax('TORQUE').catch(() => {})
+  }
+
   const exportCsv = () => {
     const lines = [
       ['#', '时间', '记录项', '值'].join(','),
       ...records.map((r) =>
-        [r.index, r.timestamp, r.key, r.value === null ? '--' : `${r.value.toFixed(2)}${r.unit}`].join(',')
+        [r.index, r.timestamp, r.key, r.value === null ? '--' : `${r.value.toFixed(3)}${r.unit}`].join(',')
       ),
     ]
     const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' })
@@ -174,147 +195,167 @@ export default function SteeringTestPage() {
     URL.revokeObjectURL(url)
   }
 
+  const clearTrendAndRecords = () => {
+    setTrend([])
+    setRecords([])
+  }
+
   return (
     <div className="h-full flex flex-col gap-2 p-3 overflow-hidden">
-      {/* ===== 顶部行：蓝牙 / 连接 + 公用倾角 ===== */}
+      {/* ===== 顶部行：蓝牙连接状态（无 WiFi 依赖） ===== */}
       <div className="flex items-stretch gap-1.5">
         <button
           onClick={() => setForceModalOpen(true)}
-          className={`ui-action-btn ${steerForce.isConnected ? '' : 'ui-action-btn-ghost'} !px-3`}
-          title="蓝牙力值模块管理"
+          className={`ui-action-btn ${bleReady ? '' : 'ui-action-btn-ghost'} !px-3`}
+          title="蓝牙模块管理"
         >
           <span className="material-symbols-outlined text-[16px]">bluetooth</span>
           蓝牙模块联结
+          <span className="text-[11px] opacity-70">
+            {[tiltConnected, torqueConnected].filter(Boolean).length}/2
+          </span>
         </button>
-        <div className={`ui-data-box !px-3 ${connected ? '!border-success' : '!border-critical'}`}>
-          <span className="ui-label">WiFi 连接</span>
-          <span className={`ui-value ${connected ? '!text-success' : '!text-critical'}`}>
-            {connected ? '已连接' : '未连接'}
+        <div className={`ui-data-box !px-3 ${tiltConnected ? '!border-success' : '!border-critical'}`}>
+          <span className="ui-label">倾角模块</span>
+          <span className={`ui-value ${tiltConnected ? '!text-success' : '!text-critical'}`}>
+            {tiltConnected ? '已连接' : '未连接'}
+          </span>
+        </div>
+        <div className={`ui-data-box !px-3 ${torqueConnected ? '!border-success' : '!border-critical'}`}>
+          <span className="ui-label">转向力模块</span>
+          <span className={`ui-value ${torqueConnected ? '!text-success' : '!text-critical'}`}>
+            {torqueConnected ? '已连接' : '未连接'}
           </span>
         </div>
         <div className="ui-data-box">
-          <span className="ui-label">无线状态</span>
-          <span className="ui-value">{running ? 'STEER_RUN 测试中' : t.state}</span>
+          <span className="ui-label">测试状态</span>
+          <span className={`ui-value ${testing ? '!text-success' : ''}`}>
+            {testing ? '测试中' : '待机'}
+          </span>
         </div>
         <div className="flex-1" />
         <div className="ui-data-box">
           <span className="ui-label">倾角 X</span>
-          <span className="ui-value">{fmtNum(t.tilt_x, 3)}°</span>
+          <span className="ui-value">{fmtNum(tiltX, 3)}°</span>
         </div>
         <div className="ui-data-box">
           <span className="ui-label">倾角 Y</span>
-          <span className="ui-value">{fmtNum(t.tilt_y, 3)}°</span>
+          <span className="ui-value">{fmtNum(tiltY, 3)}°</span>
         </div>
       </div>
-
-      {error && (
-        <div className="flex items-center justify-between px-3 py-1.5 rounded-[10px] bg-red-50 border border-red-200 text-red-700 text-[13px] font-label-bold">
-          <span>{error}</span>
-          <button onClick={actions.clearError} className="material-symbols-outlined text-[16px]">close</button>
-        </div>
-      )}
 
       {/* ===== 主体：左侧数据面板 + 右侧图表区 ===== */}
       <div className="flex-1 min-h-0 flex gap-2">
         {/* 左侧数据面板 */}
         <div className="w-[460px] flex-shrink-0 industrial-card rounded-xl p-2.5">
-          <div className="flex flex-col gap-1.5 h-full justify-between">
+          <div className="flex flex-col gap-1.5 h-full justify-center">
             <div className="ui-data-box !bg-primary !border-primary">
               <span className="font-label-bold text-on-primary tracking-widest">转盘测试</span>
-              <span className="ui-value !text-on-primary/70 text-[11px]">方向盘</span>
+              <span className="ui-value !text-on-primary/70 text-[11px]">蓝牙采集</span>
             </div>
 
-            <DataRow
-              label="方向盘 X"
-              unit="°"
-              value={dispSteerX}
-              actions={<MiniBtn onClick={() => addRecord('方向盘 X', dispSteerX)} disabled={!connected}>记录</MiniBtn>}
-            />
-            <DataRow
-              label="方向盘 Y"
-              unit="°"
-              value={dispSteerY}
-              actions={<MiniBtn onClick={() => addRecord('方向盘 Y', dispSteerY)} disabled={!connected}>记录</MiniBtn>}
-            />
+            {/* 倾角 X/Y 合并一行展示 */}
+            <div className="ui-data-box">
+              <span className="ui-label">倾角 X / Y <span className="text-outline">°</span></span>
+              <span className="ui-value">
+                {fmtNum(tiltX, 3)} / {fmtNum(tiltY, 3)}
+              </span>
+            </div>
 
             <DataRow
               label="自由转角"
               unit="°"
               value={freeAngle}
+              digits={3}
+              direction={direction}
               actions={
-                <>
-                  <MiniBtn onClick={() => addRecord('自由转角', freeAngle)} disabled={!connected}>记录</MiniBtn>
-                  <MiniBtn onClick={() => setFreeAngle(null)} disabled={!connected}>清除</MiniBtn>
-                </>
+                <MiniBtn
+                  onClick={() => setZeroOffset(tiltX ?? 0)}
+                  disabled={tiltX === null}
+                >
+                  清零
+                </MiniBtn>
               }
             />
+
             <DataRow
               label="顺时针峰值"
               unit="°"
               value={cwAngle}
-              actions={
-                <>
-                  <MiniBtn onClick={() => addRecord('顺时针峰值', cwAngle)} disabled={!connected}>记录</MiniBtn>
-                  <MiniBtn onClick={() => setCwAngle(null)} disabled={!connected}>清除</MiniBtn>
-                </>
-              }
+              digits={3}
+              actions={<MiniBtn onClick={() => setCwAngle(null)} disabled={!testing}>清除</MiniBtn>}
             />
             <DataRow
               label="逆时针峰值"
               unit="°"
               value={ccwAngle}
-              actions={
-                <>
-                  <MiniBtn onClick={() => addRecord('逆时针峰值', ccwAngle)} disabled={!connected}>记录</MiniBtn>
-                  <MiniBtn onClick={() => setCcwAngle(null)} disabled={!connected}>清除</MiniBtn>
-                </>
-              }
+              digits={3}
+              actions={<MiniBtn onClick={() => setCcwAngle(null)} disabled={!testing}>清除</MiniBtn>}
             />
 
-            <div className="grid grid-cols-2 gap-1.5">
-              <div className="ui-data-box">
-                <span className="ui-label">实时力值 N</span>
-                <span className="ui-value">{fmtNum(forceLive, 2)}</span>
-              </div>
-              <div className="ui-data-box">
-                <span className="ui-label">最大力值 N</span>
-                <span className="ui-value">{fmtNum(forceMax, 2)}</span>
-              </div>
-            </div>
             <DataRow
-              label="进程力值"
+              label="实时力值"
               unit="N"
-              value={processForce}
+              value={torqueLive}
+              digits={2}
+              actions={
+                <MiniBtn
+                  onClick={() => run(() => forceActions.zero('TORQUE'))}
+                  disabled={!torqueConnected || busy}
+                >
+                  清零
+                </MiniBtn>
+              }
+            />
+            <DataRow
+              label="最大力值"
+              unit="N"
+              value={torqueMax}
               digits={2}
               actions={
                 <>
-                  <MiniBtn onClick={() => addRecord('进程力值', processForce, 'N')} disabled={!connected}>记录</MiniBtn>
-                  <MiniBtn onClick={() => setProcessForce(null)} disabled={!connected}>清除</MiniBtn>
+                  <MiniBtn
+                    onClick={() => addRecord('最大力值', torqueMax, 'N')}
+                    disabled={!torqueConnected}
+                  >
+                    记录
+                  </MiniBtn>
+                  <MiniBtn
+                    onClick={() => {
+                      setTorqueMax(0)
+                      forceActions.resetMax('TORQUE').catch(() => {})
+                    }}
+                    disabled={!torqueConnected}
+                  >
+                    清除
+                  </MiniBtn>
                 </>
               }
             />
 
-            <div className="flex items-center gap-1.5 mt-1">
+            <div className="flex items-center gap-1.5 mt-2">
               <button
-                onClick={() => run(running ? actions.steerStop : actions.steerStart)}
-                disabled={!connected || busy}
-                className={`ui-action-btn flex-1 !py-2.5 !text-[14px] ${running ? 'ui-action-btn-danger' : ''}`}
+                onClick={() => (testing ? setTesting(false) : startTest())}
+                disabled={!bleReady}
+                className={`ui-action-btn flex-1 !py-2.5 !text-[14px] ${testing ? 'ui-action-btn-danger' : ''}`}
               >
-                {running ? '停止测试' : '开始测试'}
+                {testing ? '停止测试' : '开始测试'}
               </button>
               <button
-                onClick={() => addRecord('角度快照', dispSteerX)}
-                disabled={!connected}
-                className="ui-action-btn flex-1 !py-2.5"
+                onClick={exportCsv}
+                disabled={records.length === 0}
+                className="ui-action-btn ui-action-btn-ghost !px-6 !py-2.5"
               >
-                记录
-              </button>
-              <button onClick={exportCsv} disabled={records.length === 0} className="ui-action-btn ui-action-btn-ghost flex-1 !py-2.5">
                 导出
               </button>
             </div>
+            {!bleReady && (
+              <div className="font-label-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-[8px] px-2 py-1">
+                请先连接倾角模块与转向力模块（蓝牙模块联结）后开始测试
+              </div>
+            )}
             <div className="font-label-sm text-outline">
-              力值字段协议未提供，显示 --；角度来源：{angleSource}（BLE 连接后为 Modbus RTU 10Hz 轮询）
+              倾角来源：Modbus RTU 10Hz 轮询；力值来源：转向力蓝牙模块
             </div>
           </div>
         </div>
@@ -323,9 +364,16 @@ export default function SteeringTestPage() {
         <div className="flex-1 min-w-0 industrial-card rounded-xl flex flex-col overflow-hidden">
           <div className="flex items-center justify-between px-3 py-1.5 border-b-2 border-surface-container">
             <span className="font-label-bold text-label-bold uppercase tracking-widest text-on-surface-variant">
-              方向盘角度趋势
+              角度趋势
             </span>
-            <button onClick={() => setTrend([])} className="font-label-sm text-outline hover:text-critical">清空</button>
+            {/* 清空趋势曲线 + 全部历史记录 */}
+            <button
+              onClick={clearTrendAndRecords}
+              className="font-label-sm text-outline hover:text-critical"
+              title="清空趋势曲线与全部历史记录"
+            >
+              清空
+            </button>
           </div>
           <div className="flex-1 min-h-0 p-2">
             <ResponsiveContainer width="100%" height="100%">
@@ -338,8 +386,9 @@ export default function SteeringTestPage() {
                   formatter={(v, name) => (v === null || v === undefined ? ['--', String(name)] : [v, String(name)]) as [string, string]}
                 />
                 <Legend wrapperStyle={{ fontSize: 12 }} />
-                <Line type="monotone" dataKey="steer_x" name="方向盘 X °" stroke="#041627" strokeWidth={2} dot={false} isAnimationActive={false} connectNulls={false} />
-                <Line type="monotone" dataKey="steer_y" name="方向盘 Y °" stroke="#8192a7" dot={false} isAnimationActive={false} connectNulls={false} />
+                <Line type="monotone" dataKey="tilt_x" name="倾角 X °" stroke="#041627" strokeWidth={2} dot={false} isAnimationActive={false} connectNulls={false} />
+                <Line type="monotone" dataKey="tilt_y" name="倾角 Y °" stroke="#8192a7" dot={false} isAnimationActive={false} connectNulls={false} />
+                <Line type="monotone" dataKey="free" name="自由转角 °" stroke="#f59e0b" dot={false} isAnimationActive={false} connectNulls={false} />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -362,7 +411,7 @@ export default function SteeringTestPage() {
                       <td className="px-2 py-0.5 monospaced-data">{r.timestamp}</td>
                       <td className="px-2 py-0.5">{r.key}</td>
                       <td className="px-2 py-0.5 monospaced-data">
-                        {r.value === null ? '--' : `${r.value.toFixed(2)} ${r.unit}`}
+                        {r.value === null ? '--' : `${r.value.toFixed(3)} ${r.unit}`}
                       </td>
                       <td className="px-2 py-0.5">
                         <button
@@ -388,7 +437,16 @@ export default function SteeringTestPage() {
       {/* ===== 底部操作栏 ===== */}
       <div className="flex items-center gap-1.5">
         <div className="flex-1" />
-        <EstopButton onEstop={actions.estop} />
+        {/* 急停仅对已连 TCP 的运动控制生效；纯蓝牙场景未连接时静默 */}
+        <EstopButton
+          onEstop={async () => {
+            try {
+              await deviceActions.estop()
+            } catch {
+              /* 未连接 WiFi 设备 */
+            }
+          }}
+        />
       </div>
 
       <ForceModal open={forceModalOpen} onClose={() => setForceModalOpen(false)} />

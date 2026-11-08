@@ -15,6 +15,7 @@ const initialStates: ForceStates = {
   B: { ...DEFAULT_FORCE_STATE },
   STEER: { ...DEFAULT_FORCE_STATE },
   SWITCH: { ...DEFAULT_FORCE_STATE },
+  TORQUE: { ...DEFAULT_FORCE_STATE },
 };
 
 /**
@@ -100,6 +101,7 @@ export function useForce() {
             B: all['B'] ?? prev.B,
             STEER: all['STEER'] ?? prev.STEER,
             SWITCH: all['SWITCH'] ?? prev.SWITCH,
+            TORQUE: all['TORQUE'] ?? prev.TORQUE,
           }));
         }
       } catch (e) {

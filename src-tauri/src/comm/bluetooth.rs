@@ -26,7 +26,7 @@ use super::tilt_protocol::{self, AngleData};
 const NUS_RX_CHAR_UUID: &str = "6e400002-b5a3-f393-e0a9-e50e24dcca9e";
 const NUS_TX_CHAR_UUID: &str = "6e400003-b5a3-f393-e0a9-e50e24dcca9e";
 
-pub const CHANNELS: [&str; 4] = ["A", "B", "STEER", "SWITCH"];
+pub const CHANNELS: [&str; 5] = ["A", "B", "STEER", "SWITCH", "TORQUE"];
 
 // ============ 数据结构 ============
 
@@ -151,7 +151,10 @@ impl ForceManager {
         if CHANNELS.contains(&up.as_str()) {
             Ok(up)
         } else {
-            Err(format!("未知力值通道: {}（支持 A/B/STEER）", channel))
+            Err(format!(
+                "未知力值通道: {}（支持 A/B/STEER/SWITCH/TORQUE）",
+                channel
+            ))
         }
     }
 

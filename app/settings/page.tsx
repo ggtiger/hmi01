@@ -8,7 +8,7 @@ import IndustrialCard from '@/components/ui/IndustrialCard'
 import Button from '@/components/ui/Button'
 import ForceModal from '@/components/ui/ForceModal'
 
-const FORCE_CHANNELS: ForceChannel[] = ['A', 'B', 'STEER', 'SWITCH']
+const FORCE_CHANNELS: ForceChannel[] = ['A', 'B', 'STEER', 'SWITCH', 'TORQUE']
 
 export default function SettingsPage() {
   const { state, actions, error } = useDevice()
@@ -20,7 +20,7 @@ export default function SettingsPage() {
 
   const [plainConfirm, setPlainConfirm] = useState(false)
   const [forceModalOpen, setForceModalOpen] = useState(false)
-  const [calWeights, setCalWeights] = useState<Record<ForceChannel, string>>({ A: '', B: '', STEER: '', SWITCH: '' })
+  const [calWeights, setCalWeights] = useState<Record<ForceChannel, string>>({ A: '', B: '', STEER: '', SWITCH: '', TORQUE: '' })
   const [netSsid, setNetSsid] = useState('')
   const [netNewPass, setNetNewPass] = useState('')
   const [netOldPass, setNetOldPass] = useState('')

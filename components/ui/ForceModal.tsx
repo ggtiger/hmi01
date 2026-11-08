@@ -6,7 +6,7 @@ import type { ForceChannel, ForceDeviceInfo } from '@/lib/comm/types'
 import { FORCE_CHANNEL_LABELS } from '@/lib/comm/types'
 import { fmtNum } from '@/lib/comm/types'
 
-const CHANNELS: ForceChannel[] = ['A', 'B', 'STEER', 'SWITCH']
+const CHANNELS: ForceChannel[] = ['A', 'B', 'STEER', 'SWITCH', 'TORQUE']
 const LAST_ADDR_KEY = 'xdesin-force-last-dev'
 
 interface LastDevice {
@@ -47,7 +47,7 @@ export default function ForceModal({ open, onClose }: ForceModalProps) {
   const [devices, setDevices] = useState<ForceDeviceInfo[]>([])
   const [scanning, setScanning] = useState(false)
   const [pickChannel, setPickChannel] = useState<ForceChannel>('A')
-  const [calWeight, setCalWeight] = useState<Record<ForceChannel, string>>({ A: '', B: '', STEER: '', SWITCH: '' })
+  const [calWeight, setCalWeight] = useState<Record<ForceChannel, string>>({ A: '', B: '', STEER: '', SWITCH: '', TORQUE: '' })
   const [busy, setBusy] = useState<string | null>(null)
   const [lastAddrs, setLastAddrs] = useState<Partial<Record<ForceChannel, LastDevice>>>({})
   const [rawMonitor, setRawMonitor] = useState<Partial<Record<ForceChannel, boolean>>>({})

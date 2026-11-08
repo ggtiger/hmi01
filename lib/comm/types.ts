@@ -120,13 +120,14 @@ export function pulsesToMm(pulses: number | null, pulsesPerMm = 320): number | n
 
 // ===== 四通道 BLE 模块（力值 ×2 / 转向角 / 二路开关） =====
 
-export type ForceChannel = 'A' | 'B' | 'STEER' | 'SWITCH';
+export type ForceChannel = 'A' | 'B' | 'STEER' | 'SWITCH' | 'TORQUE';
 
 export const FORCE_CHANNEL_LABELS: Record<ForceChannel, string> = {
   A: '模块 A（踏板 A 加载力）',
   B: '模块 B（踏板 B 加载力）',
-  STEER: '转向角（倾角传感器）',
+  STEER: '倾角模块（转盘 X/Y）',
   SWITCH: '二路开关（加载控制）',
+  TORQUE: '转向力（转盘力值）',
 };
 
 /** 力值数据（与 Rust ScaleData 对应，camelCase） */
