@@ -140,13 +140,15 @@ export default function SteeringTestPage() {
     setTorqueMax((prev) => (torqueLive > prev ? torqueLive : prev))
   }, [torqueLive])
 
-  // 顺/逆时针峰值跟踪（基于自由转角；测试中更新）
-  useEffect(() => {
-    if (!testing || freeAngle === null) return
-    if (freeAngle > 0 && (cwAngle === null || freeAngle > cwAngle)) setCwAngle(freeAngle)
-    if (freeAngle < 0 && (ccwAngle === null || freeAngle < ccwAngle)) setCcwAngle(freeAngle)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [freeAngle, testing])
+  // 顺/逆时针峰值：不自动跟踪——点「记录」时把当前自由转角值写入对应方向
+  const recordCwPeak = () => {
+    if (freeAngle === null || freeAngle <= 0.001) return
+    setCwAngle(freeAngle)
+  }
+  const recordCcwPeak = () => {
+    if (freeAngle === null || freeAngle >= -0.001) return
+    setCcwAngle(freeAngle)
+  }
 
   const run = async (fn: () => Promise<void>) => {
     setBusy(true)
@@ -287,8 +289,8 @@ export default function SteeringTestPage() {
                 <>
                   <MiniBtn onClick={() => setCwAngle(null)} disabled={!testing}>清除</MiniBtn>
                   <MiniBtn
-                    onClick={() => addRecord('顺时针峰值', cwAngle)}
-                    disabled={!tiltConnected || cwAngle === null}
+                    onClick={recordCwPeak}
+                    disabled={freeAngle === null || freeAngle <= 0.001}
                   >
                     记录
                   </MiniBtn>
@@ -304,8 +306,8 @@ export default function SteeringTestPage() {
                 <>
                   <MiniBtn onClick={() => setCcwAngle(null)} disabled={!testing}>清除</MiniBtn>
                   <MiniBtn
-                    onClick={() => addRecord('逆时针峰值', ccwAngle)}
-                    disabled={!tiltConnected || ccwAngle === null}
+                    onClick={recordCcwPeak}
+                    disabled={freeAngle === null || freeAngle >= -0.001}
                   >
                     记录
                   </MiniBtn>
