@@ -298,31 +298,43 @@ export default function ForceModal({ open, onClose }: ForceModalProps) {
                       </span>
                     </span>
                     <div className="flex-1" />
-                    <span className="font-label-sm text-on-surface-variant">砝码标定</span>
                     <input
                       value={calWeight[ch]}
                       onChange={(e) => setCalWeight((p) => ({ ...p, [ch]: e.target.value }))}
-                      inputMode="numeric"
-                      placeholder="重量 g"
+                      inputMode="decimal"
+                      placeholder="标准 N"
                       className="ui-input w-20 !py-0.5 text-center"
+                      title="施加已知载荷（N）后填写"
                     />
                     <button
                       onClick={() => {
-                        const grams = Number(calWeight[ch])
+                        const standardN = Number(calWeight[ch])
+                        if (!Number.isFinite(standardN) || standardN <= 0) return
+                        const grams = Math.round((standardN / 9.80665) * 1000)
+                        if (grams > 0) actions.calibrate(ch, grams).catch(() => {})
+                      }}
+                      disabled={!calWeight[ch]}
+                      className="ui-action-btn !px-2 !py-0.5 !text-[11px]"
+                      title="发送设备标定命令（原始重量恒定时使用）"
+                    >
+                      设备标定
+                    </button>
+                    <button
+                      onClick={() => {
+                        const standardN = Number(calWeight[ch])
                         const rawN = st.latest?.weightN ?? null
-                        if (!Number.isFinite(grams) || grams <= 0) return
+                        if (!Number.isFinite(standardN) || standardN <= 0) return
                         if (rawN === null || Math.abs(rawN) < 0.01) return
-                        const standardN = (grams * 9.80665) / 1000
                         const coef = standardN / rawN
                         if (Number.isFinite(coef) && coef > 0 && coef <= 1000) {
                           setForceCoefficient(ch, String(Number(coef.toFixed(5))))
                         }
                       }}
                       disabled={!calWeight[ch] || !st.latest || Math.abs(st.latest.weightN) < 0.01}
-                      className="ui-action-btn !px-2 !py-0.5 !text-[11px]"
-                      title="以「标准砝码重量 ÷ 当前读数」计算校正系数"
+                      className="ui-action-btn ui-action-btn-ghost !px-2 !py-0.5 !text-[11px]"
+                      title="以「标准载荷 ÷ 当前读数」计算软件校正系数"
                     >
-                      校准
+                      系数校准
                     </button>
                   </div>
                 )}
