@@ -123,6 +123,12 @@ function ModuleRow({
             ⚠ {calibrateBlockedReason}
           </div>
         )}
+        {/* 未标定说明：AD 有变化但力值仍无法换算 */}
+        {isForce && st.isConnected && !calibrateBlockedReason && (!adCal || adCal.nPerAd === 0) && (
+          <div className="font-label-sm text-amber-700 leading-tight mt-0.5">
+            ⚠ 未标定：请点「校准」完成 AD 换算比例标定
+          </div>
+        )}
       </div>
 
       <div className="flex-1" />
@@ -137,7 +143,15 @@ function ModuleRow({
         )}
         {isForce && (
           <>
-            <ValueBox label="实时" value={`${fmtNum(displayN, 2)} N`} />
+            <ValueBox
+              label="实时"
+              value={
+                adCal !== undefined && adCal.nPerAd !== 0
+                  ? `${fmtNum(displayN, 2)} N`
+                  : '未标定'
+              }
+              accent={adCal !== undefined && adCal.nPerAd !== 0 ? '' : '!text-amber-600'}
+            />
             <ValueBox label="系数" value={coefficient.toFixed(5)} />
           </>
         )}
