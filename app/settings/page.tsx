@@ -68,6 +68,8 @@ function ModuleRow({
   const standardN = Number(calWeight)
   /** 校准失败提示（点击后显示） */
   const [hint, setHint] = useState<string | null>(null)
+  /** 校准成功提示（点击后显示） */
+  const [success, setSuccess] = useState<string | null>(null)
   /** 恢复出厂二次确认（行内，避免 Tauri 未授权的 window.confirm） */
   const [confirmReset, setConfirmReset] = useState(false)
 
@@ -84,6 +86,7 @@ function ModuleRow({
    * 2) 重量无效但 AD 有变化 → AD 内码标定兜底
    */
   const handleCalibrate = () => {
+    setSuccess(null)
     if (!Number.isFinite(standardN) || standardN <= 0) {
       setHint('请填写大于 0 的标准载荷（N）')
       return
@@ -94,13 +97,19 @@ function ModuleRow({
       const coef = standardN / rawN
       if (Number.isFinite(coef) && coef > 0 && coef <= 1000) {
         onSetCoefficient(Number(coef.toFixed(5)))
+        setSuccess(`已校准：系数 ${coef.toFixed(5)}（${standardN} N ÷ ${rawN.toFixed(2)} N）`)
         return
       }
     }
     // 2) AD 内码标定兜底
     if (adCal !== undefined && adCode !== null && Math.abs(adCode - adCal.zeroAd) >= 1) {
-      onAdCalibrate(standardN, adCal.zeroAd)
-      return
+      const delta = adCode - adCal.zeroAd
+      const nPerAd = standardN / delta
+      if (Number.isFinite(nPerAd) && nPerAd !== 0) {
+        onAdCalibrate(standardN, adCal.zeroAd)
+        setSuccess(`已标定：N/AD ${nPerAd.toExponential(3)}（${standardN} N ÷ Δ${delta}）`)
+        return
+      }
     }
     setHint(
       adCal === undefined
@@ -132,8 +141,11 @@ function ModuleRow({
             {' · '}零点 {adCal?.zeroAd ?? '--'}
           </div>
         )}
-        {/* 校准提示：失败原因 / 未标定说明 */}
-        {isForce && st.isConnected && (hint || !calibrated) && (
+        {/* 校准结果 / 未标定说明 */}
+        {isForce && st.isConnected && success && (
+          <div className="font-label-sm text-emerald-700 leading-tight mt-0.5">✓ {success}</div>
+        )}
+        {isForce && st.isConnected && (hint || (!calibrated && !success)) && (
           <div className="font-label-sm text-amber-700 leading-tight mt-0.5">
             ⚠ {hint ?? '未标定：施加标准载荷（N）后点「校准」'}
           </div>
