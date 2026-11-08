@@ -17,6 +17,8 @@ function recordToCsv(records: TestRecord[]): string {
 export default function RecordsPage() {
   const [records, setRecords] = useState<TestRecord[]>([])
   const [expanded, setExpanded] = useState<number | null>(null)
+  /** 删除二次确认的记录 id（行内确认，避免 Tauri 未授权的 window.confirm） */
+  const [confirmId, setConfirmId] = useState<number | null>(null)
   const [available, setAvailable] = useState(false)
 
   const refresh = async () => {
@@ -88,17 +90,35 @@ export default function RecordsPage() {
                   >
                     {expanded === r.id ? '收起' : '详情'}
                   </button>
-                  <button
-                    onClick={async () => {
-                      if (confirm(`确认删除记录 #${r.id}？`)) {
-                        await deleteTestRecord(r.id)
-                        refresh()
-                      }
-                    }}
-                    className="material-symbols-outlined text-[18px] text-outline hover:text-critical"
-                  >
-                    delete
-                  </button>
+                  {/* 行内二次确认：Tauri WebView 中 window.confirm 未授权 */}
+                  {confirmId === r.id ? (
+                    <>
+                      <span className="font-label-sm text-critical">确认删除？</span>
+                      <button
+                        onClick={async () => {
+                          await deleteTestRecord(r.id)
+                          setConfirmId(null)
+                          refresh()
+                        }}
+                        className="font-label-sm font-label-bold text-critical hover:underline"
+                      >
+                        确认
+                      </button>
+                      <button
+                        onClick={() => setConfirmId(null)}
+                        className="font-label-sm text-outline hover:text-primary"
+                      >
+                        取消
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      onClick={() => setConfirmId(r.id)}
+                      className="material-symbols-outlined text-[18px] text-outline hover:text-critical"
+                    >
+                      delete
+                    </button>
+                  )}
                 </div>
               </div>
               {expanded === r.id && (

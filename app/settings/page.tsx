@@ -68,6 +68,8 @@ function ModuleRow({
   const standardN = Number(calWeight)
   /** 校准失败提示（点击后显示） */
   const [hint, setHint] = useState<string | null>(null)
+  /** 恢复出厂二次确认（行内，避免 Tauri 未授权的 window.confirm） */
+  const [confirmReset, setConfirmReset] = useState(false)
 
   /** 设备重量是否有效（mg 换算后非零） */
   const weightValid = rawN !== null && Math.abs(rawN) >= 0.01
@@ -201,24 +203,36 @@ function ModuleRow({
           >
             校准
           </button>
-          <button
-            onClick={() => {
-              if (
-                window.confirm(
-                  `确认将「${CHANNEL_SHORT[channel]}」恢复出厂设置？\n\n` +
-                    '设备零点、砝码标定与参数将恢复出厂值，本地标定参数同时清除。\n' +
-                    '恢复后请重新清零并标定。'
-                )
-              ) {
-                onFactoryReset()
-              }
-            }}
-            disabled={!st.isConnected}
-            className="ui-action-btn ui-action-btn-danger !px-3 !py-1.5 !text-[12px]"
-            title="恢复出厂设置（Modbus 写寄存器 0x00FE）"
-          >
-            恢复出厂
-          </button>
+          {confirmReset ? (
+            <>
+              <span className="font-label-sm text-critical whitespace-nowrap">确认恢复出厂？</span>
+              <button
+                onClick={() => {
+                  setConfirmReset(false)
+                  onFactoryReset()
+                }}
+                className="ui-action-btn ui-action-btn-danger !px-3 !py-1.5 !text-[12px]"
+                title="设备零点/标定/参数将恢复出厂值，本地标定同步清除"
+              >
+                确认
+              </button>
+              <button
+                onClick={() => setConfirmReset(false)}
+                className="ui-action-btn ui-action-btn-ghost !px-3 !py-1.5 !text-[12px]"
+              >
+                取消
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={() => setConfirmReset(true)}
+              disabled={!st.isConnected}
+              className="ui-action-btn ui-action-btn-danger !px-3 !py-1.5 !text-[12px]"
+              title="恢复出厂设置（Modbus 写寄存器 0x00FE）"
+            >
+              恢复出厂
+            </button>
+          )}
         </div>
       )}
     </div>
