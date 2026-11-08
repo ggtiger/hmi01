@@ -94,11 +94,15 @@ function ModuleRow({
         <div className="font-label-sm text-outline truncate" title={st.deviceName}>
           {st.isConnected ? st.deviceName : '未连接'}
         </div>
-        {/* 原始诊断：AD 内码 / 设备回传重量 / AD 零点 */}
+        {/* 原始诊断：AD / AD 增量 / 换算比例 / 设备原始重量 / 零点 */}
         {isForce && st.isConnected && (
           <div className="font-label-sm monospaced-data text-outline/80">
-            AD {adCode ?? '--'} · 原始 {st.latest?.weightRaw ?? '--'} N · 零点{' '}
-            {adCal?.zeroAd ?? '--'}
+            AD {adCode ?? '--'}
+            {adCode !== null && adCal && <> · Δ{adCode - adCal.zeroAd}</>}
+            {' · '}N/AD{' '}
+            {adCal && adCal.nPerAd !== 0 ? adCal.nPerAd.toExponential(4) : '--'}
+            {' · '}原始 {st.latest?.weightRaw ?? '--'} N
+            {' · '}零点 {adCal?.zeroAd ?? '--'}
           </div>
         )}
       </div>
