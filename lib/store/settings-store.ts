@@ -52,10 +52,9 @@ export function forceCoefficient(coefs: Record<string, string>, channel: string)
 /**
  * 计算通道力值（N）。
  *
- * 优先使用 AD 内码标定（设备不输出重量时可用）：
- *   (adCode − zeroAd) × nPerAd
- * 未标定时回退到设备回传重量（weightN）。
- * 最后乘以软件校正系数（默认 1）。
+ * 优先使用设备回传重量（mg → N，SSTS 方式）：weightN × 软件系数；
+ * 设备重量无效（≈0）且有 AD 标定时，回退到 AD 内码换算：
+ *   (adCode − zeroAd) × nPerAd × 系数
  */
 export function channelForceN(
   st: ForceChannelState,
@@ -65,6 +64,11 @@ export function channelForceN(
 ): number | null {
   if (!st.isConnected || !st.latest) return null
   const coef = forceCoefficient(coefficients, channel)
+  // 设备重量字段有效（mg 换算后非零）→ SSTS 方式
+  if (Math.abs(st.latest.weightN) >= 0.01) {
+    return st.latest.weightN * coef
+  }
+  // 重量无效 → AD 内码标定兜底
   const cal = adCalibration[channel]
   if (cal && Number.isFinite(cal.nPerAd) && cal.nPerAd !== 0) {
     return (st.latest.adCode - cal.zeroAd) * cal.nPerAd * coef

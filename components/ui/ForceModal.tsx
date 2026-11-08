@@ -319,19 +319,19 @@ export default function ForceModal({ open, onClose }: ForceModalProps) {
                         const ad = st.latest?.adCode
                         const cal = adCalibration[ch]
                         const rawN = st.latest?.weightN ?? null
-                        // 优先 AD 标定（设备重量不可用时）
-                        if (ad !== undefined && cal && Math.abs(ad - cal.zeroAd) >= 1) {
-                          const nPerAd = standardN / (ad - cal.zeroAd)
-                          if (Number.isFinite(nPerAd) && nPerAd !== 0) {
-                            setAdCalibration(ch, { zeroAd: cal.zeroAd, nPerAd })
-                          }
-                          return
-                        }
-                        // 回退软件系数：标准值 ÷ 当前读数
+                        // 优先设备读数系数（SSTS 方式）
                         if (rawN !== null && Math.abs(rawN) >= 0.01) {
                           const coef = standardN / rawN
                           if (Number.isFinite(coef) && coef > 0 && coef <= 1000) {
                             setForceCoefficient(ch, String(Number(coef.toFixed(5))))
+                          }
+                          return
+                        }
+                        // 重量无效时 AD 标定兜底
+                        if (ad !== undefined && cal && Math.abs(ad - cal.zeroAd) >= 1) {
+                          const nPerAd = standardN / (ad - cal.zeroAd)
+                          if (Number.isFinite(nPerAd) && nPerAd !== 0) {
+                            setAdCalibration(ch, { zeroAd: cal.zeroAd, nPerAd })
                           }
                         }
                       }}

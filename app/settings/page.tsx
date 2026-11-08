@@ -67,15 +67,17 @@ function ModuleRow({
   /** 校准失败提示（点击后显示） */
   const [hint, setHint] = useState<string | null>(null)
 
-  /** 是否已标定（AD 标定比例或软件系数有效） */
-  const calibrated =
-    (adCal !== undefined && adCal.nPerAd !== 0) || Math.abs(coefficient - 1) > 1e-9
+  /** 设备重量是否有效（mg 换算后非零） */
+  const weightValid = rawN !== null && Math.abs(rawN) >= 0.01
+  const adValid = adCal !== undefined && adCal.nPerAd !== 0
+  /** 是否可显示力值（设备重量有效 / AD 已标定 / 软件系数已调整） */
+  const calibrated = weightValid || adValid || Math.abs(coefficient - 1) > 1e-9
 
   /**
-   * 力值校准（对齐 SSTS 单按钮流程）：
-   * 施加标准载荷 N 后点击，系统自动选择换算方式——
-   * 1) 已记录 AD 零点且 AD 有变化 → AD 标定（设备重量字段不可用时）
-   * 2) 否则设备读数非零 → 软件系数 = 标准值 ÷ 当前读数
+   * 力值校准（SSTS 单按钮流程）：
+   * 施加标准载荷 N 后点击——
+   * 1) 设备重量有效 → 软件系数 = 标准值 ÷ 当前读数（SSTS 方式）
+   * 2) 重量无效但 AD 有变化 → AD 内码标定兜底
    */
   const handleCalibrate = () => {
     if (!Number.isFinite(standardN) || standardN <= 0) {
@@ -83,22 +85,22 @@ function ModuleRow({
       return
     }
     setHint(null)
-    // 1) AD 标定
-    if (adCal !== undefined && adCode !== null && Math.abs(adCode - adCal.zeroAd) >= 1) {
-      onAdCalibrate(standardN, adCal.zeroAd)
-      return
-    }
-    // 2) 设备读数系数
-    if (rawN !== null && Math.abs(rawN) >= 0.01) {
+    // 1) 设备读数系数（SSTS 方式，优先）
+    if (weightValid && rawN !== null) {
       const coef = standardN / rawN
       if (Number.isFinite(coef) && coef > 0 && coef <= 1000) {
         onSetCoefficient(Number(coef.toFixed(5)))
         return
       }
     }
+    // 2) AD 内码标定兜底
+    if (adCal !== undefined && adCode !== null && Math.abs(adCode - adCal.zeroAd) >= 1) {
+      onAdCalibrate(standardN, adCal.zeroAd)
+      return
+    }
     setHint(
       adCal === undefined
-        ? '请先空载点「清零」，再加力后校准'
+        ? '当前读数≈0：请加力后重试（或先清零记录 AD 零点）'
         : `AD 与零点差值不足（Δ${adCode === null ? '--' : adCode - adCal.zeroAd}），请先加力`
     )
   }
@@ -122,7 +124,7 @@ function ModuleRow({
             {adCode !== null && adCal && <> · Δ{adCode - adCal.zeroAd}</>}
             {' · '}N/AD{' '}
             {adCal && adCal.nPerAd !== 0 ? adCal.nPerAd.toExponential(4) : '--'}
-            {' · '}原始 {st.latest?.weightRaw ?? '--'} N
+            {' · '}原始 {st.latest?.weightRaw ?? '--'} mg
             {' · '}零点 {adCal?.zeroAd ?? '--'}
           </div>
         )}
