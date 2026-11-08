@@ -48,50 +48,59 @@ interface ModuleRowProps {
   onZero: () => void
   /** AD 标定：standardN 施加载荷 + zeroAd 零点，计算 nPerAd */
   onAdCalibrate: (standardN: number, zeroAd: number) => void
-  /** 设备砝码标定（发 0xAA 0x09 命令，让设备开始换算重量） */
-  onDeviceCalibrate: (grams: number) => void
+  /** 软件校正系数（设备读数可用时） */
+  onSetCoefficient: (coef: number) => void
 }
 
 /** 单个蓝牙模块行：状态 / 设备名 / 业务数值 / 操作 */
 function ModuleRow({
   channel, st, displayN, coefficient, adCal, calWeight, onCalWeightChange, onZero,
-  onAdCalibrate, onDeviceCalibrate,
+  onAdCalibrate, onSetCoefficient,
 }: ModuleRowProps) {
   const isAngle = channel === 'STEER'
   const isSwitch = channel === 'SWITCH'
   const isForce = !isAngle && !isSwitch
   const adCode = st.isConnected ? st.latest?.adCode ?? null : null
+  const rawN = st.isConnected ? st.latest?.weightN ?? null : null
   /** 输入的施加载荷（N） */
   const standardN = Number(calWeight)
-  /** AD 标定要求：已记录零点，且当前 AD 与零点有明显差异 */
-  const adReady =
-    adCode !== null && adCal !== undefined && Math.abs(adCode - adCal.zeroAd) >= 1
+  /** 校准失败提示（点击后显示） */
+  const [hint, setHint] = useState<string | null>(null)
 
-  /** 设备标定：告诉设备当前施加的标准载荷（协议以克为单位，按 N 换算后发送） */
-  const handleDeviceCalibrate = () => {
-    if (!Number.isFinite(standardN) || standardN <= 0) return
-    const grams = Math.round((standardN / 9.80665) * 1000)
-    if (grams <= 0) return
-    onDeviceCalibrate(grams)
-  }
+  /** 是否已标定（AD 标定比例或软件系数有效） */
+  const calibrated =
+    (adCal !== undefined && adCal.nPerAd !== 0) || Math.abs(coefficient - 1) > 1e-9
 
-  /** 校准不可用原因（用于按钮提示） */
-  const calibrateBlockedReason = !calWeight.trim()
-    ? '请先填写标准 N'
-    : !Number.isFinite(standardN) || standardN <= 0
-      ? '标准 N 必须大于 0'
-      : adCal === undefined
-        ? '请先空载点「清零」记录 AD 零点'
-        : adCode === null
-          ? '未收到传感器数据'
-          : Math.abs(adCode - adCal.zeroAd) < 1
-            ? `当前 AD 与零点差值不足（Δ${adCode - adCal.zeroAd}），请先加力`
-            : null
-
-  /** AD 标定：nPerAd = 标准载荷 / (当前 AD − 零点 AD) */
-  const handleAdCalibrate = () => {
-    if (calibrateBlockedReason || !adReady || adCal === undefined || adCode === null) return
-    onAdCalibrate(standardN, adCal.zeroAd)
+  /**
+   * 力值校准（对齐 SSTS 单按钮流程）：
+   * 施加标准载荷 N 后点击，系统自动选择换算方式——
+   * 1) 已记录 AD 零点且 AD 有变化 → AD 标定（设备重量字段不可用时）
+   * 2) 否则设备读数非零 → 软件系数 = 标准值 ÷ 当前读数
+   */
+  const handleCalibrate = () => {
+    if (!Number.isFinite(standardN) || standardN <= 0) {
+      setHint('请填写大于 0 的标准载荷（N）')
+      return
+    }
+    setHint(null)
+    // 1) AD 标定
+    if (adCal !== undefined && adCode !== null && Math.abs(adCode - adCal.zeroAd) >= 1) {
+      onAdCalibrate(standardN, adCal.zeroAd)
+      return
+    }
+    // 2) 设备读数系数
+    if (rawN !== null && Math.abs(rawN) >= 0.01) {
+      const coef = standardN / rawN
+      if (Number.isFinite(coef) && coef > 0 && coef <= 1000) {
+        onSetCoefficient(Number(coef.toFixed(5)))
+        return
+      }
+    }
+    setHint(
+      adCal === undefined
+        ? '请先空载点「清零」，再加力后校准'
+        : `AD 与零点差值不足（Δ${adCode === null ? '--' : adCode - adCal.zeroAd}），请先加力`
+    )
   }
 
   return (
@@ -117,16 +126,10 @@ function ModuleRow({
             {' · '}零点 {adCal?.zeroAd ?? '--'}
           </div>
         )}
-        {/* 校准不可用原因（可见提示，不再只是按钮禁用） */}
-        {isForce && st.isConnected && calibrateBlockedReason && (
+        {/* 校准提示：失败原因 / 未标定说明 */}
+        {isForce && st.isConnected && (hint || !calibrated) && (
           <div className="font-label-sm text-amber-700 leading-tight mt-0.5">
-            ⚠ {calibrateBlockedReason}
-          </div>
-        )}
-        {/* 未标定说明：AD 有变化但力值仍无法换算 */}
-        {isForce && st.isConnected && !calibrateBlockedReason && (!adCal || adCal.nPerAd === 0) && (
-          <div className="font-label-sm text-amber-700 leading-tight mt-0.5">
-            ⚠ 未标定：请点「校准」完成 AD 换算比例标定
+            ⚠ {hint ?? '未标定：施加标准载荷（N）后点「校准」'}
           </div>
         )}
       </div>
@@ -145,12 +148,8 @@ function ModuleRow({
           <>
             <ValueBox
               label="实时"
-              value={
-                adCal !== undefined && adCal.nPerAd !== 0
-                  ? `${fmtNum(displayN, 2)} N`
-                  : '未标定'
-              }
-              accent={adCal !== undefined && adCal.nPerAd !== 0 ? '' : '!text-amber-600'}
+              value={calibrated ? `${fmtNum(displayN, 2)} N` : '未标定'}
+              accent={calibrated ? '' : '!text-amber-600'}
             />
             <ValueBox label="系数" value={coefficient.toFixed(5)} />
           </>
@@ -191,20 +190,12 @@ function ModuleRow({
             title="施加已知载荷（N）后填写"
           />
           <button
-            onClick={handleAdCalibrate}
-            disabled={!st.isConnected || calibrateBlockedReason !== null}
+            onClick={handleCalibrate}
+            disabled={!st.isConnected}
             className="ui-action-btn !px-3 !py-1.5 !text-[12px]"
-            title={calibrateBlockedReason ?? '以「标准载荷 ÷ (当前 AD − 零点 AD)」标定 AD 换算比例'}
+            title="施加标准载荷（N）后点击：系统自动按当前读数完成标定"
           >
             校准
-          </button>
-          <button
-            onClick={handleDeviceCalibrate}
-            disabled={!st.isConnected || !calWeight}
-            className="ui-action-btn ui-action-btn-ghost !px-3 !py-1.5 !text-[12px]"
-            title="发送设备标定命令：告诉设备当前施加的标准载荷，设备据此换算重量"
-          >
-            设备标定
           </button>
         </div>
       )}
@@ -361,7 +352,7 @@ export default function SettingsPage() {
                       if (!Number.isFinite(nPerAd) || nPerAd === 0) return
                       setAdCalibration(ch, { zeroAd, nPerAd })
                     }}
-                    onDeviceCalibrate={(g) => forceActions.calibrate(ch, g).catch(() => {})}
+                    onSetCoefficient={(c) => setForceCoefficient(ch, String(c))}
                   />
                 ))}
               </div>
@@ -370,14 +361,12 @@ export default function SettingsPage() {
           <div className="rounded-[10px] bg-surface-container-low px-3 py-2.5 space-y-1">
             <div className="font-label-bold text-[12px] text-on-surface-variant">力值校准使用说明</div>
             <div className="font-label-sm text-outline leading-relaxed">
-              ① <span className="font-label-bold text-on-surface">清零</span>：空载点击——记录 AD 零点并下发设备零点命令。
+              ① <span className="font-label-bold text-on-surface">清零</span>：空载状态下点击，当前负载视为 0。
               <br />
-              ② <span className="font-label-bold text-on-surface">校准（AD）</span>：施加已知载荷（N）→ 填写标准 N → 点击「校准」，
-              系统按「标准载荷 ÷（当前 AD − 零点 AD）」标定换算比例；实时力值 =（AD − 零点 AD）× 比例。
+              ② <span className="font-label-bold text-on-surface">校准</span>：施加已知载荷（N）→ 填写标准 N → 点击「校准」，
+              系统自动按当前读数完成标定（SSTS 同款流程，一步完成）。
               <br />
-              ③ <span className="font-label-bold text-on-surface">设备标定</span>：发送设备标定命令（仅当设备支持重量输出时使用）。
-              <br />
-              ④ <span className="font-label-bold text-on-surface">系数</span>：在 AD 标定基础上再做软件微调（默认 1.00000）；标定参数按通道保存，重启后保留。
+              ③ <span className="font-label-bold text-on-surface">系数</span>：标定后所有力值 = 当前读数 × 换算比例 × 系数；标定参数按通道保存，重启后保留。
             </div>
             <button
               onClick={() => {

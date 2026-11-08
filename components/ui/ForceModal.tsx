@@ -48,6 +48,8 @@ export default function ForceModal({ open, onClose }: ForceModalProps) {
   const forceCoefficients = useSettingsStore((s) => s.forceCoefficients)
   const adCalibration = useSettingsStore((s) => s.adCalibration)
   const setForceCoefficient = useSettingsStore((s) => s.setForceCoefficient)
+  const setAdZero = useSettingsStore((s) => s.setAdZero)
+  const setAdCalibration = useSettingsStore((s) => s.setAdCalibration)
   const [devices, setDevices] = useState<ForceDeviceInfo[]>([])
   const [scanning, setScanning] = useState(false)
   const [pickChannel, setPickChannel] = useState<ForceChannel>('A')
@@ -192,7 +194,12 @@ export default function ForceModal({ open, onClose }: ForceModalProps) {
                       <>
                         {!isSteer && (
                           <button
-                            onClick={() => actions.zero(ch).catch(() => {})}
+                            onClick={() => {
+                              // 记录空载 AD 零点 + 下发设备零点校准
+                              const ad = st.latest?.adCode
+                              if (ad !== undefined) setAdZero(ch, ad)
+                              actions.zero(ch).catch(() => {})
+                            }}
                             disabled={busy === ch}
                             className="ui-action-btn ui-action-btn-ghost !px-2 !py-0.5 !text-[11px]"
                           >
@@ -309,31 +316,30 @@ export default function ForceModal({ open, onClose }: ForceModalProps) {
                       onClick={() => {
                         const standardN = Number(calWeight[ch])
                         if (!Number.isFinite(standardN) || standardN <= 0) return
-                        const grams = Math.round((standardN / 9.80665) * 1000)
-                        if (grams > 0) actions.calibrate(ch, grams).catch(() => {})
+                        const ad = st.latest?.adCode
+                        const cal = adCalibration[ch]
+                        const rawN = st.latest?.weightN ?? null
+                        // 优先 AD 标定（设备重量不可用时）
+                        if (ad !== undefined && cal && Math.abs(ad - cal.zeroAd) >= 1) {
+                          const nPerAd = standardN / (ad - cal.zeroAd)
+                          if (Number.isFinite(nPerAd) && nPerAd !== 0) {
+                            setAdCalibration(ch, { zeroAd: cal.zeroAd, nPerAd })
+                          }
+                          return
+                        }
+                        // 回退软件系数：标准值 ÷ 当前读数
+                        if (rawN !== null && Math.abs(rawN) >= 0.01) {
+                          const coef = standardN / rawN
+                          if (Number.isFinite(coef) && coef > 0 && coef <= 1000) {
+                            setForceCoefficient(ch, String(Number(coef.toFixed(5))))
+                          }
+                        }
                       }}
                       disabled={!calWeight[ch]}
                       className="ui-action-btn !px-2 !py-0.5 !text-[11px]"
-                      title="发送设备标定命令（原始重量恒定时使用）"
+                      title="施加标准载荷后点击：自动按 AD 或当前读数完成标定"
                     >
-                      设备标定
-                    </button>
-                    <button
-                      onClick={() => {
-                        const standardN = Number(calWeight[ch])
-                        const rawN = st.latest?.weightN ?? null
-                        if (!Number.isFinite(standardN) || standardN <= 0) return
-                        if (rawN === null || Math.abs(rawN) < 0.01) return
-                        const coef = standardN / rawN
-                        if (Number.isFinite(coef) && coef > 0 && coef <= 1000) {
-                          setForceCoefficient(ch, String(Number(coef.toFixed(5))))
-                        }
-                      }}
-                      disabled={!calWeight[ch] || !st.latest || Math.abs(st.latest.weightN) < 0.01}
-                      className="ui-action-btn ui-action-btn-ghost !px-2 !py-0.5 !text-[11px]"
-                      title="以「标准载荷 ÷ 当前读数」计算软件校正系数"
-                    >
-                      系数校准
+                      校准
                     </button>
                   </div>
                 )}
