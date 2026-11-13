@@ -10,11 +10,12 @@ import UpdateNotification from './UpdateNotification'
 import { AutoUpdater, checkServerDelta, checkForUpdate } from '@/lib/updater'
 import { useUpdaterStore } from '@/lib/store'
 
+// 导航顺序对齐《软件UI》PPT：踏板测试 / 转盘测试 / 命令监测 / 手动及状态检测 / 数据记录 / 设置 / 帮助
 const navItems = [
-  { label: '命令监测', icon: 'terminal', href: '/' },
   { label: '踏板测试', icon: 'footprint', href: '/pedal-test' },
   { label: '转盘测试', icon: 'rotate_right', href: '/steering-test' },
-  { label: '电机调试', icon: 'settings_input_component', href: '/motor-debug' },
+  { label: '命令监测', icon: 'terminal', href: '/' },
+  { label: '手动及状态检测', icon: 'settings_input_component', href: '/motor-debug' },
   { label: '数据记录', icon: 'storage', href: '/records' },
   { label: '设置', icon: 'tune', href: '/settings' },
   { label: '帮助', icon: 'help', href: '/about' },
@@ -23,6 +24,7 @@ const navItems = [
 export default function TopAppBar() {
   const pathname = usePathname()
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [langOpen, setLangOpen] = useState(false)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
   const setAvailable = useUpdaterStore((s) => s.setAvailable)
   const setServerReady = useUpdaterStore((s) => s.setServerReady)
@@ -78,7 +80,7 @@ export default function TopAppBar() {
 
   return (
     <header
-      className="flex-shrink-0 z-50 flex items-center justify-between px-4 h-14 w-full bg-white border-b border-slate-200 shadow-sm font-inter text-body-md text-primary antialiased select-none draggable-region relative"
+      className="flex-shrink-0 z-50 flex items-center justify-between px-4 h-14 w-full bg-white/60 backdrop-blur-xl border-b border-white/70 shadow-[0_8px_30px_rgba(31,86,130,0.08)] font-inter text-body-md text-primary antialiased select-none draggable-region relative"
       data-tauri-drag-region
       onContextMenu={handleContextMenu}
     >
@@ -98,8 +100,8 @@ export default function TopAppBar() {
                 href={item.href}
                 className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-[10px] font-label-bold text-[13px] transition-colors ${
                   isActive
-                    ? 'bg-primary text-on-primary shadow-sm'
-                    : 'text-slate-600 hover:bg-surface-container hover:text-primary'
+                    ? 'text-white shadow-[0_4px_18px_rgba(8,145,178,0.3)] bg-[linear-gradient(135deg,rgba(8,145,178,0.92),rgba(37,99,235,0.92))]'
+                    : 'text-slate-600 hover:bg-white/70 hover:text-primary'
                 }`}
               >
                 <span className="material-symbols-outlined text-[16px]">{item.icon}</span>
@@ -107,6 +109,30 @@ export default function TopAppBar() {
               </Link>
             )
           })}
+          {/* 语言切换（PPT 导航项，当前仅简体中文） */}
+          <div className="relative">
+            <button
+              onClick={() => setLangOpen((v) => !v)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-[10px] font-label-bold text-[13px] text-slate-600 hover:bg-white/70 hover:text-primary transition-colors"
+            >
+              <span className="material-symbols-outlined text-[16px]">language</span>
+              简体中文
+            </button>
+            {langOpen && (
+              <div
+                className="absolute right-0 top-full mt-1 min-w-[150px] rounded-xl bg-white/90 backdrop-blur-xl border border-white/80 shadow-[0_14px_40px_rgba(31,86,130,0.12)] py-1 text-[13px] z-[9999]"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <button
+                  className="w-full text-left px-4 py-2 text-primary font-label-bold hover:bg-white/80"
+                  onClick={() => setLangOpen(false)}
+                >
+                  简体中文 ✓
+                </button>
+                <div className="px-4 py-2 text-slate-400 text-[12px]">English（即将支持）</div>
+              </div>
+            )}
+          </div>
         </nav>
         <WindowControls />
       </div>

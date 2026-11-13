@@ -299,9 +299,9 @@ export default function SteeringTestPage() {
         {/* 左侧数据面板 */}
         <div className="w-[540px] flex-shrink-0 industrial-card rounded-xl p-3">
           <div className="flex flex-col gap-2">
-            <div className="ui-data-box !bg-primary !border-primary !py-3">
-              <span className="font-label-bold text-on-primary tracking-widest text-[15px]">转盘测试</span>
-              <span className="ui-value !text-on-primary/70 text-[12px]">蓝牙采集</span>
+            <div className="glass-panel-header !py-3 !text-[14px] !normal-case !tracking-normal !text-primary">
+              转盘测试
+              <span className="ml-auto font-label-sm font-normal text-slate-500">蓝牙采集</span>
             </div>
 
             {/* 倾角 X/Y 合并一行展示 */}

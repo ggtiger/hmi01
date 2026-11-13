@@ -9,6 +9,8 @@ interface DebugConsoleProps {
   connected: boolean
   onSend: (cmd: string) => Promise<void>
   onClear: () => void
+  /** 仅渲染内容（不套 IndustrialCard），用于嵌入玻璃面板 */
+  bare?: boolean
 }
 
 const QUICK_COMMANDS = [
@@ -29,7 +31,7 @@ const directionStyle: Record<string, { label: string; cls: string }> = {
 /** 交互调试控制台：TX/RX 通信日志 + 手动命令输入
  *  memo 化：debugLog 仅在新日志到达时变化，20Hz 遥测刷新不再触发 500 行列表重渲染
  */
-function DebugConsoleImpl({ debugLog, connected, onSend, onClear }: DebugConsoleProps) {
+function DebugConsoleImpl({ debugLog, connected, onSend, onClear, bare }: DebugConsoleProps) {
   const [input, setInput] = useState('')
   const [autoScroll, setAutoScroll] = useState(true)
   const [sending, setSending] = useState(false)
@@ -64,30 +66,8 @@ function DebugConsoleImpl({ debugLog, connected, onSend, onClear }: DebugConsole
     }
   }
 
-  return (
-    <IndustrialCard
-      title="交互控制台"
-      headerRight={
-        <div className="flex items-center gap-3">
-          <label className="flex items-center gap-1 font-label-sm text-on-surface-variant cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={autoScroll}
-              onChange={(e) => setAutoScroll(e.target.checked)}
-              className="accent-[#041627]"
-            />
-            自动滚动
-          </label>
-          <button
-            onClick={onClear}
-            className="font-label-sm text-outline hover:text-critical transition-colors"
-          >
-            清空
-          </button>
-        </div>
-      }
-    >
-      <div className="h-full flex flex-col">
+  const body = (
+    <div className="h-full flex flex-col min-h-0">
         {/* 日志窗口（充满剩余高度，内部滚动） */}
         <div
           ref={scrollRef}
@@ -120,7 +100,7 @@ function DebugConsoleImpl({ debugLog, connected, onSend, onClear }: DebugConsole
               key={cmd}
               disabled={!connected}
               onClick={() => handleSend(cmd)}
-              className="px-2 py-0.5 rounded-full border border-outline-variant font-label-sm monospaced-data text-on-surface-variant hover:bg-primary hover:text-on-primary hover:border-primary transition-colors disabled:opacity-40 disabled:pointer-events-none"
+              className="px-2 py-0.5 rounded-full border border-outline-variant font-label-sm monospaced-data text-on-surface-variant hover:bg-[#0891b2] hover:text-white hover:border-[#0891b2] transition-colors disabled:opacity-40 disabled:pointer-events-none"
             >
               {cmd}
             </button>
@@ -143,13 +123,41 @@ function DebugConsoleImpl({ debugLog, connected, onSend, onClear }: DebugConsole
           <button
             onClick={() => handleSend(input)}
             disabled={!connected || !input.trim() || sending}
-            className="px-4 py-2 rounded-lg bg-primary text-on-primary font-label-bold text-label-bold disabled:opacity-40 hover:bg-opacity-90 transition-all flex items-center gap-1"
+            className="px-4 py-2 rounded-lg bg-[linear-gradient(135deg,rgba(8,145,178,0.92),rgba(37,99,235,0.92))] text-white font-label-bold text-label-bold disabled:opacity-40 transition-all flex items-center gap-1"
           >
             <span className="material-symbols-outlined text-[16px]">send</span>
             发送
           </button>
         </div>
-      </div>
+    </div>
+  )
+
+  if (bare) return body
+
+  return (
+    <IndustrialCard
+      title="交互控制台"
+      headerRight={
+        <div className="flex items-center gap-3">
+          <label className="flex items-center gap-1 font-label-sm text-on-surface-variant cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={autoScroll}
+              onChange={(e) => setAutoScroll(e.target.checked)}
+              className="accent-[#041627]"
+            />
+            自动滚动
+          </label>
+          <button
+            onClick={onClear}
+            className="font-label-sm text-outline hover:text-critical transition-colors"
+          >
+            清空
+          </button>
+        </div>
+      }
+    >
+      {body}
     </IndustrialCard>
   )
 }

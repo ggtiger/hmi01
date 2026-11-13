@@ -21,9 +21,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="zh-CN" className="h-full overflow-hidden">
-      <body className="font-inter text-on-background h-full overflow-hidden">
+      <body className="font-inter text-on-background h-full overflow-hidden app-bg">
         <AppReady />
-        <div className="flex flex-col h-screen">
+        <div className="relative flex flex-col h-screen z-[1]">
           <TopAppBar />
           <main className="flex-1 min-h-0 overflow-hidden">
             {children}

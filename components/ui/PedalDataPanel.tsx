@@ -5,27 +5,29 @@ import { fmtNum } from '@/lib/comm/types'
 import type { TelemetryData } from '@/lib/comm/types'
 import type { PedalSide, SideParams } from '@/lib/store/pedal-store'
 
-/** 数据行：标签 + 值 + 可选操作按钮 */
+/** 数据行：标签 + 值 + 可选操作按钮（玻璃行） */
 function DataRow({
   label,
   value,
   unit,
   digits = 3,
+  accent,
   actions,
 }: {
   label: string
   value: number | null
   unit: string
   digits?: number
+  accent?: string
   actions?: React.ReactNode
 }) {
   return (
-    <div className="flex items-center gap-1.5">
-      <div className="ui-data-box flex-1">
-        <span className="ui-label">
-          {label} <span className="text-outline">{unit}</span>
+    <div className="flex items-center gap-2">
+      <div className="glass-row flex-1 min-w-0">
+        <span className="k">
+          {label} <em>{unit}</em>
         </span>
-        <span className="ui-value">{fmtNum(value, digits)}</span>
+        <span className={`v ${accent ?? ''}`}>{fmtNum(value, digits)}</span>
       </div>
       {actions}
     </div>
@@ -36,18 +38,16 @@ function MiniBtn({
   children,
   onClick,
   disabled,
-  danger,
 }: {
   children: React.ReactNode
   onClick?: () => void
   disabled?: boolean
-  danger?: boolean
 }) {
   return (
     <button
       onClick={onClick}
       disabled={disabled}
-      className={`ui-action-btn !px-2.5 !py-1 !text-[12px] flex-shrink-0 ${danger ? 'ui-action-btn-danger' : ''}`}
+      className="glass-btn !h-[34px] !px-2.5 !text-[12px] flex-shrink-0"
     >
       {children}
     </button>
@@ -58,24 +58,22 @@ interface PedalDataPanelProps {
   side: PedalSide
   telemetry: TelemetryData
   params: SideParams
-  /** 记录点字段当前值（起始/终末高度、进深快照，mm） */
+  /** 高度记录点现场值（mm） */
   fieldValues: {
     startH: number | null
     endH: number | null
-    startDepth: number | null
-    endDepth: number | null
   }
   pulsesPerMm: number
   connected: boolean
   busy: boolean
-  /** BLE 力值（当前侧通道）：实时 / 会话最大 / 流程进行中快照 */
+  /** BLE 力值（当前侧通道）：实时 / 会话最大 / 滑动平均（均匀力值） */
   forceLive: number | null
   forceMax: number | null
-  processForce: number | null
+  avgForce: number | null
   onParamChange: (key: keyof SideParams, value: string) => void
   onZero: () => void
-  onRecordField: (field: 'startH' | 'endH' | 'heightDiff' | 'startDepth' | 'endDepth' | 'depthDiff' | 'processForce') => void
-  onClearField: (field: 'startH' | 'endH' | 'startDepth' | 'endDepth') => void
+  onRecordField: (field: 'startH' | 'endH' | 'heightDiff' | 'force') => void
+  onClearField: (field: 'startH' | 'endH') => void
   onMotorMove: () => void
   onLevel: () => void
   onPushStart: () => void
@@ -85,8 +83,8 @@ interface PedalDataPanelProps {
 }
 
 /**
- * 左侧数据面板（PPT 设计稿 slide2/3 主体）：
- * 倾角 → 测距 → 高度/进深记录区 → 力值 → 调平电机/加载电机控制
+ * 左侧数据面板（对齐《软件UI》PPT 踏板测试页）：
+ * 倾角 → 垂直测距 → 起始/终末高度/高度差 → 实时/最大/均匀力值 → 电机控制部分
  */
 function PedalDataPanelImpl(p: PedalDataPanelProps) {
   const t = p.telemetry
@@ -94,52 +92,34 @@ function PedalDataPanelImpl(p: PedalDataPanelProps) {
   const tiltX = isA ? t.pedal_a_tilt_x : t.pedal_b_tilt_x
   const tiltY = isA ? t.pedal_a_tilt_y : t.pedal_b_tilt_y
   const laser = isA ? t.laser_a : t.laser_b
-  const pedalPulses = isA ? t.pedal_a : t.pedal_b
-  const pedalMm = pedalPulses === null ? null : pedalPulses / p.pulsesPerMm
 
   const heightDiff =
     p.fieldValues.startH !== null && p.fieldValues.endH !== null
       ? p.fieldValues.endH - p.fieldValues.startH
       : null
-  const depthDiff =
-    p.fieldValues.startDepth !== null && p.fieldValues.endDepth !== null
-      ? p.fieldValues.endDepth - p.fieldValues.startDepth
-      : null
 
   const dis = !p.connected || p.busy
 
   return (
-    <div className="flex flex-col gap-1.5 h-full justify-between">
-      {/* 标题 */}
-      <div className="ui-data-box !bg-primary !border-primary">
-        <span className="font-label-bold text-on-primary tracking-widest">踏板 {p.side}</span>
-        <span className="ui-value !text-on-primary/70 text-[11px]">数据面板</span>
-      </div>
-
+    <div className="flex flex-col gap-2 h-full">
       {/* 倾角 */}
-      <div className="grid grid-cols-2 gap-1.5">
-        <div className="ui-data-box">
-          <span className="ui-label">倾角 X</span>
-          <span className="ui-value">{fmtNum(tiltX, 3)}°</span>
+      <div className="grid grid-cols-2 gap-2">
+        <div className="glass-row">
+          <span className="k">倾角 X <em>°</em></span>
+          <span className="v">{fmtNum(tiltX, 3)}</span>
         </div>
-        <div className="ui-data-box">
-          <span className="ui-label">倾角 Y</span>
-          <span className="ui-value">{fmtNum(tiltY, 3)}°</span>
+        <div className="glass-row">
+          <span className="k">倾角 Y <em>°</em></span>
+          <span className="v">{fmtNum(tiltY, 3)}</span>
         </div>
       </div>
 
-      {/* 测距 */}
+      {/* 垂直测距 */}
       <DataRow
         label="垂直测距"
         unit="mm"
         value={laser}
         actions={<MiniBtn onClick={p.onZero} disabled={dis}>清零</MiniBtn>}
-      />
-      <DataRow
-        label="水平测距"
-        unit="mm"
-        value={null}
-        actions={<MiniBtn disabled>清零</MiniBtn>}
       />
 
       {/* 高度记录区 */}
@@ -169,116 +149,87 @@ function PedalDataPanelImpl(p: PedalDataPanelProps) {
         label="高度差"
         unit="mm"
         value={heightDiff}
+        accent="cyan"
         actions={
           <>
             <MiniBtn onClick={() => p.onRecordField('heightDiff')} disabled={!p.connected}>记录</MiniBtn>
-            <MiniBtn onClick={() => { p.onClearField('startH'); p.onClearField('endH') }} disabled={!p.connected}>清除</MiniBtn>
+            <MiniBtn
+              onClick={() => { p.onClearField('startH'); p.onClearField('endH') }}
+              disabled={!p.connected}
+            >
+              清除
+            </MiniBtn>
           </>
         }
       />
 
-      {/* 进深记录区 */}
+      {/* 力值 */}
       <DataRow
-        label="起始进深"
-        unit="mm"
-        value={p.fieldValues.startDepth}
-        actions={
-          <>
-            <MiniBtn onClick={() => p.onRecordField('startDepth')} disabled={!p.connected}>记录</MiniBtn>
-            <MiniBtn onClick={() => p.onClearField('startDepth')} disabled={!p.connected}>清除</MiniBtn>
-          </>
-        }
-      />
-      <DataRow
-        label="终末进深"
-        unit="mm"
-        value={p.fieldValues.endDepth}
-        actions={
-          <>
-            <MiniBtn onClick={() => p.onRecordField('endDepth')} disabled={!p.connected}>记录</MiniBtn>
-            <MiniBtn onClick={() => p.onClearField('endDepth')} disabled={!p.connected}>清除</MiniBtn>
-          </>
-        }
-      />
-      <DataRow
-        label="进深差"
-        unit="mm"
-        value={depthDiff}
-        actions={
-          <>
-            <MiniBtn onClick={() => p.onRecordField('depthDiff')} disabled={!p.connected}>记录</MiniBtn>
-            <MiniBtn onClick={() => { p.onClearField('startDepth'); p.onClearField('endDepth') }} disabled={!p.connected}>清除</MiniBtn>
-          </>
-        }
-      />
-
-      {/* 力值（BLE 模块，未连接显示 --） */}
-      <div className="grid grid-cols-2 gap-1.5">
-        <div className="ui-data-box">
-          <span className="ui-label">实时力值 N</span>
-          <span className="ui-value">{fmtNum(p.forceLive, 2)}</span>
-        </div>
-        <div className="ui-data-box">
-          <span className="ui-label">最大力值 N</span>
-          <span className="ui-value">{fmtNum(p.forceMax, 2)}</span>
-        </div>
-      </div>
-      <DataRow
-        label="进程力值"
+        label="实时力值"
         unit="N"
-        value={p.processForce}
+        value={p.forceLive}
         digits={2}
+        accent="cyan"
         actions={
           <>
-            <MiniBtn onClick={() => p.onRecordField('processForce')} disabled={!p.connected}>记录</MiniBtn>
+            <MiniBtn onClick={() => p.onRecordField('force')} disabled={!p.connected}>记录</MiniBtn>
             <MiniBtn disabled>清除</MiniBtn>
           </>
         }
       />
-
-      {/* 调平电机控制行 */}
-      <div className="flex items-center gap-1.5 mt-1">
-        <div className="ui-data-box flex-shrink-0">
-          <span className="ui-label font-label-bold">调平电机</span>
+      <div className="grid grid-cols-2 gap-2">
+        <div className="glass-row">
+          <span className="k">最大力值 <em>N</em></span>
+          <span className="v">{fmtNum(p.forceMax, 2)}</span>
         </div>
-        <input
-          className="ui-input w-16 text-center"
-          value={p.params.setAngle}
-          onChange={(e) => p.onParamChange('setAngle', e.target.value)}
-          inputMode="decimal"
-          title="目标角度 °"
-          placeholder="°"
-        />
-        <MiniBtn onClick={p.onMotorMove} disabled={dis}>启动</MiniBtn>
-        <MiniBtn onClick={p.onLevel} disabled={dis}>调平补偿</MiniBtn>
+        <div className="glass-row">
+          <span className="k">均匀力值 <em>N</em></span>
+          <span className="v">{fmtNum(p.avgForce, 2)}</span>
+        </div>
       </div>
 
-      {/* 加载电机控制行 */}
-      <div className="flex items-center gap-1.5">
-        <div className="ui-data-box flex-shrink-0">
-          <span className="ui-label font-label-bold">加载电机</span>
+      {/* 电机控制部分 */}
+      <div className="mt-auto border-t border-[rgba(15,80,120,0.08)] pt-2 flex flex-col gap-2">
+        <div className="font-label-bold text-[11px] uppercase tracking-widest text-on-surface-variant">
+          电机控制部分
         </div>
-        <input
-          className="ui-input w-14 text-center"
-          value={p.params.pushDist}
-          onChange={(e) => p.onParamChange('pushDist', e.target.value)}
-          onBlur={p.onPushDistApply}
-          inputMode="decimal"
-          title="推出距离 mm"
-          placeholder="mm"
-        />
-        <input
-          className="ui-input w-14 text-center"
-          value={p.params.setLoad}
-          onChange={(e) => p.onParamChange('setLoad', e.target.value)}
-          onBlur={p.onSetLoadApply}
-          inputMode="decimal"
-          title="加载力 N（预留）"
-          placeholder="N"
-        />
-        <MiniBtn onClick={p.onPushStart} disabled={dis}>启动加载</MiniBtn>
-        <MiniBtn onClick={() => p.onJog(1)} disabled={dis}>+</MiniBtn>
-        <MiniBtn onClick={() => p.onJog(-1)} disabled={dis}>-</MiniBtn>
+        <div className="flex items-center gap-2">
+          <span className="font-label-bold text-[12px] w-[68px] flex-shrink-0 text-slate-600">调平电机</span>
+          <input
+            className="ui-input w-16 !py-1.5 text-center"
+            value={p.params.setAngle}
+            onChange={(e) => p.onParamChange('setAngle', e.target.value)}
+            inputMode="decimal"
+            title="目标角度 °"
+            placeholder="°"
+          />
+          <MiniBtn onClick={p.onMotorMove} disabled={dis}>启动</MiniBtn>
+          <MiniBtn onClick={p.onLevel} disabled={dis}>调平补偿</MiniBtn>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="font-label-bold text-[12px] w-[68px] flex-shrink-0 text-slate-600">加载电机</span>
+          <input
+            className="ui-input w-14 !py-1.5 text-center"
+            value={p.params.pushDist}
+            onChange={(e) => p.onParamChange('pushDist', e.target.value)}
+            onBlur={p.onPushDistApply}
+            inputMode="decimal"
+            title="推出距离 mm"
+            placeholder="mm"
+          />
+          <input
+            className="ui-input w-14 !py-1.5 text-center"
+            value={p.params.setLoad}
+            onChange={(e) => p.onParamChange('setLoad', e.target.value)}
+            onBlur={p.onSetLoadApply}
+            inputMode="decimal"
+            title="加载力 N（预留）"
+            placeholder="N"
+          />
+          <MiniBtn onClick={p.onPushStart} disabled={dis}>启动加载</MiniBtn>
+          <MiniBtn onClick={() => p.onJog(1)} disabled={dis}>+</MiniBtn>
+          <MiniBtn onClick={() => p.onJog(-1)} disabled={dis}>-</MiniBtn>
+        </div>
       </div>
     </div>
   )

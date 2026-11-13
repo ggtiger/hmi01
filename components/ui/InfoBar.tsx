@@ -44,7 +44,7 @@ export default function InfoBar() {
   const isAlert = !!state.last_error || lastEvent?.kind === 'LEVEL_ABORT'
 
   return (
-    <footer className="flex-shrink-0 px-4 pb-2 pt-1 bg-[#F4F7F9]">
+    <footer className="flex-shrink-0 px-4 pb-2 pt-1 bg-transparent">
       <div className={`ui-info-bar ${isAlert ? '!bg-red-50 !border-red-200 !text-red-700' : ''}`}>
         <span className="font-bold mr-3">{statusText}</span>
         <span>{detail}</span>
