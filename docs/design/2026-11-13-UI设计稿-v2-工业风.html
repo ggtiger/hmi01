@@ -6,27 +6,27 @@
 <title>XdesinHMI 工业风界面设计稿 v2.0</title>
 <style>
   :root {
-    /* 工业 HMI 深色主题 */
-    --bg: #0b1117;
-    --panel: #121b24;
-    --panel-2: #16222e;
-    --head: #0f1925;
-    --border: #26384a;
-    --line: #1e2c3a;
-    --text: #dce6f0;
-    --muted: #7d90a3;
-    --dim: #4b5f73;
-    --accent: #2aa9c9;
-    --accent-dim: #17546a;
+    /* 工业浅色主题（深墨蓝通栏） */
+    --bg: #eef2f5;
+    --panel: #ffffff;
+    --panel-2: #f5f8fa;
+    --head: #eef2f7;
+    --border: #d5dde6;
+    --line: #e6ecf2;
+    --text: #1b1c1d;
+    --muted: #5b6b7b;
+    --dim: #94a3b8;
+    --accent: #0e7490;
+    --accent-dim: #041627;
     --ok: #35c08e;
     --warn: #f0a93b;
     --danger: #e24a4a;
-    --violet: #a78bfa;
+    --violet: #6d28d9;
     --r: 3px;
   }
   * { box-sizing: border-box; }
   body {
-    margin: 0; background: #0a0f14; color: var(--text);
+    margin: 0; background: #eef2f5; color: var(--text);
     font-family: -apple-system, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
     font-size: 15px; line-height: 1.65;
   }
@@ -35,7 +35,7 @@
   /* ===== 文档头 ===== */
   .doc-header {
     background:
-      linear-gradient(180deg, #0e1923 0%, #0a1117 100%);
+      linear-gradient(180deg, #ffffff 0%, #eef2f5 100%);
     border-bottom: 1px solid var(--border);
     padding: 44px 56px 34px;
   }
@@ -44,7 +44,7 @@
     font-size: 11px; letter-spacing: 2.4px; text-transform: uppercase; color: var(--accent);
     border: 1px solid var(--accent-dim); padding: 4px 10px; border-radius: 2px; margin-bottom: 18px;
   }
-  .doc-header h1 { margin: 0 0 6px; font-size: 30px; letter-spacing: .8px; color: #f2f7fb; }
+  .doc-header h1 { margin: 0 0 6px; font-size: 30px; letter-spacing: .8px; color: #041627; }
   .doc-header h1 small { color: var(--muted); font-weight: 400; font-size: 17px; margin-left: 10px; }
   .doc-header p { margin: 0; color: var(--muted); font-size: 14px; }
   .doc-header .meta { margin-top: 18px; display: flex; gap: 26px; font-size: 12px; color: var(--dim); flex-wrap: wrap; }
@@ -52,7 +52,7 @@
 
   .doc-nav {
     position: sticky; top: 0; z-index: 100;
-    background: rgba(11,17,23,.96); backdrop-filter: blur(8px);
+    background: rgba(255,255,255,.96); backdrop-filter: blur(8px);
     border-bottom: 1px solid var(--border);
     padding: 10px 56px; display: flex; gap: 6px; flex-wrap: wrap;
   }
@@ -64,7 +64,7 @@
 
   .container { max-width: 1560px; margin: 0 auto; padding: 40px 56px 90px; }
   section { margin-bottom: 64px; }
-  h2.sec-title { font-size: 20px; margin: 0 0 6px; color: #f2f7fb; display: flex; align-items: center; gap: 12px; }
+  h2.sec-title { font-size: 20px; margin: 0 0 6px; color: #041627; display: flex; align-items: center; gap: 12px; }
   h2.sec-title .num {
     display: inline-flex; width: 30px; height: 30px; border-radius: 2px;
     background: var(--accent-dim); border: 1px solid var(--accent); color: var(--accent);
@@ -90,12 +90,12 @@
   .comp-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 8px; }
   .btn {
     display: inline-flex; align-items: center; justify-content: center; gap: 6px;
-    background: var(--accent-dim); color: #dff4fb; border: 1px solid var(--accent);
+    background: var(--accent-dim); color: #eef6fb; border: 1px solid var(--accent);
     border-radius: 2px; padding: 9px 18px; font-size: 13px; font-weight: 600;
     cursor: default; white-space: nowrap; letter-spacing: .3px;
   }
   .btn.ghost { background: transparent; color: var(--text); border-color: var(--border); }
-  .btn.danger { background: #3a1618; color: #ffb4b4; border-color: var(--danger); }
+  .btn.danger { background: #fef2f2; color: #b91c1c; border-color: var(--danger); }
   .btn.lg { padding: 14px 26px; font-size: 15px; }
   .data-box {
     display: flex; align-items: center; justify-content: space-between; gap: 10px;
@@ -104,56 +104,56 @@
   }
   .data-box .k { color: var(--muted); font-size: 12px; white-space: nowrap; }
   .data-box .k em { font-style: normal; color: var(--dim); }
-  .data-box .v { font-weight: 700; color: #eaf3fb; }
+  .data-box .v { font-weight: 700; color: #0f172a; }
   .tag { font-size: 10.5px; font-weight: 700; padding: 2px 8px; border-radius: 2px; letter-spacing: .4px; }
-  .tag.ok { background: rgba(53,192,142,.12); color: var(--ok); border: 1px solid rgba(53,192,142,.35); }
-  .tag.warn { background: rgba(240,169,59,.1); color: var(--warn); border: 1px solid rgba(240,169,59,.35); }
-  .tag.bad { background: rgba(226,74,74,.1); color: var(--danger); border: 1px solid rgba(226,74,74,.35); }
+  .tag.ok { background: rgba(53,192,142,.12); color: #047857; border: 1px solid rgba(53,192,142,.45); }
+  .tag.warn { background: rgba(240,169,59,.1); color: #b45309; border: 1px solid rgba(240,169,59,.5); }
+  .tag.bad { background: rgba(226,74,74,.1); color: #b91c1c; border: 1px solid rgba(226,74,74,.45); }
   .tag.info { background: rgba(42,169,201,.1); color: var(--accent); border: 1px solid rgba(42,169,201,.35); }
 
   /* ===== mockup 框架 ===== */
   .mock-frame { margin-bottom: 18px; }
-  .mock-title { display: flex; align-items: center; gap: 10px; font-weight: 700; color: #f2f7fb; font-size: 15px; margin-bottom: 10px; }
+  .mock-title { display: flex; align-items: center; gap: 10px; font-weight: 700; color: #041627; font-size: 15px; margin-bottom: 10px; }
   .mock-title .badge { font-size: 10.5px; font-weight: 700; color: #04202a; background: var(--accent); padding: 2px 9px; border-radius: 2px; letter-spacing: .5px; }
-  .mock-title .badge.keep { background: #3b4d60; color: #dbe7f0; }
+  .mock-title .badge.keep { background: #e2e8f0; color: #475569; }
   .mock-title .badge.new { background: var(--warn); color: #2b1c02; }
   .mock-scale { width: 100%; overflow: hidden; }
   .mock-scale .inner { transform: scale(.72); transform-origin: top left; width: 1440px; height: 900px; }
   .mock {
     width: 1440px; height: 900px; background: var(--bg);
-    border: 1px solid #33475c; border-radius: 4px; overflow: hidden;
+    border: 1px solid #c9d4df; border-radius: 4px; overflow: hidden;
     display: flex; flex-direction: column;
-    box-shadow: 0 22px 50px rgba(0,0,0,.5);
+    box-shadow: 0 22px 50px rgba(4,22,39,.12);
     color: var(--text);
   }
 
-  /* 通栏顶栏 */
+  /* 通栏顶栏（深墨蓝，工业蓝条） */
   .m-top {
-    height: 44px; background: var(--head); border-bottom: 1px solid var(--border);
+    height: 44px; background: #041627; border-bottom: 1px solid #0f2a42;
     display: flex; align-items: center; padding: 0 14px; gap: 18px; flex-shrink: 0;
   }
   .m-logo { display: flex; align-items: center; gap: 9px; font-weight: 800; font-size: 14px; color: #f2f7fb; letter-spacing: .2px; }
   .m-logo .lg {
     width: 24px; height: 24px; border-radius: 2px;
-    background: var(--accent); color: #04131b;
+    background: #2aa9c9; color: #04131b;
     display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 900;
   }
-  .m-status { display: flex; align-items: center; gap: 14px; font-size: 11px; color: var(--muted); border-left: 1px solid var(--line); padding-left: 16px; }
+  .m-status { display: flex; align-items: center; gap: 14px; font-size: 11px; color: #9fb3c8; border-left: 1px solid #24384a; padding-left: 16px; }
   .m-status .led { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 5px; }
-  .led.on { background: var(--ok); box-shadow: 0 0 6px rgba(53,192,142,.8); }
-  .led.off { background: var(--dim); }
-  .led.warn { background: var(--warn); box-shadow: 0 0 6px rgba(240,169,59,.7); }
+  .led.on { background: #35c08e; box-shadow: 0 0 6px rgba(53,192,142,.8); }
+  .led.off { background: #4b5f73; }
+  .led.warn { background: #f0a93b; box-shadow: 0 0 6px rgba(240,169,59,.7); }
   .m-nav { margin-left: auto; display: flex; align-items: stretch; height: 44px; }
   .m-nav .item {
     display: flex; align-items: center; padding: 0 16px; font-size: 12.5px; font-weight: 600;
-    color: var(--muted); border-left: 1px solid var(--line); letter-spacing: .3px;
+    color: #9fb3c8; border-left: 1px solid #1a2f44; letter-spacing: .3px;
   }
-  .m-nav .item.active { color: #eaf6fb; background: #12212c; box-shadow: inset 0 -2px 0 var(--accent); }
-  .m-win { display: flex; gap: 0; margin-left: 14px; border: 1px solid var(--border); }
-  .m-win i { width: 34px; height: 22px; display: flex; align-items: center; justify-content: center; border-left: 1px solid var(--border); }
+  .m-nav .item.active { color: #eaf6fb; background: #0d2135; box-shadow: inset 0 -2px 0 #2aa9c9; }
+  .m-win { display: flex; gap: 0; margin-left: 14px; border: 1px solid #24384a; }
+  .m-win i { width: 34px; height: 22px; display: flex; align-items: center; justify-content: center; border-left: 1px solid #24384a; }
   .m-win i:first-child { border-left: 0; }
-  .m-win i::before { content: ""; width: 9px; height: 1px; background: var(--muted); }
-  .m-win i:nth-child(2)::before { width: 8px; height: 8px; border: 1px solid var(--muted); background: none; }
+  .m-win i::before { content: ""; width: 9px; height: 1px; background: #9fb3c8; }
+  .m-win i:nth-child(2)::before { width: 8px; height: 8px; border: 1px solid #9fb3c8; background: none; }
   .m-win i:nth-child(3)::before { transform: rotate(45deg); }
 
   /* 页面工具条 */
@@ -166,8 +166,8 @@
     padding: 9px 18px; font-size: 12.5px; font-weight: 600;
     border: 1px solid var(--border); border-radius: 2px; background: var(--panel-2); color: var(--text);
   }
-  .m-toolbar .tbtn.primary { border-color: var(--accent); background: var(--accent-dim); color: #dff4fb; }
-  .m-toolbar .tbtn.warn { border-color: var(--warn); background: rgba(240,169,59,.08); color: var(--warn); }
+  .m-toolbar .tbtn.primary { border-color: var(--accent); background: var(--accent-dim); color: #eef6fb; }
+  .m-toolbar .tbtn.warn { border-color: rgba(240,169,59,.55); background: rgba(240,169,59,.1); color: #b45309; }
   .m-toolbar .spacer { flex: 1; }
   .m-toolbar .stat {
     display: inline-flex; align-items: center; gap: 8px; padding: 7px 12px;
@@ -182,7 +182,7 @@
   .m-panel-h {
     height: 32px; background: var(--head); border-bottom: 1px solid var(--border);
     display: flex; align-items: center; padding: 0 12px; gap: 10px; flex-shrink: 0;
-    font-size: 11px; font-weight: 700; letter-spacing: 1.4px; text-transform: uppercase; color: #9fb3c6;
+    font-size: 11px; font-weight: 700; letter-spacing: 1.4px; text-transform: uppercase; color: #475569;
   }
   .m-panel-h .r { margin-left: auto; display: flex; align-items: center; gap: 10px; letter-spacing: 0; text-transform: none; font-weight: 600; font-size: 11px; color: var(--muted); }
   .m-panel-b { flex: 1; min-height: 0; padding: 10px; display: flex; flex-direction: column; gap: 6px; }
@@ -201,7 +201,7 @@
   }
   .drow .cell .lab em { font-style: normal; color: var(--dim); margin-left: 4px; font-size: 10.5px; }
   .drow .cell .num {
-    flex: 1; text-align: right; padding: 0 10px; font-weight: 700; color: #eaf3fb;
+    flex: 1; text-align: right; padding: 0 10px; font-weight: 700; color: #0f172a;
     font-variant-numeric: tabular-nums;
   }
   .drow .cell .num.muted { color: var(--dim); font-weight: 600; }
@@ -212,18 +212,18 @@
     background: var(--panel-2); border: 1px solid var(--border); border-radius: 2px;
     font-size: 11.5px; font-weight: 600; color: var(--text); flex-shrink: 0;
   }
-  .abu.pri { background: var(--accent-dim); border-color: var(--accent); color: #dff4fb; }
-  .abu.dang { background: rgba(226,74,74,.1); border-color: var(--danger); color: #ffb4b4; }
+  .abu.pri { background: var(--accent-dim); border-color: var(--accent); color: #eef6fb; }
+  .abu.dang { background: rgba(226,74,74,.1); border-color: var(--danger); color: #b91c1c; }
   .abu.sm { min-width: 44px; height: 30px; font-size: 11px; }
 
   /* 电机控制 */
   .motor { border-top: 1px solid var(--line); padding-top: 8px; display: flex; flex-direction: column; gap: 7px; }
   .motor .mrow { display: flex; align-items: center; gap: 6px; }
-  .motor .mname { width: 74px; font-size: 12px; font-weight: 700; color: #b9c9d8; flex-shrink: 0; }
+  .motor .mname { width: 74px; font-size: 12px; font-weight: 700; color: #334155; flex-shrink: 0; }
   .motor .minp {
     width: 70px; height: 32px; background: var(--bg); border: 1px solid var(--line); border-radius: 2px;
     display: flex; align-items: center; justify-content: flex-end; padding: 0 8px;
-    font-size: 12px; color: #eaf3fb; font-variant-numeric: tabular-nums;
+    font-size: 12px; color: #0f172a; font-variant-numeric: tabular-nums;
   }
   .motor .minp.ghost { color: var(--dim); justify-content: center; }
 
@@ -231,9 +231,9 @@
   .chart {
     flex: 1; min-height: 0; border: 1px solid var(--line); border-radius: 2px;
     background:
-      repeating-linear-gradient(0deg, transparent 0 43px, #16222e 43px 44px),
-      repeating-linear-gradient(90deg, transparent 0 71px, #16222e 71px 72px),
-      #0d151d;
+      repeating-linear-gradient(0deg, transparent 0 43px, #e9eff5 43px 44px),
+      repeating-linear-gradient(90deg, transparent 0 71px, #e9eff5 71px 72px),
+      #fbfdfe;
     position: relative;
   }
   .chart .ylab { position: absolute; left: 8px; top: 8px; font-size: 10.5px; color: var(--dim); }
@@ -249,8 +249,8 @@
     height: 48px; padding: 0 26px; font-size: 14px; font-weight: 700; letter-spacing: .5px;
     border: 1px solid var(--border); border-radius: 2px; background: var(--panel-2); color: var(--text);
   }
-  .m-actions .big.primary { background: var(--accent-dim); border-color: var(--accent); color: #dff4fb; }
-  .m-actions .big.danger { background: rgba(226,74,74,.12); border-color: var(--danger); color: #ffb4b4; }
+  .m-actions .big.primary { background: var(--accent-dim); border-color: var(--accent); color: #eef6fb; }
+  .m-actions .big.danger { background: rgba(226,74,74,.12); border-color: var(--danger); color: #b91c1c; }
   .m-actions .big.grow { flex: 1; }
   .m-info {
     height: 30px; margin: 0 14px 10px; flex-shrink: 0;
@@ -258,7 +258,7 @@
     display: flex; align-items: center; padding: 0 12px; gap: 18px;
     font-size: 11px; color: var(--muted); font-family: ui-monospace, Menlo, monospace;
   }
-  .m-info b { color: var(--ok); font-weight: 600; }
+  .m-info b { color: #047857; font-weight: 600; }
   .m-info .sep { width: 1px; height: 12px; background: var(--line); }
 
   /* 命令监测页 */
@@ -267,16 +267,16 @@
     display: flex; align-items: center; gap: 9px; padding: 8px 10px;
     background: var(--bg); border: 1px solid var(--line); border-radius: 2px; font-size: 11.5px;
   }
-  .module-line .n { font-weight: 700; color: #dbe7f0; }
+  .module-line .n { font-weight: 700; color: #0f172a; }
   .module-line .s { color: var(--dim); font-size: 10.5px; }
   .module-line .st { margin-left: auto; }
-  .cmdlog { flex: 1; min-height: 0; overflow: hidden; background: #0b1218; border: 1px solid var(--line); border-radius: 2px; padding: 8px 10px; }
+  .cmdlog { flex: 1; min-height: 0; overflow: hidden; background: #f8fafc; border: 1px solid var(--line); border-radius: 2px; padding: 8px 10px; }
   .cl { font-size: 11.5px; display: flex; gap: 8px; padding: 1.5px 0; font-family: ui-monospace, Menlo, monospace; }
   .cl .d { width: 14px; font-weight: 800; flex-shrink: 0; }
-  .cl .d.tx { color: #4cc3e0; }
-  .cl .d.rx { color: #4ade9f; }
+  .cl .d.tx { color: #0369a1; }
+  .cl .d.rx { color: #047857; }
   .cl .d.sys { color: var(--dim); }
-  .cl .t { color: #b7c7d6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .cl .t { color: #334155; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .cmdbar { display: flex; gap: 8px; padding: 8px 10px; border-top: 1px solid var(--line); flex-shrink: 0; }
   .cmdbar .inp {
     flex: 1; height: 36px; border: 1px solid var(--border); border-radius: 2px; background: var(--bg);
@@ -290,11 +290,11 @@
   .help-btns { display: flex; gap: 8px; padding: 10px 14px; flex-shrink: 0; }
   .help-main { flex: 1; min-height: 0; margin: 0 14px; border: 1px solid var(--border); background: var(--panel); display: flex; flex-direction: column; }
   .help-body {
-    flex: 1; margin: 14px; border: 1px dashed #2c4054; background: #0d151d;
+    flex: 1; margin: 14px; border: 1px dashed #cbd5e1; background: #f8fafc;
     display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
     text-align: center; padding: 30px;
   }
-  .help-body h3 { margin: 0; font-size: 22px; color: #f2f7fb; }
+  .help-body h3 { margin: 0; font-size: 22px; color: #041627; }
   .help-body p { margin: 0; font-size: 13px; color: var(--muted); max-width: 640px; }
 
   /* 设置页 */
@@ -305,14 +305,14 @@
     background: var(--bg); border: 1px solid var(--line); border-radius: 2px;
   }
   .set-item .nm { width: 210px; flex-shrink: 0; }
-  .set-item .nm b { display: block; font-size: 12.5px; color: #dbe7f0; }
+  .set-item .nm b { display: block; font-size: 12.5px; color: #0f172a; }
   .set-item .nm span { font-size: 10.5px; color: var(--dim); }
   .set-item .vals { margin-left: auto; display: flex; gap: 6px; align-items: center; }
 
   /* 说明卡 */
   .notes { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 14px; margin-top: 14px; }
   .note { background: var(--panel); border: 1px solid var(--border); border-radius: var(--r); padding: 16px 18px; }
-  .note h4 { margin: 0 0 8px; font-size: 13px; color: #f2f7fb; }
+  .note h4 { margin: 0 0 8px; font-size: 13px; color: #041627; }
   .note ul { margin: 0; padding-left: 18px; color: var(--muted); font-size: 12.5px; }
   .note li { margin-bottom: 4px; }
   .note li b { color: var(--text); }
@@ -325,10 +325,10 @@
 <header class="doc-header">
   <span class="kicker">Industrial HMI · Design Spec</span>
   <h1>XdesinHMI 界面设计稿 <small>v2.0 · 工业风</small></h1>
-  <p>结构严格对齐《软件UI》布局稿 · 通栏导航 / 左侧控制面板 / 右侧图表 / 底部动作条与 Info · 深色工业 HMI 视觉</p>
+  <p>结构严格对齐《软件UI》布局稿 · 通栏导航 / 左侧控制面板 / 右侧图表 / 底部动作条与 Info · 浅色工业风 视觉</p>
   <div class="meta">
     <span>布局依据：<b>《软件UI》第 1–4 页</b></span>
-    <span>视觉：<b>深色工业 HMI（#0B1117）</b></span>
+    <span>视觉：<b>浅色工业风（#EEF2F5）</b></span>
     <span>数据字体：<b>等宽数字</b></span>
     <span>控件：<b>硬边框 2–3px 圆角</b></span>
   </div>
@@ -364,8 +364,8 @@
       <div class="note">
         <h4>工业视觉语言</h4>
         <ul>
-          <li>深色底板 + 面板分层：<b>#0B1117 / #121B24 / #0F1925</b></li>
-          <li>1px 硬边框、2–3px 小圆角、内嵌深色数据格（表格式）</li>
+          <li>浅色底板 + 白色面板 + 深墨蓝通栏：<b>#EEF2F5 / #FFFFFF / #041627</b></li>
+          <li>1px 硬边框、2–3px 小圆角、浅灰内嵌数据格（表格式）</li>
           <li>LED 状态灯（绿/琥珀/红）+ 等宽数字 + 固定小数位</li>
           <li>青色为操作强调，红色仅用于停止/危险操作</li>
         </ul>
@@ -392,16 +392,16 @@
   <!-- 设计系统 -->
   <section id="system">
     <h2 class="sec-title"><span class="num">02</span>设计系统</h2>
-    <p class="sec-desc">工业深色主题，统一色板、字体、尺寸与组件规格。</p>
+    <p class="sec-desc">工业浅色主题（深墨蓝通栏 + 白色面板），统一色板、字体、尺寸与组件规格。</p>
     <div class="spec-grid">
       <div class="spec-card">
         <h4>色彩</h4>
         <div class="swatches">
-          <div class="swatch"><div class="chip" style="background:#0b1117"></div><div class="name">Background</div><div class="hex">#0B1117</div></div>
-          <div class="swatch"><div class="chip" style="background:#121b24"></div><div class="name">Panel</div><div class="hex">#121B24</div></div>
-          <div class="swatch"><div class="chip" style="background:#0f1925"></div><div class="name">Panel Head</div><div class="hex">#0F1925</div></div>
+          <div class="swatch"><div class="chip" style="background:#eef2f5"></div><div class="name">Background</div><div class="hex">#EEF2F5</div></div>
+          <div class="swatch"><div class="chip" style="background:#ffffff"></div><div class="name">Panel</div><div class="hex">#FFFFFF</div></div>
+          <div class="swatch"><div class="chip" style="background:#eef2f7"></div><div class="name">Panel Head</div><div class="hex">#EEF2F7</div></div>
           <div class="swatch"><div class="chip" style="background:#26384a"></div><div class="name">Border</div><div class="hex">#26384A</div></div>
-          <div class="swatch"><div class="chip" style="background:#2aa9c9"></div><div class="name">Accent</div><div class="hex">#2AA9C9</div></div>
+          <div class="swatch"><div class="chip" style="background:#0e7490"></div><div class="name">Accent</div><div class="hex">#2AA9C9</div></div>
           <div class="swatch"><div class="chip" style="background:#35c08e"></div><div class="name">Success</div><div class="hex">#35C08E</div></div>
           <div class="swatch"><div class="chip" style="background:#f0a93b"></div><div class="name">Warning</div><div class="hex">#F0A93B</div></div>
           <div class="swatch"><div class="chip" style="background:#e24a4a"></div><div class="name">Critical</div><div class="hex">#E24A4A</div></div>
@@ -410,7 +410,7 @@
       <div class="spec-card">
         <h4>字体层级</h4>
         <div class="type-row"><span class="tag">页面标题</span><span class="demo" style="font-size:20px;font-weight:800">踏板测试</span></div>
-        <div class="type-row"><span class="tag">面板标题</span><span class="demo" style="font-size:11px;font-weight:700;letter-spacing:1.4px;color:#9fb3c6">踏板 A · 数据面板</span></div>
+        <div class="type-row"><span class="tag">面板标题</span><span class="demo" style="font-size:11px;font-weight:700;letter-spacing:1.4px;color:#475569">踏板 A · 数据面板</span></div>
         <div class="type-row"><span class="tag">数据值</span><span class="demo mono" style="font-size:16px;font-weight:700">25.430 mm</span></div>
         <div class="type-row"><span class="tag">字段标签</span><span class="demo" style="font-size:12px;color:#7d90a3">起始高度 mm</span></div>
         <div class="type-row"><span class="tag">辅助</span><span class="demo mono" style="font-size:11px;color:#4b5f73">AD 49749 · 原始 981270</span></div>
@@ -418,10 +418,10 @@
       <div class="spec-card">
         <h4>尺寸与圆角</h4>
         <ul style="margin:0;padding-left:18px;color:#7d90a3;font-size:12.5px">
-          <li>面板圆角 <b style="color:#dce6f0">3px</b>，控件圆角 <b style="color:#dce6f0">2px</b></li>
-          <li>顶栏 <b style="color:#dce6f0">44px</b> / 面板标题 <b style="color:#dce6f0">32px</b> / 数据行 <b style="color:#dce6f0">34px</b></li>
-          <li>底部动作条大按钮 <b style="color:#dce6f0">48px</b></li>
-          <li>面板间距 <b style="color:#dce6f0">10px</b>，数据行间距 <b style="color:#dce6f0">6px</b></li>
+          <li>面板圆角 <b style="color:#0f172a">3px</b>，控件圆角 <b style="color:#0f172a">2px</b></li>
+          <li>顶栏 <b style="color:#0f172a">44px</b> / 面板标题 <b style="color:#0f172a">32px</b> / 数据行 <b style="color:#0f172a">34px</b></li>
+          <li>底部动作条大按钮 <b style="color:#0f172a">48px</b></li>
+          <li>面板间距 <b style="color:#0f172a">10px</b>，数据行间距 <b style="color:#0f172a">6px</b></li>
         </ul>
       </div>
       <div class="spec-card">
@@ -457,8 +457,8 @@
           </div>
           <div style="position:absolute;right:26px;top:30px" class="m-win"><i></i><i></i><i></i></div>
           <div style="text-align:center">
-            <div style="font-size:44px;font-weight:900;letter-spacing:5px;color:#f2f7fb">XDESIN 踏板测试台</div>
-            <div style="margin-top:26px;width:760px;border:1px solid var(--border);background:var(--panel);padding:14px 20px;font-size:14px;color:#b9c9d8;letter-spacing:.6px">
+            <div style="font-size:44px;font-weight:900;letter-spacing:5px;color:#041627">XDESIN 踏板测试台</div>
+            <div style="margin-top:26px;width:760px;border:1px solid var(--border);background:var(--panel);padding:14px 20px;font-size:14px;color:#475569;letter-spacing:.6px">
               开机自检 · 蓝牙模块联接 · 系统网络设置 · 力值校准
             </div>
             <div style="margin-top:14px;display:flex;gap:10px;justify-content:center">
@@ -573,7 +573,7 @@
                   <span class="ylab">mm</span>
                   <span class="xlab">t →</span>
                   <div class="cross"></div>
-                  <div class="legend"><span><i style="background:#2aa9c9"></i>倾角 X</span><span><i style="background:#4b6b86"></i>倾角 Y</span><span><i style="background:#f0a93b"></i>推杆 mm</span></div>
+                  <div class="legend"><span><i style="background:#0e7490"></i>倾角 X</span><span><i style="background:#8192a7"></i>倾角 Y</span><span><i style="background:#f0a93b"></i>推杆 mm</span></div>
                 </div>
               </div>
             </div>
@@ -762,7 +762,7 @@
                 <div class="chart" style="flex:1">
                   <span class="ylab">°</span>
                   <span class="xlab">t →</span>
-                  <div class="legend"><span><i style="background:#2aa9c9"></i>倾角 X</span><span><i style="background:#4b6b86"></i>倾角 Y</span><span><i style="background:#f0a93b"></i>自由转角</span></div>
+                  <div class="legend"><span><i style="background:#0e7490"></i>倾角 X</span><span><i style="background:#8192a7"></i>倾角 Y</span><span><i style="background:#f0a93b"></i>自由转角</span></div>
                 </div>
                 <div style="border-top:1px solid var(--line);margin-top:8px;padding-top:6px;font-size:11px;color:var(--muted);display:flex;gap:22px" class="mono">
                   <span>#1 17:12:20 顺时针峰值 12.430°</span>
@@ -946,7 +946,7 @@
       <div class="note">
         <h4>视觉换装</h4>
         <ul>
-          <li>主题：浅色 → <b>深色工业 HMI</b>（#0B1117 底板，#121B24 面板）</li>
+          <li>主题：浅色 → <b>浅色工业风</b>（#EEF2F5 底板，#FFFFFF 面板）</li>
           <li>圆角：10–14px → <b>2–3px</b>；阴影 → <b>1px 硬边框</b></li>
           <li>数据行：卡片式 → <b>表格式</b>（标签列 + 右对齐等宽数值）</li>
           <li>强调色：深墨蓝 → <b>工业青 #2AA9C9</b>；红色仅用于停止/危险</li>
