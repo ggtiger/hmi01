@@ -6,7 +6,6 @@ import type { BoardSide } from '@/lib/comm/types'
 import { fmtNum } from '@/lib/comm/types'
 import { useMotorStore, MOTOR_AXES, AXIS_LABELS } from '@/lib/store'
 import MotorAxisPanel from '@/components/ui/MotorAxisPanel'
-import EstopButton from '@/components/ui/EstopButton'
 import { useT } from '@/lib/i18n'
 
 /** 状态检测表格一行 */
@@ -99,6 +98,13 @@ export default function MotorDebugPage() {
         </div>
       )}
 
+      <div className="flex items-center gap-2 flex-shrink-0">
+        <h1 className="text-[21px] font-black text-primary whitespace-nowrap">{tr('双板调试台')}</h1>
+        <span className="px-2 py-0.5 rounded-full bg-[#0891b2]/8 border border-[#0891b2]/20 text-[9px] font-extrabold text-[#0891b2]">
+          {tr('工程模式')}
+        </span>
+      </div>
+
       {/* ===== 目标板 + 全局操作 ===== */}
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-2 flex-wrap">
@@ -142,7 +148,6 @@ export default function MotorDebugPage() {
             <span className="material-symbols-outlined text-[16px]">restart_alt</span>
             {tr('故障复位')}
           </button>
-          <EstopButton onEstop={actions.estop} />
         </div>
       </div>
 

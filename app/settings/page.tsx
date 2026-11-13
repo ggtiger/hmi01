@@ -7,6 +7,7 @@ import { useSettingsStore, channelForceN, forceCoefficient, type AdCalibration }
 import IndustrialCard from '@/components/ui/IndustrialCard'
 import Button from '@/components/ui/Button'
 import ForceModal from '@/components/ui/ForceModal'
+import UserManager from '@/components/ui/UserManager'
 import { useT } from '@/lib/i18n'
 
 /** 按业务场景分组的蓝牙模块 */
@@ -340,7 +341,13 @@ export default function SettingsPage() {
 
 
   return (
-    <div className="h-full overflow-y-auto p-6 space-y-4 max-w-4xl mx-auto">
+    <div className="h-full overflow-y-auto p-4 space-y-3 max-w-6xl mx-auto">
+      <div className="flex items-center gap-2 flex-shrink-0">
+        <h1 className="text-[21px] font-black text-primary whitespace-nowrap">{t('设置')}</h1>
+        <span className="px-2 py-0.5 rounded-full bg-[#0891b2]/8 border border-[#0891b2]/20 text-[9px] font-extrabold text-[#0891b2]">
+          {t('参数与用户')}
+        </span>
+      </div>
       {error && (
         <div className="flex items-center justify-between px-4 py-2 rounded-[10px] bg-red-50 border border-red-200 text-red-700 font-label-bold">
           <span className="flex items-center gap-2">
@@ -469,6 +476,7 @@ export default function SettingsPage() {
         </div>
       </IndustrialCard>
 
+      <div className="grid md:grid-cols-2 gap-3 items-start">
       {/* ===== 设备参数（SET，需 WiFi 连接） ===== */}
       <IndustrialCard
         title={t('设备参数（SET）')}
@@ -524,6 +532,9 @@ export default function SettingsPage() {
 
         </div>
       </IndustrialCard>
+
+      <UserManager />
+      </div>
 
       {/* ===== 通信调试（按板） ===== */}
       <IndustrialCard

@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import IndustrialCard from '@/components/ui/IndustrialCard'
 import {
   getAllTestRecords, deleteTestRecord, type TestRecord,
 } from '@/lib/db/test-records'
@@ -15,12 +14,22 @@ function recordToCsv(records: TestRecord[], t: (zh: string) => string): string {
   return lines.join('\n')
 }
 
+function downloadCsv(name: string, content: string) {
+  const blob = new Blob([content], { type: 'text/csv;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = name
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+/** 数据记录（V6 原型）：卡片列表、展开明细、逐条/全部导出 */
 export default function RecordsPage() {
   const t = useT()
   const locale = useI18nStore((s) => s.locale)
   const [records, setRecords] = useState<TestRecord[]>([])
   const [expanded, setExpanded] = useState<number | null>(null)
-  /** 删除二次确认的记录 id（行内确认，避免 Tauri 未授权的 window.confirm） */
   const [confirmId, setConfirmId] = useState<number | null>(null)
   const [available, setAvailable] = useState(false)
 
@@ -37,125 +46,131 @@ export default function RecordsPage() {
     refresh()
   }, [])
 
+  const exportOne = (r: TestRecord) => {
+    downloadCsv(`test-record-${r.id}.csv`, recordToCsv([r], t))
+  }
+
+  const exportAll = () => {
+    downloadCsv(`test-records-${Date.now()}.csv`, recordToCsv(records, t))
+  }
+
   return (
-    <div className="h-full overflow-y-auto p-6 space-y-4">
-      <IndustrialCard
-        title={t('测试数据记录')}
-        headerRight={
-          <div className="flex gap-3">
-            <button onClick={refresh} className="font-label-sm text-primary hover:underline">
-              {t('刷新')}
-            </button>
-            <button
-              onClick={() => {
-                const blob = new Blob([recordToCsv(records, t)], { type: 'text/csv;charset=utf-8' })
-                const url = URL.createObjectURL(blob)
-                const a = document.createElement('a')
-                a.href = url
-                a.download = `test-records-${Date.now()}.csv`
-                a.click()
-                URL.revokeObjectURL(url)
-              }}
-              disabled={records.length === 0}
-              className="font-label-sm text-primary hover:underline disabled:text-outline"
-            >
-              {t('导出 CSV')}
-            </button>
-          </div>
-        }
-      >
-        {!available && (
-          <div className="px-4 py-3 font-label-sm text-amber-700 bg-amber-50">
-            {t('本地数据库不可用（需在 Tauri 桌面应用中运行）')}
-          </div>
-        )}
-        <div className="p-4 space-y-3">
-          {records.length === 0 && (
-            <div className="text-center text-outline py-10 font-label-sm">
+    <div className="h-full flex flex-col gap-2 p-3 overflow-hidden">
+      <div className="flex items-center gap-2 flex-shrink-0">
+        <h1 className="text-[21px] font-black text-primary whitespace-nowrap">{t('数据记录')}</h1>
+        <span className="px-2 py-0.5 rounded-full bg-[#0891b2]/8 border border-[#0891b2]/20 text-[9px] font-extrabold text-[#0891b2]">
+          {records.length} {t('条')}
+        </span>
+        <div className="ml-auto flex items-center gap-1.5">
+          <button onClick={refresh} className="glass-btn !h-9 !px-3 !text-[12px]">{t('刷新')}</button>
+          <button onClick={exportAll} disabled={records.length === 0} className="glass-btn primary !h-9 !px-3 !text-[12px]">
+            {t('导出全部')}
+          </button>
+        </div>
+      </div>
+
+      <section className="glass-panel flex-1 min-h-0 flex flex-col">
+        <div className="glass-panel-header">
+          {t('最近记录')}
+          <span className="ml-auto font-label-sm font-normal normal-case tracking-normal text-slate-500">
+            {t('按时间倒序')}
+          </span>
+        </div>
+        <div className="flex-1 min-h-0 overflow-y-auto p-2.5 space-y-2">
+          {!available && (
+            <div className="px-3 py-2 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 text-[11px]">
+              {t('本地数据库不可用（需在 Tauri 桌面应用中运行）')}
+            </div>
+          )}
+          {records.length === 0 && available && (
+            <div className="text-center text-slate-400 text-[11px] py-10">
               {t('暂无测试记录——在「踏板测试」页完成测试后保存')}
             </div>
           )}
-          {records.map((r) => (
-            <div key={r.id} className="rounded-lg border border-surface-variant overflow-hidden">
-              <div className="flex items-center justify-between px-4 py-2.5 bg-surface-container-low">
-                <div className="flex items-center gap-4">
-                  <span className="monospaced-data font-label-bold text-outline">#{r.id}</span>
-                  <span className="font-label-bold">{r.timestamp}</span>
-                  <span className="px-2 py-0.5 rounded-full bg-primary/10 text-primary font-label-bold text-label-sm">
-                    {locale === 'zh' ? `${r.side} 侧` : r.side}
+          {records.map((r) => {
+            const open = expanded === r.id
+            return (
+              <div key={r.id} className="rounded-[12px] border border-white/95 bg-white/50 overflow-hidden">
+                <div className="flex items-center gap-3 px-3 py-2.5">
+                  <span className={`w-9 h-9 rounded-[10px] flex items-center justify-center text-white font-black text-[12px] ${
+                    r.side === 'A' ? 'bg-[linear-gradient(135deg,#0891b2,#2563eb)]' : 'bg-[linear-gradient(135deg,#a78bfa,#7c3aed)]'
+                  }`}>
+                    {r.side}
                   </span>
-                  <span className="font-label-sm text-on-surface-variant">{r.summary}</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={() => setExpanded(expanded === r.id ? null : r.id)}
-                    className="font-label-sm text-primary hover:underline"
-                  >
-                    {expanded === r.id ? t('收起') : t('详情')}
-                  </button>
-                  {/* 行内二次确认：Tauri WebView 中 window.confirm 未授权 */}
-                  {confirmId === r.id ? (
-                    <>
-                      <span className="font-label-sm text-critical">{t('确认删除？')}</span>
-                      <button
-                        onClick={async () => {
-                          await deleteTestRecord(r.id)
-                          setConfirmId(null)
-                          refresh()
-                        }}
-                        className="font-label-sm font-label-bold text-critical hover:underline"
-                      >
-                        {t('确认')}
-                      </button>
-                      <button
-                        onClick={() => setConfirmId(null)}
-                        className="font-label-sm text-outline hover:text-primary"
-                      >
-                        {t('取消')}
-                      </button>
-                    </>
-                  ) : (
-                    <button
-                      onClick={() => setConfirmId(r.id)}
-                      className="material-symbols-outlined text-[18px] text-outline hover:text-critical"
-                    >
-                      delete
+                  <div className="min-w-0 flex-1">
+                    <b className="block text-[12.5px] text-slate-800">
+                      {locale === 'zh' ? `${r.side} 侧` : r.side} · {r.summary}
+                    </b>
+                    <span className="block font-mono text-[9.5px] text-slate-400">{r.timestamp}</span>
+                  </div>
+                  <div className="hidden lg:flex items-center gap-4 text-right">
+                    <div>
+                      <span className="block text-[9px] text-slate-400">{t('记录点')}</span>
+                      <b className="font-mono text-[11px] text-slate-700">{r.measureData.length}</b>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <button onClick={() => setExpanded(open ? null : r.id)} className="glass-btn !h-8 !px-3 !text-[11px]">
+                      {open ? t('收起') : t('详情')}
                     </button>
-                  )}
+                    <button onClick={() => exportOne(r)} className="glass-btn !h-8 !px-3 !text-[11px]">{t('导出')}</button>
+                    {confirmId === r.id ? (
+                      <>
+                        <button
+                          onClick={async () => {
+                            await deleteTestRecord(r.id)
+                            setConfirmId(null)
+                            refresh()
+                          }}
+                          className="h-8 px-2 rounded-md text-[11px] font-bold text-red-600 hover:bg-red-50"
+                        >
+                          {t('确认')}
+                        </button>
+                        <button onClick={() => setConfirmId(null)} className="h-8 px-2 rounded-md text-[11px] text-slate-500 hover:bg-white/60">
+                          {t('取消')}
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        onClick={() => setConfirmId(r.id)}
+                        className="material-symbols-outlined text-[17px] text-slate-400 hover:text-red-600 px-1"
+                      >
+                        delete
+                      </button>
+                    )}
+                  </div>
                 </div>
-              </div>
-              {expanded === r.id && (
-                <div className="overflow-x-auto">
-                  <table className="w-full border-collapse text-sm">
-                    <thead>
-                      <tr className="bg-slate-50 text-left">
-                        {['#', '时间', '倾角 X °', '倾角 Y °', '激光 mm', '推杆(脉冲)', '校正角 °'].map((h) => (
-                          <th key={h} className="border-b border-slate-200 px-3 py-1.5 font-label-bold text-label-sm text-on-surface-variant">
-                            {t(h)}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {r.measureData.map((m) => (
-                        <tr key={m.index} className="hover:bg-slate-50">
-                          <td className="px-3 py-1 monospaced-data">{m.index}</td>
-                          <td className="px-3 py-1 monospaced-data">{m.timestamp}</td>
-                          <td className="px-3 py-1 monospaced-data">{m.tilt_x == null ? '--' : m.tilt_x.toFixed(3)}</td>
-                          <td className="px-3 py-1 monospaced-data">{m.tilt_y == null ? '--' : m.tilt_y.toFixed(3)}</td>
-                          <td className="px-3 py-1 monospaced-data">{m.laser == null ? '--' : m.laser.toFixed(1)}</td>
-                          <td className="px-3 py-1 monospaced-data">{m.pedal_pos == null ? '--' : m.pedal_pos.toFixed(0)}</td>
-                          <td className="px-3 py-1 monospaced-data">{m.ang_cor == null ? '--' : m.ang_cor.toFixed(2)}</td>
+                {open && (
+                  <div className="border-t border-[rgba(15,80,120,.08)] p-2 overflow-x-auto bg-white/35">
+                    <table className="w-full border-collapse text-[10px]">
+                      <thead>
+                        <tr className="text-left text-slate-400">
+                          {['#', '时间', '倾角 X °', '倾角 Y °', '激光 mm', '推杆(脉冲)', '校正角 °'].map((h) => (
+                            <th key={h} className="px-2 py-1.5 font-bold border-b border-[rgba(15,80,120,.08)]">{t(h)}</th>
+                          ))}
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          ))}
+                      </thead>
+                      <tbody>
+                        {r.measureData.map((m) => (
+                          <tr key={m.index} className="hover:bg-white/60">
+                            <td className="px-2 py-1 font-mono">{m.index}</td>
+                            <td className="px-2 py-1 font-mono">{m.timestamp}</td>
+                            <td className="px-2 py-1 font-mono">{m.tilt_x == null ? '--' : m.tilt_x.toFixed(3)}</td>
+                            <td className="px-2 py-1 font-mono">{m.tilt_y == null ? '--' : m.tilt_y.toFixed(3)}</td>
+                            <td className="px-2 py-1 font-mono">{m.laser == null ? '--' : m.laser.toFixed(1)}</td>
+                            <td className="px-2 py-1 font-mono">{m.pedal_pos == null ? '--' : m.pedal_pos.toFixed(0)}</td>
+                            <td className="px-2 py-1 font-mono">{m.ang_cor == null ? '--' : m.ang_cor.toFixed(2)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )
+          })}
         </div>
-      </IndustrialCard>
+      </section>
     </div>
   )
 }
