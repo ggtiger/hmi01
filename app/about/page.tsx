@@ -162,9 +162,9 @@ export default function HelpPage() {
             /* 版本与设备信息页 */
             <div className="max-w-2xl mx-auto space-y-4">
               <div className="flex flex-col items-center gap-3 py-4">
-                <img src="/icon.png" alt="XdesinHMI" className="w-20 h-20 rounded-2xl shadow-md" />
-                <h2 className="text-2xl font-bold text-primary">Xdesin 踏板测试台上位机</h2>
-                <p className="font-label-sm text-slate-500">XdesinHMI · A/B 双侧踏板自动调平与推出测试</p>
+                <img src="/icon.png" alt="智能驾驶舱检测系统" className="w-20 h-20 rounded-2xl shadow-md" />
+                <h2 className="text-2xl font-bold text-primary">智能驾驶舱检测系统</h2>
+                <p className="font-label-sm text-slate-500">智能驾驶舱检测系统 · 踏板 / 转盘综合检测</p>
               </div>
 
               <div className="glass-panel overflow-hidden">

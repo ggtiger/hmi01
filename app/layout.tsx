@@ -5,8 +5,8 @@ import InfoBar from '@/components/ui/InfoBar'
 import AppReady from '@/components/AppReady'
 
 export const metadata: Metadata = {
-  title: 'XdesinHMI | 踏板总成测试台',
-  description: 'Xdesin 踏板总成测试台上位机 - 精密工业监测与遥测接口',
+  title: '智能驾驶舱检测系统',
+  description: '智能驾驶舱检测系统 - 踏板/转盘综合检测与遥测监控',
 }
 
 export const viewport: Viewport = {

@@ -312,9 +312,9 @@ export default function SettingsModal({ open, onClose }: SettingsModalProps) {
               {activeTab === 'about' && (
                 <div className="space-y-3 text-sm">
                   <div className="flex items-center gap-3 mb-4">
-                    <img src="/icon.png" alt="XdesinHMI" className="w-10 h-10 rounded-lg" />
+                    <img src="/icon.png" alt="智能驾驶舱检测系统" className="w-10 h-10 rounded-lg" />
                     <div>
-                      <h3 className="font-bold text-base text-primary">XdesinHMI</h3>
+                      <h3 className="font-bold text-base text-primary">智能驾驶舱检测系统</h3>
                       <p className="text-slate-500">机动车角度综合校准装置</p>
                     </div>
                   </div>

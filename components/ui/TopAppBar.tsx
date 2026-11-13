@@ -85,8 +85,8 @@ export default function TopAppBar() {
       onContextMenu={handleContextMenu}
     >
       <span className="text-lg font-black text-primary tracking-tighter flex items-center flex-shrink-0">
-        <img src="/icon.png" alt="XdesinHMI" className="w-7 h-7 mr-2 rounded" />
-        Xdesin 踏板测试台
+        <img src="/icon.png" alt="智能驾驶舱检测系统" className="w-7 h-7 mr-2 rounded" />
+        智能驾驶舱检测系统
       </span>
 
       {/* 导航胶囊（右对齐，参考 PPT 设计稿） */}
