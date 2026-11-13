@@ -79,8 +79,16 @@ export function channelForceN(
 interface SettingsStore {
   /** 遥测上报频率 Hz（1-50） */
   reportHz: string
+  /** 补正模式：1 一体倾角闭环 / 2 分离初始角度 ± 倾角 */
+  levelMethod: string
   /** 推杆脉冲当量（10-10000） */
   pulsesPerMm: string
+  /** 推杆速度 RPM（1-500） */
+  pushFeed: string
+  /** 调平速度（1-360） */
+  levelSpeed: string
+  /** 调平死区（0.001-5） */
+  levelTol: string
   /** 调平传动比（0.01-100） */
   levelRatio: string
   /** 力值校正系数（按蓝牙通道，默认 1） */
@@ -88,7 +96,11 @@ interface SettingsStore {
   /** 力值 AD 内码标定（按通道） */
   adCalibration: Record<string, AdCalibration>
   setReportHz: (v: string) => void
+  setLevelMethod: (v: string) => void
   setPulsesPerMm: (v: string) => void
+  setPushFeed: (v: string) => void
+  setLevelSpeed: (v: string) => void
+  setLevelTol: (v: string) => void
   setLevelRatio: (v: string) => void
   setForceCoefficient: (channel: string, v: string) => void
   /** 记录空载零点 AD（保留已标定的 nPerAd） */
@@ -99,12 +111,20 @@ interface SettingsStore {
 
 export const useSettingsStore = create<SettingsStore>((set, get) => ({
   reportHz: '10',
-  pulsesPerMm: '320',
+  levelMethod: '1',
+  pulsesPerMm: '787.4',
+  pushFeed: '60',
+  levelSpeed: '120',
+  levelTol: '0.05',
   levelRatio: '1.0',
   forceCoefficients: loadCoefficients(),
   adCalibration: loadAdCalibration(),
   setReportHz: (v) => set({ reportHz: v }),
+  setLevelMethod: (v) => set({ levelMethod: v }),
   setPulsesPerMm: (v) => set({ pulsesPerMm: v }),
+  setPushFeed: (v) => set({ pushFeed: v }),
+  setLevelSpeed: (v) => set({ levelSpeed: v }),
+  setLevelTol: (v) => set({ levelTol: v }),
   setLevelRatio: (v) => set({ levelRatio: v }),
   setForceCoefficient: (channel, v) => {
     const next = { ...get().forceCoefficients, [channel]: v }

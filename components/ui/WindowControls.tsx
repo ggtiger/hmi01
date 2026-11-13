@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useT } from '@/lib/i18n'
 
 /**
  * Windows 原生风格窗口控制按钮（仅 Windows 显示）
@@ -8,6 +9,7 @@ import { useEffect, useState } from 'react'
  * 放在窗口右上角：最小化 ─  最大化 □  关闭 ✕
  */
 export function WindowControls() {
+  const t = useT()
   const [isWindows, setIsWindows] = useState(false)
   const [isMaximized, setIsMaximized] = useState(false)
 
@@ -51,7 +53,7 @@ export function WindowControls() {
         className="w-[46px] h-full flex items-center justify-center transition-colors
           text-gray-500 hover:bg-black/[0.05] active:bg-black/[0.08]"
         style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-        title="最小化"
+        title={t('最小化')}
       >
         <svg width="10" height="1" viewBox="0 0 10 1">
           <rect width="10" height="1" fill="currentColor" />
@@ -64,7 +66,7 @@ export function WindowControls() {
         className="w-[46px] h-full flex items-center justify-center transition-colors
           text-gray-500 hover:bg-black/[0.05] active:bg-black/[0.08]"
         style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-        title={isMaximized ? '还原' : '最大化'}
+        title={isMaximized ? t('还原') : t('最大化')}
       >
         {isMaximized ? (
           <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1">
@@ -85,7 +87,7 @@ export function WindowControls() {
         className="w-[46px] h-full flex items-center justify-center transition-colors
           text-gray-500 hover:bg-[#e81123] hover:text-white active:bg-[#bf0f1d] active:text-white"
         style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-        title="关闭"
+        title={t('关闭')}
       >
         <svg width="10" height="10" viewBox="0 0 10 10" stroke="currentColor" strokeWidth="1.2">
           <line x1="0" y1="0" x2="10" y2="10" />

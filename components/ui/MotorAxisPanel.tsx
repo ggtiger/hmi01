@@ -5,6 +5,7 @@ import Button from './Button'
 import { fmtNum } from '@/lib/comm/types'
 import type { MotorAxis } from '@/lib/comm/device-service'
 import { AXIS_LABELS } from '@/lib/store/motor-store'
+import { useT } from '@/lib/i18n'
 
 interface MotorAxisPanelProps {
   axis: MotorAxis
@@ -24,14 +25,15 @@ interface MotorAxisPanelProps {
 
 /** 单轴控制面板 */
 export default function MotorAxisPanel(p: MotorAxisPanelProps) {
+  const t = useT()
   const isPush = p.axis.startsWith('PUSH')
 
   return (
     <IndustrialCard
-      title={`${AXIS_LABELS[p.axis]}（${p.axis}）`}
+      title={`${t(AXIS_LABELS[p.axis])} (${p.axis})`}
       headerRight={
         <div className="flex items-baseline gap-1">
-          <span className="font-label-sm text-on-surface-variant">当前位置</span>
+          <span className="font-label-sm text-on-surface-variant">{t('当前位置')}</span>
           <span className="monospaced-data text-headline-md font-bold text-primary">
             {fmtNum(p.position, 3)}
           </span>
@@ -43,7 +45,7 @@ export default function MotorAxisPanel(p: MotorAxisPanelProps) {
         <div className="flex gap-3 items-end">
           <div className="flex-1">
             <label className="font-label-sm text-on-surface-variant">
-              {isPush ? '目标行程（相对，负值收回）' : '目标角度（绝对位置）'}
+              {isPush ? t('目标行程（相对，负值收回）') : t('目标角度（绝对位置）')}
             </label>
             <div className="flex items-center mt-0.5">
               <input
@@ -60,13 +62,13 @@ export default function MotorAxisPanel(p: MotorAxisPanelProps) {
           </div>
           <div className="w-32">
             <label className="font-label-sm text-on-surface-variant">
-              进给 F（{isPush ? 'RPM' : '°/s'}）
+              {t('进给 F')}（{isPush ? 'RPM' : '°/s'}）
             </label>
             <input
               value={p.feed}
               onChange={(e) => p.onFeedChange(e.target.value)}
               inputMode="decimal"
-              placeholder={isPush ? '默认 60' : '不限速'}
+              placeholder={isPush ? t('默认 60') : t('不限速')}
               className="mt-0.5 w-full px-3 py-2 rounded-lg border border-outline-variant monospaced-data text-body-md focus:outline-none focus:border-primary"
             />
           </div>
@@ -80,17 +82,17 @@ export default function MotorAxisPanel(p: MotorAxisPanelProps) {
             MOVEABS
           </Button>
           <Button variant="ghost" onClick={p.onHome} icon="home" className="justify-center">
-            回零
+            {t('回零')}
           </Button>
           <Button variant="critical" onClick={p.onStop} icon="stop" className="justify-center">
-            停止
+            {t('停止')}
           </Button>
           <Button variant="ghost" onClick={p.onZero} icon="exposure_zero" className="justify-center">
-            置零
+            {t('置零')}
           </Button>
         </div>
         {!isPush && (
-          <div className="font-label-sm text-outline">MOVEABS 仅 PUSH 轴支持；MSH 轴 MOVE 即绝对定位</div>
+          <div className="font-label-sm text-outline">{t('MOVEABS 仅 PUSH 轴支持；MSH 轴 MOVE 即绝对定位')}</div>
         )}
       </div>
     </IndustrialCard>

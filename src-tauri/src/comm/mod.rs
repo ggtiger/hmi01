@@ -10,5 +10,5 @@ pub mod switch_protocol;
 pub mod bluetooth;
 pub mod force_commands;
 
-pub use state::CommManager;
+pub use state::BoardMap;
 pub use commands::*;

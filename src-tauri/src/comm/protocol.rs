@@ -14,14 +14,26 @@ pub enum Command {
     Hello(String),
     Ping,
     Estop,
+    /// 裸 INFO（新固件）与 INFO GET（旧固件）两种形式
+    Info,
     InfoGet,
+    ResetFault,
+    GetParams,
     DebugOn,
     DebugOff,
     DebugPlainOn,
     DebugPlainOff,
     SetReport(u32),
     SetPushPulsesPerMm(f64),
+    SetPushFeed(f64),
+    SetLevelSpeed(f64),
+    SetLevelTol(f64),
     SetLevelRatio(f64),
+    SetMshZeroClear,
+    SetLevelMethod(u8),
+    SetSide(String),
+    /// Modbus 从站扫描（无固定应答，结果以日志行返回）
+    Scan { start: u8, end: u8 },
     NetGetcfg,
     NetSetcfg {
         old_pass: String,
@@ -80,14 +92,23 @@ pub fn command_head(cmd: &Command) -> String {
         Command::Hello(_) => "HELLO".into(),
         Command::Ping => "PING".into(),
         Command::Estop => "ESTOP".into(),
-        Command::InfoGet => "INFO".into(),
+        Command::Info | Command::InfoGet => "INFO".into(),
+        Command::ResetFault => "RESET".into(),
+        Command::GetParams => "GET".into(),
         Command::DebugOn
         | Command::DebugOff
         | Command::DebugPlainOn
         | Command::DebugPlainOff => "DEBUG".into(),
-        Command::SetReport(_) | Command::SetPushPulsesPerMm(_) | Command::SetLevelRatio(_) => {
-            "SET".into()
-        }
+        Command::SetReport(_)
+        | Command::SetPushPulsesPerMm(_)
+        | Command::SetPushFeed(_)
+        | Command::SetLevelSpeed(_)
+        | Command::SetLevelTol(_)
+        | Command::SetLevelRatio(_)
+        | Command::SetMshZeroClear
+        | Command::SetLevelMethod(_)
+        | Command::SetSide(_) => "SET".into(),
+        Command::Scan { .. } => "SCAN".into(),
         Command::NetGetcfg | Command::NetSetcfg { .. } | Command::NetReset(_) => "NET".into(),
         Command::PedalSelect(_)
         | Command::PedalStart(_)
@@ -115,17 +136,33 @@ impl Command {
     /// 编码为协议行（不含换行符）
     pub fn to_frame(&self) -> String {
         match self {
-            Command::Hello(id) => format!("HELLO {}", id),
+            Command::Hello(id) => {
+                if id.is_empty() {
+                    "HELLO".into()
+                } else {
+                    format!("HELLO {}", id)
+                }
+            }
             Command::Ping => "PING".into(),
             Command::Estop => "ESTOP".into(),
+            Command::Info => "INFO".into(),
             Command::InfoGet => "INFO GET".into(),
+            Command::ResetFault => "RESET FAULT".into(),
+            Command::GetParams => "GET PARAMS".into(),
             Command::DebugOn => "DEBUG ON".into(),
             Command::DebugOff => "DEBUG OFF".into(),
             Command::DebugPlainOn => "DEBUG PLAIN ON".into(),
             Command::DebugPlainOff => "DEBUG PLAIN OFF".into(),
             Command::SetReport(hz) => format!("SET REPORT {}", hz),
             Command::SetPushPulsesPerMm(v) => format!("SET PUSH_PULSES_PER_MM {}", fmt_float(*v)),
+            Command::SetPushFeed(v) => format!("SET PUSH_FEED {}", fmt_float(*v)),
+            Command::SetLevelSpeed(v) => format!("SET LEVEL_SPEED {}", fmt_float(*v)),
+            Command::SetLevelTol(v) => format!("SET LEVEL_TOL {}", fmt_float(*v)),
             Command::SetLevelRatio(v) => format!("SET LEVEL_RATIO {}", fmt_float(*v)),
+            Command::SetMshZeroClear => "SET MSH_ZERO_CLEAR".into(),
+            Command::SetLevelMethod(m) => format!("SET LEVEL_METHOD {}", m),
+            Command::SetSide(side) => format!("SET SIDE {}", side),
+            Command::Scan { start, end } => format!("SCAN {} {}", start, end),
             Command::NetGetcfg => "NET GETCFG".into(),
             Command::NetSetcfg {
                 old_pass,
@@ -180,6 +217,9 @@ fn with_feed(base: String, feed: Option<f64>) -> String {
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct TelemetryData {
     pub t: u64,
+    /// 新固件：本帧所属板侧 A / B（旧固件为空）
+    #[serde(default)]
+    pub side: String,
     /// 数值字段：None 表示 nan（传感器故障 / 未选中侧）
     pub tilt_x: Option<f64>,
     pub tilt_y: Option<f64>,
@@ -191,10 +231,18 @@ pub struct TelemetryData {
     pub laser_b: Option<f64>,
     pub pedal_a: Option<f64>,
     pub pedal_b: Option<f64>,
+    /// 推杆位置（驱动器原始脉冲数）
+    pub push_a_raw: Option<f64>,
+    pub push_b_raw: Option<f64>,
+    /// 推杆驱动器状态字
+    pub push_a_st: Option<f64>,
+    pub push_b_st: Option<f64>,
     pub ang_cor_a: Option<f64>,
     pub ang_cor_b: Option<f64>,
     pub steer_x: Option<f64>,
     pub steer_y: Option<f64>,
+    /// 方向盘释放标志
+    pub steer_free: Option<f64>,
     pub sensor: String,        // OK | NG
     pub state: String,         // IDLE | PEDAL_RUN | STEER_RUN | FAULT
     pub pedal_select: String,  // NONE | A | B
@@ -207,8 +255,9 @@ pub fn telemetry_to_line(t: &TelemetryData) -> String {
         None => "nan".to_string(),
     };
     format!(
-        "TELEMETRY t={} tilt_x={} tilt_y={} pedal_a_tilt_x={} pedal_a_tilt_y={} pedal_b_tilt_x={} pedal_b_tilt_y={} laser_a={} laser_b={} pedal_a={} pedal_b={} ang_cor_a={} ang_cor_b={} steer_x={} steer_y={} sensor={} state={} pedal_select={}",
+        "TELEMETRY t={} side={} tilt_x={} tilt_y={} pedal_a_tilt_x={} pedal_a_tilt_y={} pedal_b_tilt_x={} pedal_b_tilt_y={} laser_a={} laser_b={} pedal_a={} pedal_b={} push_a_raw={} push_b_raw={} push_a_st={} push_b_st={} ang_cor_a={} ang_cor_b={} steer_x={} steer_y={} steer_free={} sensor={} state={} pedal_select={}",
         t.t,
+        if t.side.is_empty() { "-" } else { &t.side },
         f(&t.tilt_x, 2),
         f(&t.tilt_y, 2),
         f(&t.pedal_a_tilt_x, 3),
@@ -219,10 +268,15 @@ pub fn telemetry_to_line(t: &TelemetryData) -> String {
         f(&t.laser_b, 1),
         f(&t.pedal_a, 0),
         f(&t.pedal_b, 0),
+        f(&t.push_a_raw, 0),
+        f(&t.push_b_raw, 0),
+        f(&t.push_a_st, 0),
+        f(&t.push_b_st, 0),
         f(&t.ang_cor_a, 3),
         f(&t.ang_cor_b, 3),
         f(&t.steer_x, 2),
         f(&t.steer_y, 2),
+        f(&t.steer_free, 0),
         t.sensor,
         t.state,
         t.pedal_select,
@@ -257,6 +311,7 @@ pub fn parse_telemetry(line: &str) -> Option<TelemetryData> {
 
     Some(TelemetryData {
         t,
+        side: strv("side", ""),
         tilt_x: num("tilt_x").flatten(),
         tilt_y: num("tilt_y").flatten(),
         pedal_a_tilt_x: num("pedal_a_tilt_x").flatten(),
@@ -267,10 +322,15 @@ pub fn parse_telemetry(line: &str) -> Option<TelemetryData> {
         laser_b: num("laser_b").flatten(),
         pedal_a: num("pedal_a").flatten(),
         pedal_b: num("pedal_b").flatten(),
+        push_a_raw: num("push_a_raw").flatten(),
+        push_b_raw: num("push_b_raw").flatten(),
+        push_a_st: num("push_a_st").flatten(),
+        push_b_st: num("push_b_st").flatten(),
         ang_cor_a: num("ang_cor_a").flatten(),
         ang_cor_b: num("ang_cor_b").flatten(),
         steer_x: num("steer_x").flatten(),
         steer_y: num("steer_y").flatten(),
+        steer_free: num("steer_free").flatten(),
         sensor: strv("sensor", "OK"),
         state: strv("state", "IDLE"),
         pedal_select: strv("pedal_select", "NONE"),
@@ -281,8 +341,12 @@ pub fn parse_telemetry(line: &str) -> Option<TelemetryData> {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DebugEvent {
-    /// 事件种类: LEVELED | STABLE | PUSH_STOPPED | LEVEL_DONE | LEVEL_ABORT
+    /// 事件种类: LEVELED | STABLE | PUSH_STOPPED | LEVEL_DONE | LEVEL_ABORT |
+    /// LEVEL_START | HOME_START | HOME_DONE | PUSH_HOMING | PUSH_STARTED | PUSH_DONE | RAW
     pub kind: String,
+    /// 所属板侧 A / B（由 CommManager 填充，事件帧本身可能不带）
+    #[serde(default)]
+    pub board: String,
     /// 侧别 A / B（可能无）
     pub side: Option<char>,
     /// LEVEL DONE 的 comp 值
@@ -301,43 +365,61 @@ pub fn parse_debug_event(line: &str) -> Option<DebugEvent> {
     }
     let raw = line.to_string();
     let upper = |i: usize| tokens.get(i).map(|s| s.to_uppercase());
+    let mk = |kind: &str, side: Option<char>, comp: Option<f64>, reason: Option<String>| DebugEvent {
+        kind: kind.into(),
+        board: String::new(),
+        side,
+        comp,
+        reason,
+        raw: raw.clone(),
+    };
+    let side_at = |i: usize| {
+        tokens.get(i).and_then(|s| s.chars().next()).filter(|c| *c == 'A' || *c == 'B')
+    };
 
-    // DEBUG PEDAL <A|B> LEVELED / STABLE / PUSH_STOPPED
-    if upper(1).as_deref() == Some("PEDAL") {
-        let side = tokens.get(2).and_then(|s| s.chars().next()).filter(|c| *c == 'A' || *c == 'B');
-        match upper(3).as_deref() {
-            Some("LEVELED") => {
-                return Some(DebugEvent { kind: "LEVELED".into(), side, comp: None, reason: None, raw })
-            }
-            Some("STABLE") => {
-                return Some(DebugEvent { kind: "STABLE".into(), side, comp: None, reason: None, raw })
-            }
-            Some("PUSH_STOPPED") => {
-                return Some(DebugEvent { kind: "PUSH_STOPPED".into(), side, comp: None, reason: None, raw })
-            }
+    let kind = upper(1);
+    match kind.as_deref() {
+        // DEBUG PEDAL <A|B> LEVELED / STABLE / PUSH_STOPPED
+        Some("PEDAL") => match upper(3).as_deref() {
+            Some("LEVELED") => return Some(mk("LEVELED", side_at(2), None, None)),
+            Some("STABLE") => return Some(mk("STABLE", side_at(2), None, None)),
+            Some("PUSH_STOPPED") => return Some(mk("PUSH_STOPPED", side_at(2), None, None)),
             _ => {}
-        }
-    }
-    // DEBUG LEVEL <A|B> DONE comp=<deg> | DEBUG LEVEL <A|B> ABORT <reason>
-    if upper(1).as_deref() == Some("LEVEL") {
-        let side = tokens.get(2).and_then(|s| s.chars().next()).filter(|c| *c == 'A' || *c == 'B');
-        match upper(3).as_deref() {
+        },
+        // DEBUG LEVEL <A|B> START / DONE comp=<deg> / ABORT <reason>
+        Some("LEVEL") => match upper(3).as_deref() {
+            Some("START") => return Some(mk("LEVEL_START", side_at(2), None, None)),
             Some("DONE") => {
                 let comp = tokens
                     .get(4)
                     .and_then(|s| s.strip_prefix("comp="))
                     .and_then(|v| v.parse::<f64>().ok());
-                return Some(DebugEvent { kind: "LEVEL_DONE".into(), side, comp, reason: None, raw });
+                return Some(mk("LEVEL_DONE", side_at(2), comp, None));
             }
             Some("ABORT") => {
                 let reason = tokens.get(4).map(|s| s.to_string());
-                return Some(DebugEvent { kind: "LEVEL_ABORT".into(), side, comp: None, reason, raw });
+                return Some(mk("LEVEL_ABORT", side_at(2), None, reason));
             }
             _ => {}
-        }
+        },
+        // DEBUG HOME <A|B> START / DONE（MSH 手动回零）
+        Some("HOME") => match upper(3).as_deref() {
+            Some("START") => return Some(mk("HOME_START", side_at(2), None, None)),
+            Some("DONE") => return Some(mk("HOME_DONE", side_at(2), None, None)),
+            _ => {}
+        },
+        // DEBUG PUSH <A|B> HOMING / STARTED / DONE / STOPPED（手动推出）
+        Some("PUSH") => match upper(3).as_deref() {
+            Some("HOMING") => return Some(mk("PUSH_HOMING", side_at(2), None, None)),
+            Some("STARTED") => return Some(mk("PUSH_STARTED", side_at(2), None, None)),
+            Some("DONE") => return Some(mk("PUSH_DONE", side_at(2), None, None)),
+            Some("STOPPED") => return Some(mk("PUSH_STOPPED", side_at(2), None, None)),
+            _ => {}
+        },
+        _ => {}
     }
     // 其他 DEBUG 行透传为原始事件
-    Some(DebugEvent { kind: "RAW".into(), side: None, comp: None, reason: None, raw })
+    Some(mk("RAW", None, None, None))
 }
 
 // ============ 应答（设备 → 主机） ============
@@ -354,7 +436,10 @@ pub enum Reply {
         hw: String,
         uptime: u64,
         ssid: String,
+        side: String,
     },
+    /// GET PARAMS 的数据行（在 OK GET 之前到达）
+    Params(HashMap<String, String>),
     Netcfg {
         ssid: String,
         pass: String,
@@ -400,20 +485,20 @@ pub fn parse_reply(line: &str) -> Reply {
     let tokens: Vec<&str> = line.splitn(3, ' ').collect();
     match tokens[0].to_uppercase().as_str() {
         "HELLO" => {
-            // HELLO OK <device_id> <fw_version>
+            // 新固件：HELLO OK <device_id>；旧固件：HELLO OK <device_id> <fw_version>
             if tokens.len() >= 3 {
                 let rest: Vec<&str> = tokens[2].split_whitespace().collect();
-                if rest.len() >= 2 {
+                if !rest.is_empty() {
                     return Reply::HelloOk {
                         device_id: rest[0].to_string(),
-                        fw: rest[1].to_string(),
+                        fw: rest.get(1).unwrap_or(&"").to_string(),
                     };
                 }
             }
             Reply::Unknown(line.to_string())
         }
         "INFO" => {
-            // INFO fw=<ver> hw=<hw> uptime=<s> ssid=<ssid>
+            // INFO fw=<ver> [side=<A|B>] hw=<hw> uptime=<s> ssid=<ssid>
             let kv: HashMap<&str, &str> = line
                 .split_whitespace()
                 .skip(1)
@@ -424,7 +509,17 @@ pub fn parse_reply(line: &str) -> Reply {
                 hw: kv.get("hw").unwrap_or(&"").to_string(),
                 uptime: kv.get("uptime").and_then(|s| s.parse().ok()).unwrap_or(0),
                 ssid: kv.get("ssid").unwrap_or(&"").to_string(),
+                side: kv.get("side").unwrap_or(&"").to_string(),
             }
+        }
+        "PARAMS" => {
+            let kv: HashMap<String, String> = line
+                .split_whitespace()
+                .skip(1)
+                .filter_map(|t| t.split_once('='))
+                .map(|(k, v)| (k.to_string(), v.to_string()))
+                .collect();
+            Reply::Params(kv)
         }
         "NETCFG" => {
             let kv: HashMap<&str, &str> = line
@@ -488,6 +583,20 @@ mod tests {
         assert_eq!(command_head(&Command::SteerStart), "STEER");
         assert_eq!(command_head(&Command::PedalStart('A')), "PEDAL");
         assert_eq!(command_head(&Command::SetReport(10)), "SET");
+        // 新固件命令
+        assert_eq!(Command::ResetFault.to_frame(), "RESET FAULT");
+        assert_eq!(Command::GetParams.to_frame(), "GET PARAMS");
+        assert_eq!(Command::Info.to_frame(), "INFO");
+        assert_eq!(Command::SetPushFeed(60.0).to_frame(), "SET PUSH_FEED 60");
+        assert_eq!(Command::SetLevelSpeed(120.0).to_frame(), "SET LEVEL_SPEED 120");
+        assert_eq!(Command::SetLevelTol(0.05).to_frame(), "SET LEVEL_TOL 0.05");
+        assert_eq!(Command::SetMshZeroClear.to_frame(), "SET MSH_ZERO_CLEAR");
+        assert_eq!(Command::SetLevelMethod(1).to_frame(), "SET LEVEL_METHOD 1");
+        assert_eq!(Command::SetSide("B".into()).to_frame(), "SET SIDE B");
+        assert_eq!(Command::Scan { start: 1, end: 32 }.to_frame(), "SCAN 1 32");
+        assert_eq!(command_head(&Command::ResetFault), "RESET");
+        assert_eq!(command_head(&Command::GetParams), "GET");
+        assert_eq!(command_head(&Command::Info), "INFO");
     }
 
     #[test]
@@ -504,6 +613,16 @@ mod tests {
         assert_eq!(t.sensor, "OK");
         assert_eq!(t.state, "PEDAL_RUN");
         assert_eq!(t.pedal_select, "A");
+    }
+
+    #[test]
+    fn test_parse_telemetry_new_fields() {
+        let line = "TELEMETRY t=20 side=B pedal_b_tilt_x=0.1 laser_b=88.2 pedal_b=12.5 push_b_raw=12345 push_b_st=3 ang_cor_b=1.0 steer_x=2 steer_y=-1 steer_free=1 sensor=OK state=IDLE pedal_select=B";
+        let t = parse_telemetry(line).unwrap();
+        assert_eq!(t.side, "B");
+        assert_eq!(t.push_b_raw, Some(12345.0));
+        assert_eq!(t.push_b_st, Some(3.0));
+        assert_eq!(t.steer_free, Some(1.0));
     }
 
     #[test]
@@ -536,6 +655,14 @@ mod tests {
         let ev = parse_debug_event("DEBUG LEVEL B ABORT SELECT_CHANGED").unwrap();
         assert_eq!(ev.kind, "LEVEL_ABORT");
         assert_eq!(ev.reason, Some("SELECT_CHANGED".into()));
+
+        // 新固件事件
+        assert_eq!(parse_debug_event("DEBUG LEVEL A START").unwrap().kind, "LEVEL_START");
+        assert_eq!(parse_debug_event("DEBUG HOME B DONE").unwrap().kind, "HOME_DONE");
+        assert_eq!(parse_debug_event("DEBUG PUSH A HOMING").unwrap().kind, "PUSH_HOMING");
+        assert_eq!(parse_debug_event("DEBUG PUSH B STARTED").unwrap().kind, "PUSH_STARTED");
+        assert_eq!(parse_debug_event("DEBUG PUSH A DONE").unwrap().kind, "PUSH_DONE");
+        assert_eq!(parse_debug_event("DEBUG PUSH B STOPPED").unwrap().kind, "PUSH_STOPPED");
     }
 
     #[test]
@@ -548,13 +675,33 @@ mod tests {
             _ => panic!("expect HelloOk"),
         }
         match parse_reply("INFO fw=1.0.0 hw=esp32-s3 uptime=120 ssid=XDESIN") {
-            Reply::Info { fw, hw, uptime, ssid } => {
+            Reply::Info { fw, hw, uptime, ssid, side } => {
                 assert_eq!(fw, "1.0.0");
                 assert_eq!(hw, "esp32-s3");
                 assert_eq!(uptime, 120);
                 assert_eq!(ssid, "XDESIN");
+                assert_eq!(side, "");
             }
             _ => panic!("expect Info"),
+        }
+        // 新固件：INFO 带 side；HELLO 只有设备 ID
+        match parse_reply("INFO fw=1.1.0 side=B hw=esp32-s3 uptime=9 ssid=Xdesin2016") {
+            Reply::Info { side, .. } => assert_eq!(side, "B"),
+            _ => panic!("expect Info"),
+        }
+        match parse_reply("HELLO OK xdesin-s3-001") {
+            Reply::HelloOk { device_id, fw } => {
+                assert_eq!(device_id, "xdesin-s3-001");
+                assert_eq!(fw, "");
+            }
+            _ => panic!("expect HelloOk without fw"),
+        }
+        match parse_reply("PARAMS report_hz=10 push_feed_rpm=60 level_tol=0.05") {
+            Reply::Params(kv) => {
+                assert_eq!(kv.get("report_hz").map(String::as_str), Some("10"));
+                assert_eq!(kv.get("level_tol").map(String::as_str), Some("0.05"));
+            }
+            _ => panic!("expect Params"),
         }
         match parse_reply("NETCFG ssid=XDESIN pass=********") {
             Reply::Netcfg { ssid, pass } => {

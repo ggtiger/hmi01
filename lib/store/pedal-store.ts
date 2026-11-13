@@ -1,6 +1,5 @@
 import { create } from 'zustand'
 import type { DebugEvent, TelemetryData } from '../comm/types'
-import { useSettingsStore } from './settings-store'
 
 export type PedalSide = 'A' | 'B'
 export type SideSelection = 'A' | 'B' | 'NONE'
@@ -146,10 +145,8 @@ export const usePedalStore = create<PedalStore>((set) => ({
         label,
         tilt_y: tiltY,
         tilt_x: tiltX,
-        pedal_mm:
-          pedal === null
-            ? null
-            : pedal / (Number(useSettingsStore.getState().pulsesPerMm) || 320),
+        // 新固件 TELEMETRY.pedal_a/b 已按脉冲当量换算为 mm（协议 §14.1）
+        pedal_mm: pedal,
       }
       const trend = [...s.trend, point]
       return { trend: trend.length > MAX_TREND ? trend.slice(-MAX_TREND) : trend }

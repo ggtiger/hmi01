@@ -18,7 +18,8 @@ export interface AppConfig {
 
 export const DEFAULT_CONFIG: AppConfig = {
   device: {
-    ip: '192.168.4.1',
+    // 新固件：A 板 STA 固定 IP（B 板 192.168.8.89）
+    ip: '192.168.8.88',
     port: 10001,
   },
   update: {

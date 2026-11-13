@@ -26,17 +26,29 @@ pub struct DeviceInfo {
     pub hw: String,
     pub uptime: u64,
     pub ssid: String,
+    /// 新固件 INFO 上报的板侧 A / B
+    #[serde(default)]
+    pub side: String,
 }
 
 /// 设备状态（snake_case 字段直接暴露给前端）
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DeviceState {
+    /// 所属板侧 A / B（双板模式下前端据此路由）
+    #[serde(default)]
+    pub board: String,
     pub is_connected: bool,
     pub plain_mode: bool,
     pub device_id: String,
     pub fw_version: String,
     pub info: Option<DeviceInfo>,
     pub telemetry: TelemetryData,
+    /// GET PARAMS 返回的参数（最近一次）
+    #[serde(default)]
+    pub params: HashMap<String, String>,
+    /// 最近一次 PONG 心跳时间（本地 HH:MM:SS）
+    #[serde(default)]
+    pub last_pong: Option<String>,
     /// 最近一次命令错误（ERR 应答说明）
     pub last_error: Option<String>,
 }
@@ -44,12 +56,15 @@ pub struct DeviceState {
 impl Default for DeviceState {
     fn default() -> Self {
         DeviceState {
+            board: String::new(),
             is_connected: false,
             plain_mode: false,
             device_id: String::new(),
             fw_version: String::new(),
             info: None,
             telemetry: TelemetryData::default(),
+            params: HashMap::new(),
+            last_pong: None,
             last_error: None,
         }
     }
@@ -57,6 +72,8 @@ impl Default for DeviceState {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LogEntry {
+    #[serde(default)]
+    pub board: String,
     pub timestamp: String,
     pub direction: String,
     pub content: String,
@@ -70,6 +87,8 @@ const TELEMETRY_EMIT_INTERVAL_MS: u128 = 50;
 // ============ CommManager ============
 
 pub struct CommManager {
+    /// 板侧标识 A / B
+    board: String,
     connection: tokio::sync::Mutex<DeviceConnection>,
     /// 加密上下文（tokio Mutex：发送时跨 await 持锁，保证 nonce 顺序=写序）
     crypto: tokio::sync::Mutex<Crypto>,
@@ -87,13 +106,53 @@ pub struct CommManager {
     app_handle: tokio::sync::OnceCell<tauri::AppHandle>,
 }
 
-impl CommManager {
+/// A/B 双板管理：两块板各自独立 TCP、加密上下文、心跳与遥测
+pub struct BoardMap {
+    pub a: CommManager,
+    pub b: CommManager,
+}
+
+impl BoardMap {
     pub fn new() -> Self {
         Self {
+            a: CommManager::new("A"),
+            b: CommManager::new("B"),
+        }
+    }
+
+    /// 按板侧取通信管理器（不区分大小写）
+    pub fn get(&self, side: &str) -> Result<&CommManager, String> {
+        match side.trim().to_uppercase().as_str() {
+            "A" => Ok(&self.a),
+            "B" => Ok(&self.b),
+            _ => Err(format!("板侧仅支持 A/B，当前: {}", side)),
+        }
+    }
+
+    pub fn set_app_handle(&self, handle: tauri::AppHandle) {
+        self.a.set_app_handle(handle.clone());
+        self.b.set_app_handle(handle);
+    }
+}
+
+impl Default for BoardMap {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl CommManager {
+    pub fn new(board: impl Into<String>) -> Self {
+        let board = board.into();
+        Self {
+            board: board.clone(),
             connection: tokio::sync::Mutex::new(DeviceConnection::new()),
             crypto: tokio::sync::Mutex::new(Crypto::new()),
             heartbeat: HeartbeatManager::new(),
-            state: tokio::sync::RwLock::new(DeviceState::default()),
+            state: tokio::sync::RwLock::new(DeviceState {
+                board: board.clone(),
+                ..Default::default()
+            }),
             debug_log: tokio::sync::RwLock::new(Vec::new()),
             pending: std::sync::Mutex::new(HashMap::new()),
             cmd_mutex: tokio::sync::Mutex::new(()),
@@ -126,6 +185,7 @@ impl CommManager {
         {
             let mut state = self.state.write().await;
             *state = DeviceState {
+                board: self.board.clone(),
                 is_connected: true,
                 ..Default::default()
             };
@@ -145,10 +205,15 @@ impl CommManager {
         // 4. 启动后台消息处理任务
         self.spawn_message_handler(line_rx);
 
-        // 5. 握手 HELLO
-        let hello_reply = self.send_and_wait(Command::Hello(CLIENT_ID.into()), 2000).await?;
+        // 5. 握手 HELLO（旧固件 HELLO <client_id>；新固件允许裸 HELLO，失败时回退）
+        let first = self.send_and_wait(Command::Hello(CLIENT_ID.into()), 2000).await;
+        let hello_reply = if matches!(&first, Ok(Reply::HelloOk { .. })) {
+            first
+        } else {
+            self.send_and_wait(Command::Hello(String::new()), 2000).await
+        };
         match &hello_reply {
-            Reply::HelloOk { device_id, fw } => {
+            Ok(Reply::HelloOk { device_id, fw }) => {
                 let mut state = self.state.write().await;
                 state.device_id = device_id.clone();
                 state.fw_version = fw.clone();
@@ -160,12 +225,16 @@ impl CommManager {
             }
         }
 
-        // 6. 查询设备信息
-        if let Ok(Reply::Info { fw, hw, uptime, ssid }) =
+        // 6. 查询设备信息（新固件用裸 INFO，旧固件回退 INFO GET）
+        let info = self.send_and_wait(Command::Info, 2000).await;
+        let info_reply = if matches!(&info, Ok(Reply::Info { .. })) {
+            info
+        } else {
             self.send_and_wait(Command::InfoGet, 2000).await
-        {
+        };
+        if let Ok(Reply::Info { fw, hw, uptime, ssid, side }) = info_reply {
             let mut state = self.state.write().await;
-            state.info = Some(DeviceInfo { fw, hw, uptime, ssid });
+            state.info = Some(DeviceInfo { fw, hw, uptime, ssid, side });
             self.emit_state(&state);
         }
 
@@ -202,6 +271,9 @@ impl CommManager {
             let mut state = self.state.write().await;
             state.is_connected = false;
             state.plain_mode = false;
+            state.last_pong = None;
+            // 断开后清空遥测，避免合并视图中残留上一帧数据
+            state.telemetry = TelemetryData::default();
             self.emit_state(&state);
         }
         self.add_log("SYS", "已断开连接").await;
@@ -267,10 +339,12 @@ impl CommManager {
         }
     }
 
-    /// 免等待直发（PING / ESTOP）
+    /// 免等待直发（ESTOP / SCAN / PING）
     pub async fn send_now(&self, cmd: Command) -> Result<(), String> {
         let frame = cmd.to_frame();
-        self.send_line(&frame, false).await
+        self.send_line(&frame, false).await?;
+        self.add_log("TX", &frame).await;
+        Ok(())
     }
 
     /// 心跳 PING（明文模式自动发明文 PING，协议 §1.3）
@@ -328,13 +402,19 @@ impl CommManager {
 
     fn start_heartbeat(&self) {
         let app = self.app_handle.get().cloned();
+        let board = self.board.clone();
         self.heartbeat.start(move || {
             let app = app.clone();
+            let board = board.clone();
             Box::pin(async move {
                 match app {
                     Some(app) => {
-                        let manager = app.state::<CommManager>();
-                        manager.send_ping().await
+                        let maps = app.state::<BoardMap>();
+                        match board.as_str() {
+                            "A" => maps.a.send_ping().await,
+                            "B" => maps.b.send_ping().await,
+                            _ => Err("未知板侧".into()),
+                        }
                     }
                     None => Err("AppHandle 未初始化".into()),
                 }
@@ -347,6 +427,7 @@ impl CommManager {
         let app = self.app_handle.get().cloned();
         let running = self.heartbeat.running.clone();
         let manual = self.manual_disconnect.clone();
+        let board = self.board.clone();
         tokio::spawn(async move {
             // 等待心跳任务结束
             while running.load(Ordering::SeqCst) {
@@ -354,7 +435,12 @@ impl CommManager {
             }
             if !manual.load(Ordering::SeqCst) {
                 if let Some(app) = app {
-                    let manager = app.state::<CommManager>();
+                    let maps = app.state::<BoardMap>();
+                    let manager = match board.as_str() {
+                        "A" => &maps.a,
+                        "B" => &maps.b,
+                        _ => return,
+                    };
                     manager.add_log("SYS", "心跳超时，连接断开").await;
                     manager.disconnect().await;
                 }
@@ -366,11 +452,17 @@ impl CommManager {
 
     fn spawn_message_handler(&self, mut line_rx: tokio::sync::mpsc::UnboundedReceiver<String>) {
         let app_handle = self.app_handle.get().cloned();
+        let board = self.board.clone();
 
         tokio::spawn(async move {
             while let Some(raw) = line_rx.recv().await {
                 if let Some(ref app) = app_handle {
-                    let manager = app.state::<CommManager>();
+                    let maps = app.state::<BoardMap>();
+                    let manager = match board.as_str() {
+                        "A" => &maps.a,
+                        "B" => &maps.b,
+                        _ => continue,
+                    };
                     manager.handle_raw_line(raw).await;
                 }
             }
@@ -427,8 +519,9 @@ impl CommManager {
             Reply::Telemetry(t) => {
                 self.handle_telemetry(t).await;
             }
-            Reply::DebugEvent(ev) => {
+            Reply::DebugEvent(mut ev) => {
                 self.add_log("RX", raw_line).await;
+                ev.board = self.board.clone();
                 if let Some(app) = self.app_handle.get() {
                     let _ = app.emit("pedal-event", &ev);
                 }
@@ -439,10 +532,11 @@ impl CommManager {
                     let mut state = self.state.write().await;
                     state.device_id = device_id.clone();
                     state.fw_version = fw.clone();
+                    state.last_error = None;
                 }
                 self.resolve_pending("HELLO", Reply::HelloOk { device_id, fw });
             }
-            Reply::Info { fw, hw, uptime, ssid } => {
+            Reply::Info { fw, hw, uptime, ssid, side } => {
                 self.add_log("RX", raw_line).await;
                 {
                     let mut state = self.state.write().await;
@@ -451,13 +545,21 @@ impl CommManager {
                         hw: hw.clone(),
                         uptime,
                         ssid: ssid.clone(),
+                        side: side.clone(),
                     });
+                    state.last_error = None;
                     self.emit_state(&state);
                 }
                 self.resolve_pending(
                     "INFO",
-                    Reply::Info { fw, hw, uptime, ssid },
+                    Reply::Info { fw, hw, uptime, ssid, side },
                 );
+            }
+            Reply::Params(params) => {
+                self.add_log("RX", raw_line).await;
+                let mut state = self.state.write().await;
+                state.params = params;
+                self.emit_state(&state);
             }
             Reply::Netcfg { ssid, pass } => {
                 self.add_log("RX", raw_line).await;
@@ -478,7 +580,12 @@ impl CommManager {
                 self.resolve_pending(&head_clone, Reply::Err { head, code, msg });
             }
             Reply::Pong => {
-                // 心跳应答记入日志（每 5s 一条，频率低）
+                // 心跳应答：更新时间并推送给前端（A/B 各自独立）
+                {
+                    let mut state = self.state.write().await;
+                    state.last_pong = Some(chrono::Local::now().format("%H:%M:%S").to_string());
+                    self.emit_state(&state);
+                }
                 self.add_log("RX", "PONG").await;
             }
             Reply::Unknown(_) => {
@@ -548,6 +655,7 @@ impl CommManager {
 
     pub async fn add_log(&self, direction: &str, content: &str) {
         let entry = LogEntry {
+            board: self.board.clone(),
             timestamp: chrono::Utc::now().to_rfc3339(),
             direction: direction.to_string(),
             content: content.to_string(),

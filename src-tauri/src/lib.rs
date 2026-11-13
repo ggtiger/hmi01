@@ -855,7 +855,7 @@ pub fn run() {
                 }
             }
         })
-        .manage(comm::CommManager::new())
+        .manage(comm::BoardMap::new())
         .manage(comm::bluetooth::ForceManager::new())
         .setup(move |app| {
             // Windows: 移除原生标题栏，使用前端模拟红绿灯按钮
@@ -947,8 +947,8 @@ pub fn run() {
                 }
             }
 
-            // 设置 CommManager 的 AppHandle
-            app.state::<comm::CommManager>().set_app_handle(app.handle().clone());
+            // 设置双板 CommManager 的 AppHandle
+            app.state::<comm::BoardMap>().set_app_handle(app.handle().clone());
 
             setup_tray(app)?;
             Ok(())
@@ -963,10 +963,14 @@ pub fn run() {
             delta::apply_server_patch, delta::get_current_server_version, delta::fetch_url, delta::download_file,
             delta::restart_server, delta::verify_file_hash,
             comm::device_connect, comm::device_disconnect, comm::device_get_state,
+            comm::device_get_board_states,
             comm::device_estop, comm::device_info_get, comm::device_send_raw,
             comm::device_get_debug_log,
             comm::debug_set, comm::plain_mode_set,
-            comm::set_report, comm::set_push_pulses_per_mm, comm::set_level_ratio,
+            comm::set_report, comm::set_push_pulses_per_mm,
+            comm::set_push_feed, comm::set_level_speed, comm::set_level_tol, comm::set_level_method,
+            comm::set_level_ratio, comm::set_msh_zero_clear, comm::set_board_side,
+            comm::get_params, comm::scan_modbus, comm::reset_fault,
             comm::net_getcfg, comm::net_setcfg, comm::net_reset,
             comm::pedal_select, comm::pedal_start, comm::pedal_stop,
             comm::pedal_setload, comm::pedal_level,

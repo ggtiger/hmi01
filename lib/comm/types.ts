@@ -1,8 +1,13 @@
 /** 设备完整状态（与 Rust DeviceState 对应，snake_case 镜像） */
 
+/** 板侧 */
+export type BoardSide = 'A' | 'B';
+
 /** 遥测数据：null 表示 nan（传感器故障 / 未选中侧） */
 export interface TelemetryData {
   t: number;
+  /** 新固件：本帧来源板侧 A / B（旧固件为空） */
+  side?: string;
   tilt_x: number | null;
   tilt_y: number | null;
   pedal_a_tilt_x: number | null;
@@ -13,10 +18,18 @@ export interface TelemetryData {
   laser_b: number | null;
   pedal_a: number | null;
   pedal_b: number | null;
+  /** 推杆位置（驱动器原始脉冲） */
+  push_a_raw: number | null;
+  push_b_raw: number | null;
+  /** 推杆驱动器状态字 */
+  push_a_st: number | null;
+  push_b_st: number | null;
   ang_cor_a: number | null;
   ang_cor_b: number | null;
   steer_x: number | null;
   steer_y: number | null;
+  /** 方向盘释放标志 */
+  steer_free: number | null;
   sensor: 'OK' | 'NG' | string;
   state: 'IDLE' | 'PEDAL_RUN' | 'STEER_RUN' | 'FAULT' | string;
   pedal_select: 'NONE' | 'A' | 'B' | string;
@@ -27,21 +40,30 @@ export interface DeviceInfo {
   hw: string;
   uptime: number;
   ssid: string;
+  side?: string;
 }
 
 export interface DeviceState {
+  /** 所属板侧 A / B（双板模式） */
+  board?: string;
   is_connected: boolean;
   plain_mode: boolean;
   device_id: string;
   fw_version: string;
   info: DeviceInfo | null;
   telemetry: TelemetryData;
+  /** GET PARAMS 返回（JSON 对象） */
+  params?: Record<string, string>;
+  /** 最近一次 PONG 心跳时间（HH:MM:SS） */
+  last_pong?: string | null;
   last_error: string | null;
 }
 
 /** DEBUG 事件行（Rust DebugEvent，pedal-event 事件负载） */
 export interface DebugEvent {
-  kind: 'LEVELED' | 'STABLE' | 'PUSH_STOPPED' | 'LEVEL_DONE' | 'LEVEL_ABORT' | 'RAW' | string;
+  kind: string;
+  /** 事件来源板侧（双板模式） */
+  board?: string;
   side: 'A' | 'B' | null;
   comp: number | null;
   reason: string | null;
@@ -62,15 +84,41 @@ export const ABORT_REASON_TEXT: Record<string, string> = {
   SELECT_CHANGED: '流程中切换选中侧',
   PEDAL_STOP: '该侧测试停止',
   STOPPED: '全局停止（急停/断连）',
+  POSITION_LIMIT: '超出位置限制',
+  LEVEL_TIMEOUT: '调平超时',
 };
 
-export function abortReasonText(reason: string | null | undefined): string {
+/** ABORT reason 英文说明 */
+export const ABORT_REASON_TEXT_EN: Record<string, string> = {
+  TILT_TIMEOUT: 'Tilt sensor read failures',
+  MOTOR_TIMEOUT: 'Motor no-response (step limit)',
+  STEP_TIMEOUT: 'Leveling step budget exhausted',
+  TILT_NOT_ENABLED: 'Tilt sensor not enabled',
+  HOME_TIMEOUT: 'Homing timeout (origin/limit switch)',
+  HOME_NOT_SUPPORTED: 'Homing unsupported by driver',
+  PUSH_START_FAIL: 'Push failed after homing',
+  PUSH_NOT_ENABLED: 'Push motor not enabled',
+  MANUAL_OVERRIDE: 'Manual motor operation during process',
+  SELECT_CHANGED: 'Selected side changed during process',
+  PEDAL_STOP: 'Side test stopped',
+  STOPPED: 'Global stop (E-stop/disconnect)',
+  POSITION_LIMIT: 'Position limit reached',
+  LEVEL_TIMEOUT: 'Leveling timeout',
+};
+
+export function abortReasonText(
+  reason: string | null | undefined,
+  locale: 'zh' | 'en' = 'zh'
+): string {
   if (!reason) return '';
-  return ABORT_REASON_TEXT[reason] ?? reason;
+  const dict = locale === 'en' ? ABORT_REASON_TEXT_EN : ABORT_REASON_TEXT;
+  return dict[reason] ?? reason;
 }
 
 /** 调试日志条目 */
 export interface LogEntry {
+  /** 日志来源板侧 A / B */
+  board?: string;
   timestamp: string;
   direction: 'TX' | 'RX' | 'SYS' | string;
   content: string;
@@ -85,6 +133,7 @@ export const DEFAULT_DEVICE_STATE: DeviceState = {
   info: null,
   telemetry: {
     t: 0,
+    side: '',
     tilt_x: null,
     tilt_y: null,
     pedal_a_tilt_x: null,
@@ -95,14 +144,20 @@ export const DEFAULT_DEVICE_STATE: DeviceState = {
     laser_b: null,
     pedal_a: null,
     pedal_b: null,
+    push_a_raw: null,
+    push_b_raw: null,
+    push_a_st: null,
+    push_b_st: null,
     ang_cor_a: null,
     ang_cor_b: null,
     steer_x: null,
     steer_y: null,
+    steer_free: null,
     sensor: 'OK',
     state: 'IDLE',
     pedal_select: 'NONE',
   },
+  params: {},
   last_error: null,
 };
 

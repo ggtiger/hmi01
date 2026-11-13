@@ -1,11 +1,13 @@
 'use client'
 
 import { useState } from 'react'
+import { useT } from '@/lib/i18n'
 
 /**
  * 全局常驻急停按钮：ESTOP 免等待直发，不占用命令队列
  */
 export default function EstopButton({ onEstop }: { onEstop: () => Promise<void> | void }) {
+  const t = useT()
   const [fired, setFired] = useState(false)
 
   const handleClick = async () => {
@@ -22,10 +24,10 @@ export default function EstopButton({ onEstop }: { onEstop: () => Promise<void> 
           ? 'bg-red-800 scale-95 shadow-inner'
           : 'bg-critical hover:bg-red-700 active:scale-95 shadow-lg shadow-red-300'
       }`}
-      title="急停：立即停止所有电机并复位全部流程"
+      title={t('急停：立即停止所有电机并复位全部流程')}
     >
       <span className="material-symbols-outlined text-[28px]">emergency_home</span>
-      急停
+      {t('急停')}
     </button>
   )
 }

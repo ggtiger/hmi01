@@ -9,12 +9,12 @@ import SettingsModal from './SettingsModal'
 import UpdateNotification from './UpdateNotification'
 import { AutoUpdater, checkServerDelta, checkForUpdate } from '@/lib/updater'
 import { useUpdaterStore } from '@/lib/store'
+import { useT, useI18nStore, useLocaleHydration } from '@/lib/i18n'
 
-// 导航顺序对齐《软件UI》PPT：踏板测试 / 转盘测试 / 命令监测 / 手动及状态检测 / 数据记录 / 设置 / 帮助
+// 导航顺序对齐《软件UI》PPT：踏板测试 / 转盘测试 / 手动及状态检测 / 数据记录 / 设置 / 帮助
 const navItems = [
   { label: '踏板测试', icon: 'footprint', href: '/pedal-test' },
   { label: '转盘测试', icon: 'rotate_right', href: '/steering-test' },
-  { label: '命令监测', icon: 'terminal', href: '/' },
   { label: '手动及状态检测', icon: 'settings_input_component', href: '/motor-debug' },
   { label: '数据记录', icon: 'storage', href: '/records' },
   { label: '设置', icon: 'tune', href: '/settings' },
@@ -23,8 +23,13 @@ const navItems = [
 
 export default function TopAppBar() {
   const pathname = usePathname()
+  useLocaleHydration()
+  const t = useT()
+  const locale = useI18nStore((s) => s.locale)
+  const setLocale = useI18nStore((s) => s.setLocale)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [langOpen, setLangOpen] = useState(false)
+  const langRef = useRef<HTMLDivElement>(null)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
   const setAvailable = useUpdaterStore((s) => s.setAvailable)
   const setServerReady = useUpdaterStore((s) => s.setServerReady)
@@ -55,6 +60,22 @@ export default function TopAppBar() {
     { label: '检查全量更新', action: () => checkForUpdate() },
   ]
 
+  // 语言下拉：Esc 关闭；点击外部关闭（延迟注册 mousedown，避免同一次点击把自己关掉）
+  useEffect(() => {
+    if (!langOpen) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setLangOpen(false) }
+    const onOutside = (e: MouseEvent) => {
+      if (!langRef.current?.contains(e.target as Node)) setLangOpen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    const timer = window.setTimeout(() => document.addEventListener('mousedown', onOutside), 0)
+    return () => {
+      clearTimeout(timer)
+      window.removeEventListener('keydown', onKey)
+      document.removeEventListener('mousedown', onOutside)
+    }
+  }, [langOpen])
+
   useEffect(() => {
     const updater = new AutoUpdater()
     updaterRef.current = updater
@@ -84,10 +105,16 @@ export default function TopAppBar() {
       data-tauri-drag-region
       onContextMenu={handleContextMenu}
     >
-      <span className="text-lg font-black text-primary tracking-tighter flex items-center flex-shrink-0">
-        <img src="/icon.png" alt="智能驾驶舱检测系统" className="w-7 h-7 mr-2 rounded" />
-        智能驾驶舱检测系统
-      </span>
+      <Link
+        href="/"
+        className="text-lg font-black text-primary tracking-tighter flex items-center flex-shrink-0 min-w-0"
+        title={t('命令监测')}
+      >
+        <img src="/icon.png" alt={t('智能驾驶舱检测系统')} className="w-7 h-7 mr-2 rounded flex-shrink-0" />
+        <span className={`truncate max-w-[260px] ${locale === 'en' ? 'hidden xl:inline' : ''}`}>
+          {t('智能驾驶舱检测系统')}
+        </span>
+      </Link>
 
       {/* 导航胶囊（右对齐，参考 PPT 设计稿） */}
       <div className="flex items-center gap-2">
@@ -105,31 +132,56 @@ export default function TopAppBar() {
                 }`}
               >
                 <span className="material-symbols-outlined text-[16px]">{item.icon}</span>
-                {item.label}
+                {t(item.label)}
               </Link>
             )
           })}
-          {/* 语言切换（PPT 导航项，当前仅简体中文） */}
-          <div className="relative">
+          {/* 语言切换：简体中文 / English（标记 no-drag，避免窗口拖拽区域吞掉点击） */}
+          <div
+            className="relative"
+            ref={langRef}
+            data-tauri-no-drag
+            style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+          >
             <button
               onClick={() => setLangOpen((v) => !v)}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-[10px] font-label-bold text-[13px] text-slate-600 hover:bg-white/70 hover:text-primary transition-colors"
             >
               <span className="material-symbols-outlined text-[16px]">language</span>
-              简体中文
+              {locale === 'zh' ? '简体中文' : 'English'}
+              <span className={`material-symbols-outlined text-[14px] transition-transform ${langOpen ? 'rotate-180' : ''}`}>
+                expand_more
+              </span>
             </button>
             {langOpen && (
               <div
-                className="absolute right-0 top-full mt-1 min-w-[150px] rounded-xl bg-white/90 backdrop-blur-xl border border-white/80 shadow-[0_14px_40px_rgba(31,86,130,0.12)] py-1 text-[13px] z-[9999]"
+                className="absolute right-0 top-full mt-1 min-w-[150px] rounded-xl bg-white/95 backdrop-blur-xl border border-white/80 shadow-[0_14px_40px_rgba(31,86,130,0.12)] py-1 text-[13px] z-[9999]"
                 onClick={(e) => e.stopPropagation()}
               >
                 <button
-                  className="w-full text-left px-4 py-2 text-primary font-label-bold hover:bg-white/80"
-                  onClick={() => setLangOpen(false)}
+                  className={`w-full text-left px-4 py-2 hover:bg-white/80 flex items-center justify-between ${
+                    locale === 'zh' ? 'text-primary font-label-bold' : 'text-slate-600'
+                  }`}
+                  onClick={() => {
+                    setLocale('zh')
+                    setLangOpen(false)
+                  }}
                 >
-                  简体中文 ✓
+                  简体中文
+                  {locale === 'zh' && <span className="material-symbols-outlined text-[16px]">check</span>}
                 </button>
-                <div className="px-4 py-2 text-slate-400 text-[12px]">English（即将支持）</div>
+                <button
+                  className={`w-full text-left px-4 py-2 hover:bg-white/80 flex items-center justify-between ${
+                    locale === 'en' ? 'text-primary font-label-bold' : 'text-slate-600'
+                  }`}
+                  onClick={() => {
+                    setLocale('en')
+                    setLangOpen(false)
+                  }}
+                >
+                  English
+                  {locale === 'en' && <span className="material-symbols-outlined text-[16px]">check</span>}
+                </button>
               </div>
             )}
           </div>
@@ -151,7 +203,7 @@ export default function TopAppBar() {
               className="w-full text-left px-4 py-2 hover:bg-slate-700 transition-colors"
               onClick={() => { item.action(); closeMenu() }}
             >
-              {item.label}
+              {t(item.label)}
             </button>
           ))}
         </div>

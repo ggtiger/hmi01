@@ -4,6 +4,7 @@ import { memo } from 'react'
 import { fmtNum } from '@/lib/comm/types'
 import type { TelemetryData } from '@/lib/comm/types'
 import type { PedalSide, SideParams } from '@/lib/store/pedal-store'
+import { useT } from '@/lib/i18n'
 
 /** 数据行：标签 + 值 + 可选操作按钮（玻璃行） */
 function DataRow({
@@ -87,6 +88,7 @@ interface PedalDataPanelProps {
  * 倾角 → 垂直测距 → 起始/终末高度/高度差 → 实时/最大/均匀力值 → 电机控制部分
  */
 function PedalDataPanelImpl(p: PedalDataPanelProps) {
+  const tr = useT()
   const t = p.telemetry
   const isA = p.side === 'A'
   const tiltX = isA ? t.pedal_a_tilt_x : t.pedal_b_tilt_x
@@ -105,59 +107,59 @@ function PedalDataPanelImpl(p: PedalDataPanelProps) {
       {/* 倾角 */}
       <div className="grid grid-cols-2 gap-2">
         <div className="glass-row">
-          <span className="k">倾角 X <em>°</em></span>
+          <span className="k">{tr('倾角 X')} <em>°</em></span>
           <span className="v">{fmtNum(tiltX, 3)}</span>
         </div>
         <div className="glass-row">
-          <span className="k">倾角 Y <em>°</em></span>
+          <span className="k">{tr('倾角 Y')} <em>°</em></span>
           <span className="v">{fmtNum(tiltY, 3)}</span>
         </div>
       </div>
 
       {/* 垂直测距 */}
       <DataRow
-        label="垂直测距"
+        label={tr('垂直测距')}
         unit="mm"
         value={laser}
-        actions={<MiniBtn onClick={p.onZero} disabled={dis}>清零</MiniBtn>}
+        actions={<MiniBtn onClick={p.onZero} disabled={dis}>{tr('清零')}</MiniBtn>}
       />
 
       {/* 高度记录区 */}
       <DataRow
-        label="起始高度"
+        label={tr('起始高度')}
         unit="mm"
         value={p.fieldValues.startH}
         actions={
           <>
-            <MiniBtn onClick={() => p.onRecordField('startH')} disabled={!p.connected}>记录</MiniBtn>
-            <MiniBtn onClick={() => p.onClearField('startH')} disabled={!p.connected}>清除</MiniBtn>
+            <MiniBtn onClick={() => p.onRecordField('startH')} disabled={!p.connected}>{tr('记录')}</MiniBtn>
+            <MiniBtn onClick={() => p.onClearField('startH')} disabled={!p.connected}>{tr('清除')}</MiniBtn>
           </>
         }
       />
       <DataRow
-        label="终末高度"
+        label={tr('终末高度')}
         unit="mm"
         value={p.fieldValues.endH}
         actions={
           <>
-            <MiniBtn onClick={() => p.onRecordField('endH')} disabled={!p.connected}>记录</MiniBtn>
-            <MiniBtn onClick={() => p.onClearField('endH')} disabled={!p.connected}>清除</MiniBtn>
+            <MiniBtn onClick={() => p.onRecordField('endH')} disabled={!p.connected}>{tr('记录')}</MiniBtn>
+            <MiniBtn onClick={() => p.onClearField('endH')} disabled={!p.connected}>{tr('清除')}</MiniBtn>
           </>
         }
       />
       <DataRow
-        label="高度差"
+        label={tr('高度差')}
         unit="mm"
         value={heightDiff}
         accent="cyan"
         actions={
           <>
-            <MiniBtn onClick={() => p.onRecordField('heightDiff')} disabled={!p.connected}>记录</MiniBtn>
+            <MiniBtn onClick={() => p.onRecordField('heightDiff')} disabled={!p.connected}>{tr('记录')}</MiniBtn>
             <MiniBtn
               onClick={() => { p.onClearField('startH'); p.onClearField('endH') }}
               disabled={!p.connected}
             >
-              清除
+              {tr('清除')}
             </MiniBtn>
           </>
         }
@@ -165,25 +167,25 @@ function PedalDataPanelImpl(p: PedalDataPanelProps) {
 
       {/* 力值 */}
       <DataRow
-        label="实时力值"
+        label={tr('实时力值')}
         unit="N"
         value={p.forceLive}
         digits={2}
         accent="cyan"
         actions={
           <>
-            <MiniBtn onClick={() => p.onRecordField('force')} disabled={!p.connected}>记录</MiniBtn>
-            <MiniBtn disabled>清除</MiniBtn>
+            <MiniBtn onClick={() => p.onRecordField('force')} disabled={!p.connected}>{tr('记录')}</MiniBtn>
+            <MiniBtn disabled>{tr('清除')}</MiniBtn>
           </>
         }
       />
       <div className="grid grid-cols-2 gap-2">
         <div className="glass-row">
-          <span className="k">最大力值 <em>N</em></span>
+          <span className="k">{tr('最大力值')} <em>N</em></span>
           <span className="v">{fmtNum(p.forceMax, 2)}</span>
         </div>
         <div className="glass-row">
-          <span className="k">均匀力值 <em>N</em></span>
+          <span className="k">{tr('均匀力值')} <em>N</em></span>
           <span className="v">{fmtNum(p.avgForce, 2)}</span>
         </div>
       </div>
@@ -191,30 +193,30 @@ function PedalDataPanelImpl(p: PedalDataPanelProps) {
       {/* 电机控制部分 */}
       <div className="mt-auto border-t border-[rgba(15,80,120,0.08)] pt-2 flex flex-col gap-2">
         <div className="font-label-bold text-[11px] uppercase tracking-widest text-on-surface-variant">
-          电机控制部分
+          {tr('电机控制部分')}
         </div>
         <div className="flex items-center gap-2">
-          <span className="font-label-bold text-[12px] w-[68px] flex-shrink-0 text-slate-600">调平电机</span>
+          <span className="font-label-bold text-[12px] w-[68px] flex-shrink-0 text-slate-600">{tr('调平电机')}</span>
           <input
             className="ui-input w-16 !py-1.5 text-center"
             value={p.params.setAngle}
             onChange={(e) => p.onParamChange('setAngle', e.target.value)}
             inputMode="decimal"
-            title="目标角度 °"
+            title={tr('目标角度 °')}
             placeholder="°"
           />
-          <MiniBtn onClick={p.onMotorMove} disabled={dis}>启动</MiniBtn>
-          <MiniBtn onClick={p.onLevel} disabled={dis}>调平补偿</MiniBtn>
+          <MiniBtn onClick={p.onMotorMove} disabled={dis}>{tr('启动')}</MiniBtn>
+          <MiniBtn onClick={p.onLevel} disabled={dis}>{tr('调平补偿')}</MiniBtn>
         </div>
         <div className="flex items-center gap-2">
-          <span className="font-label-bold text-[12px] w-[68px] flex-shrink-0 text-slate-600">加载电机</span>
+          <span className="font-label-bold text-[12px] w-[68px] flex-shrink-0 text-slate-600">{tr('加载电机')}</span>
           <input
             className="ui-input w-14 !py-1.5 text-center"
             value={p.params.pushDist}
             onChange={(e) => p.onParamChange('pushDist', e.target.value)}
             onBlur={p.onPushDistApply}
             inputMode="decimal"
-            title="推出距离 mm"
+            title={tr('推出距离 mm')}
             placeholder="mm"
           />
           <input
@@ -223,10 +225,10 @@ function PedalDataPanelImpl(p: PedalDataPanelProps) {
             onChange={(e) => p.onParamChange('setLoad', e.target.value)}
             onBlur={p.onSetLoadApply}
             inputMode="decimal"
-            title="加载力 N（预留）"
+            title={tr('加载力 N（预留）')}
             placeholder="N"
           />
-          <MiniBtn onClick={p.onPushStart} disabled={dis}>启动加载</MiniBtn>
+          <MiniBtn onClick={p.onPushStart} disabled={dis}>{tr('启动加载')}</MiniBtn>
           <MiniBtn onClick={() => p.onJog(1)} disabled={dis}>+</MiniBtn>
           <MiniBtn onClick={() => p.onJog(-1)} disabled={dis}>-</MiniBtn>
         </div>

@@ -2,11 +2,12 @@
 
 import { useState } from 'react'
 import { useDevice, useForce } from '@/lib/comm'
-import { fmtNum, type ForceChannel, type ForceChannelState } from '@/lib/comm/types'
+import { fmtNum, type BoardSide, type ForceChannel, type ForceChannelState } from '@/lib/comm/types'
 import { useSettingsStore, channelForceN, forceCoefficient, type AdCalibration } from '@/lib/store'
 import IndustrialCard from '@/components/ui/IndustrialCard'
 import Button from '@/components/ui/Button'
 import ForceModal from '@/components/ui/ForceModal'
+import { useT } from '@/lib/i18n'
 
 /** 按业务场景分组的蓝牙模块 */
 const BLUETOOTH_GROUPS: { title: string; desc: string; channels: ForceChannel[] }[] = [
@@ -59,6 +60,7 @@ function ModuleRow({
   channel, st, displayN, coefficient, adCal, calWeight, onCalWeightChange, onZero,
   onAdCalibrate, onSetCoefficient, onFactoryReset,
 }: ModuleRowProps) {
+  const t = useT()
   const isAngle = channel === 'STEER'
   const isSwitch = channel === 'SWITCH'
   const isForce = !isAngle && !isSwitch
@@ -88,7 +90,7 @@ function ModuleRow({
   const handleCalibrate = () => {
     setSuccess(null)
     if (!Number.isFinite(standardN) || standardN <= 0) {
-      setHint('请填写大于 0 的标准载荷（N）')
+      setHint(t('请填写大于 0 的标准载荷（N）'))
       return
     }
     setHint(null)
@@ -97,7 +99,7 @@ function ModuleRow({
       const coef = standardN / rawN
       if (Number.isFinite(coef) && coef > 0 && coef <= 1000) {
         onSetCoefficient(Number(coef.toFixed(5)))
-        setSuccess(`已校准：系数 ${coef.toFixed(5)}（${standardN} N ÷ ${rawN.toFixed(2)} N）`)
+        setSuccess(`${t('已校准：系数')} ${coef.toFixed(5)} (${standardN} N ÷ ${rawN.toFixed(2)} N)`)
         return
       }
     }
@@ -107,14 +109,14 @@ function ModuleRow({
       const nPerAd = standardN / delta
       if (Number.isFinite(nPerAd) && nPerAd !== 0) {
         onAdCalibrate(standardN, adCal.zeroAd)
-        setSuccess(`已标定：N/AD ${nPerAd.toExponential(3)}（${standardN} N ÷ Δ${delta}）`)
+        setSuccess(`${t('已标定：N/AD')} ${nPerAd.toExponential(3)} (${standardN} N ÷ Δ${delta})`)
         return
       }
     }
     setHint(
       adCal === undefined
-        ? '当前读数≈0：请加力后重试（或先清零记录 AD 零点）'
-        : `AD 与零点差值不足（Δ${adCode === null ? '--' : adCode - adCal.zeroAd}），请先加力`
+        ? t('当前读数≈0：请加力后重试（或先清零记录 AD 零点）')
+        : `${t('AD 与零点差值不足')} (Δ${adCode === null ? '--' : adCode - adCal.zeroAd}) — ${t('请先加力')}`
     )
   }
 
@@ -126,9 +128,9 @@ function ModuleRow({
         }`}
       />
       <div className="min-w-0 w-[210px] flex-shrink-0">
-        <div className="font-label-bold text-[14px] text-on-surface">{CHANNEL_SHORT[channel]}</div>
+        <div className="font-label-bold text-[14px] text-on-surface">{t(CHANNEL_SHORT[channel])}</div>
         <div className="font-label-sm text-outline truncate" title={st.deviceName}>
-          {st.isConnected ? st.deviceName : '未连接'}
+          {st.isConnected ? st.deviceName : t('未连接')}
         </div>
         {/* 原始诊断：AD / AD 增量 / 换算比例 / 设备原始重量 / 零点 */}
         {isForce && st.isConnected && (
@@ -137,8 +139,8 @@ function ModuleRow({
             {adCode !== null && adCal && <> · Δ{adCode - adCal.zeroAd}</>}
             {' · '}N/AD{' '}
             {adCal && adCal.nPerAd !== 0 ? adCal.nPerAd.toExponential(4) : '--'}
-            {' · '}原始 {st.latest?.weightRaw ?? '--'} mg
-            {' · '}零点 {adCal?.zeroAd ?? '--'}
+            {' · '}{t('原始')} {st.latest?.weightRaw ?? '--'} mg
+            {' · '}{t('零点')} {adCal?.zeroAd ?? '--'}
           </div>
         )}
         {/* 校准结果 / 未标定说明 */}
@@ -147,7 +149,7 @@ function ModuleRow({
         )}
         {isForce && st.isConnected && (hint || (!calibrated && !success)) && (
           <div className="font-label-sm text-amber-700 leading-tight mt-0.5">
-            ⚠ {hint ?? '未标定：施加标准载荷（N）后点「校准」'}
+            ⚠ {hint ?? t('未标定：施加标准载荷（N）后点「校准」')}
           </div>
         )}
         {/* 恢复出厂（独立行，行内二次确认，避免挤爆操作区） */}
@@ -155,31 +157,31 @@ function ModuleRow({
           <div className="flex items-center gap-2 mt-0.5">
             {confirmReset ? (
               <>
-                <span className="font-label-sm text-critical whitespace-nowrap">确认恢复出厂？</span>
+                <span className="font-label-sm text-critical whitespace-nowrap">{t('确认恢复出厂？')}</span>
                 <button
                   onClick={() => {
                     setConfirmReset(false)
                     onFactoryReset()
                   }}
                   className="font-label-sm font-label-bold text-critical hover:underline"
-                  title="设备零点/标定/参数将恢复出厂值，本地标定同步清除"
+                  title={t('设备零点/标定/参数将恢复出厂值，本地标定同步清除')}
                 >
-                  确认
+                  {t('确认')}
                 </button>
                 <button
                   onClick={() => setConfirmReset(false)}
                   className="font-label-sm text-outline hover:text-primary"
                 >
-                  取消
+                  {t('取消')}
                 </button>
               </>
             ) : (
               <button
                 onClick={() => setConfirmReset(true)}
                 className="font-label-sm text-critical hover:underline"
-                title="恢复出厂设置（Modbus 写寄存器 0x00FE）"
+                title={t('恢复出厂设置（Modbus 写寄存器 0x00FE）')}
               >
-                恢复出厂设置
+                {t('恢复出厂设置')}
               </button>
             )}
           </div>
@@ -192,19 +194,19 @@ function ModuleRow({
       <div className="flex items-center gap-2 flex-shrink-0">
         {isAngle && (
           <>
-            <ValueBox label="倾角 X" value={`${fmtNum(st.isConnected ? st.latestAngle?.angleX ?? null : null, 3)}°`} />
-            <ValueBox label="倾角 Y" value={`${fmtNum(st.isConnected ? st.latestAngle?.angleY ?? null : null, 3)}°`} />
+            <ValueBox label={t('倾角 X')} value={`${fmtNum(st.isConnected ? st.latestAngle?.angleX ?? null : null, 3)}°`} />
+            <ValueBox label={t('倾角 Y')} value={`${fmtNum(st.isConnected ? st.latestAngle?.angleY ?? null : null, 3)}°`} />
           </>
         )}
         {isForce && (
           <>
             <ValueBox
-              label="实时"
-              value={calibrated ? `${fmtNum(displayN, 2)} N` : '未标定'}
+              label={t('实时')}
+              value={calibrated ? `${fmtNum(displayN, 2)} N` : t('未标定')}
               accent={calibrated ? '' : '!text-amber-600'}
             />
             <ValueBox
-              label="系数"
+              label={t('系数')}
               value={
                 adCal !== undefined && adCal.nPerAd !== 0
                   ? /* AD 标定路径：显示实际换算比例 N/AD */
@@ -221,8 +223,8 @@ function ModuleRow({
             return (
               <ValueBox
                 key={relay}
-                label={`第${relay}路`}
-                value={relayState ? (on ? '开' : '关') : '--'}
+                label={t(relay === 1 ? '第1路' : '第2路')}
+                value={relayState ? (on ? t('开') : t('关')) : '--'}
                 accent={relayState ? (on ? '!text-emerald-600' : '!text-slate-400') : ''}
               />
             )
@@ -236,26 +238,26 @@ function ModuleRow({
             onClick={onZero}
             disabled={!st.isConnected}
             className="ui-action-btn ui-action-btn-ghost !px-3 !py-1.5 !text-[12px]"
-            title="零点校准：当前负载视为 0 N"
+            title={t('零点校准：当前负载视为 0 N')}
           >
-            清零
+            {t('清零')}
           </button>
           <input
             value={calWeight}
             onChange={(e) => onCalWeightChange(e.target.value)}
             inputMode="decimal"
-            placeholder="标准 N"
+            placeholder={t('标准 N')}
             disabled={!st.isConnected}
             className="ui-input w-24 !py-1.5 text-center !text-[12px]"
-            title="施加已知载荷（N）后填写"
+            title={t('施加已知载荷（N）后填写')}
           />
           <button
             onClick={handleCalibrate}
             disabled={!st.isConnected}
             className="ui-action-btn !px-3 !py-1.5 !text-[12px]"
-            title="施加标准载荷（N）后点击：系统自动按当前读数完成标定"
+            title={t('施加标准载荷（N）后点击：系统自动按当前读数完成标定')}
           >
-            校准
+            {t('校准')}
           </button>
         </div>
       )}
@@ -300,15 +302,17 @@ function SettingRow({
 }
 
 export default function SettingsPage() {
-  const { state, actions, error } = useDevice()
+  const t = useT()
+  const { state, boards, actions, error } = useDevice()
   const { states: forceStates, actions: forceActions } = useForce()
   const {
-    reportHz, pulsesPerMm, levelRatio,
+    levelMethod, pulsesPerMm, pushFeed,
     forceCoefficients, adCalibration,
     setForceCoefficient, setAdZero, setAdCalibration,
-    setReportHz, setPulsesPerMm, setLevelRatio,
+    setLevelMethod, setPulsesPerMm, setPushFeed,
   } = useSettingsStore()
 
+  const [target, setTarget] = useState<BoardSide>('A')
   const [plainConfirm, setPlainConfirm] = useState(false)
   const [forceModalOpen, setForceModalOpen] = useState(false)
   const [calWeights, setCalWeights] = useState<Record<ForceChannel, string>>({
@@ -321,16 +325,19 @@ export default function SettingsPage() {
   const [netcfg, setNetcfg] = useState<{ ssid: string; pass: string } | null>(null)
 
   const connected = state.is_connected
+  const targetConnected = boards[target].is_connected
+  const targetPlain = boards[target].plain_mode
   const bleChannels: ForceChannel[] = BLUETOOTH_GROUPS.flatMap((g) => g.channels)
   const bleConnected = bleChannels.filter((c) => forceStates[c].isConnected).length
 
   const handleQueryNet = async () => {
     try {
-      const cfg = await actions.netGetcfg()
+      const cfg = await actions.netGetcfg(target)
       setNetcfg(cfg)
       setNetSsid(cfg.ssid)
     } catch { /* 错误已由 useDevice 记录 */ }
   }
+
 
   return (
     <div className="h-full overflow-y-auto p-6 space-y-4 max-w-4xl mx-auto">
@@ -348,29 +355,38 @@ export default function SettingsPage() {
       <div className="flex items-center gap-3 rounded-xl border border-surface-variant bg-white px-4 py-3">
         <div className="flex items-center gap-2">
           <span className="material-symbols-outlined text-[20px] text-primary">bluetooth</span>
-          <span className="font-label-bold text-[14px]">蓝牙模块</span>
+          <span className="font-label-bold text-[14px]">{t('蓝牙模块')}</span>
           <span className={`font-label-bold text-[14px] ${bleConnected > 0 ? 'text-emerald-600' : 'text-slate-400'}`}>
-            {bleConnected}/{bleChannels.length} 已连接
+            {bleConnected}/{bleChannels.length} {t('已连接')}
           </span>
         </div>
         <div className="w-px h-5 bg-surface-variant" />
         <div className="flex items-center gap-2">
           <span className="material-symbols-outlined text-[20px] text-primary">lan</span>
-          <span className="font-label-bold text-[14px]">WiFi 设备</span>
-          <span className={`font-label-bold text-[14px] ${connected ? 'text-emerald-600' : 'text-slate-400'}`}>
-            {connected ? '已连接' : '未连接'}
-          </span>
+          <span className="font-label-bold text-[14px]">{t('WiFi 设备')}</span>
+          {(['A', 'B'] as BoardSide[]).map((side) => (
+            <span key={side} className="flex items-center gap-1">
+              <span className={`led ${boards[side].is_connected ? 'on' : ''} !w-1.5 !h-1.5`} />
+              <span
+                className={`font-label-bold text-[13px] ${
+                  boards[side].is_connected ? 'text-emerald-600' : 'text-slate-400'
+                }`}
+              >
+                {t(side === 'A' ? 'A 板' : 'B 板')}
+              </span>
+            </span>
+          ))}
         </div>
         <div className="flex-1" />
-        <span className="font-label-sm text-outline">蓝牙采集不依赖 WiFi 连接</span>
+        <span className="font-label-sm text-outline">{t('蓝牙采集不依赖 WiFi 连接')}</span>
       </div>
 
       {/* ===== 蓝牙采集模块（按业务场景分组） ===== */}
       <IndustrialCard
-        title="蓝牙采集模块"
+        title={t('蓝牙采集模块')}
         headerRight={
           <Button variant="ghost" onClick={() => setForceModalOpen(true)} className="!py-1.5">
-            蓝牙模块联结
+            {t('蓝牙模块联结')}
           </Button>
         }
       >
@@ -378,8 +394,8 @@ export default function SettingsPage() {
           {BLUETOOTH_GROUPS.map((group) => (
             <div key={group.title}>
               <div className="flex items-baseline gap-2 mb-2">
-                <span className="font-label-bold text-[13px] text-primary tracking-wide">{group.title}</span>
-                <span className="font-label-sm text-outline">{group.desc}</span>
+                <span className="font-label-bold text-[13px] text-primary tracking-wide">{t(group.title)}</span>
+                <span className="font-label-sm text-outline">{t(group.desc)}</span>
               </div>
               <div className="space-y-2">
                 {group.channels.map((ch) => (
@@ -426,14 +442,16 @@ export default function SettingsPage() {
             </div>
           ))}
           <div className="rounded-[10px] bg-surface-container-low px-3 py-2.5 space-y-1">
-            <div className="font-label-bold text-[12px] text-on-surface-variant">力值校准使用说明</div>
+            <div className="font-label-bold text-[12px] text-on-surface-variant">{t('力值校准使用说明')}</div>
             <div className="font-label-sm text-outline leading-relaxed">
-              ① <span className="font-label-bold text-on-surface">清零</span>：空载状态下点击，当前负载视为 0。
+              ① <span className="font-label-bold text-on-surface">{t('清零')}</span>
+              {t('：空载状态下点击，当前负载视为 0。')}
               <br />
-              ② <span className="font-label-bold text-on-surface">校准</span>：施加已知载荷（N）→ 填写标准 N → 点击「校准」，
-              系统自动按当前读数完成标定（SSTS 同款流程，一步完成）。
+              ② <span className="font-label-bold text-on-surface">{t('校准')}</span>
+              {t('：施加已知载荷（N）→ 填写标准 N → 点击「校准」，系统自动按当前读数完成标定（SSTS 同款流程，一步完成）。')}
               <br />
-              ③ <span className="font-label-bold text-on-surface">系数</span>：标定后所有力值 = 当前读数 × 换算比例 × 系数；标定参数按通道保存，重启后保留。
+              ③ <span className="font-label-bold text-on-surface">{t('系数')}</span>
+              {t('：标定后所有力值 = 当前读数 × 换算比例 × 系数；标定参数按通道保存，重启后保留。')}
             </div>
             <button
               onClick={() => {
@@ -445,7 +463,7 @@ export default function SettingsPage() {
               }}
               className="font-label-sm text-primary hover:underline"
             >
-              重置全部力值系数为 1
+              {t('重置全部力值系数为 1')}
             </button>
           </div>
         </div>
@@ -453,82 +471,111 @@ export default function SettingsPage() {
 
       {/* ===== 设备参数（SET，需 WiFi 连接） ===== */}
       <IndustrialCard
-        title="设备参数（SET）"
+        title={t('设备参数（SET）')}
         headerRight={
           <span className={`font-label-sm ${connected ? 'text-emerald-600' : 'text-amber-600'}`}>
-            {connected ? '已连接设备' : '未连接设备 · 修改将在连接后生效'}
+            {connected ? t('已连接设备') : t('未连接设备 · 修改将在连接后生效')}
           </span>
         }
       >
         <div className="px-4">
+          <div className="flex items-center gap-4 py-3 border-b border-surface-variant">
+            <div className="flex-1 min-w-0">
+              <div className="font-label-bold text-[14px] text-on-surface">{t('补正模式')}</div>
+              <div className="font-label-sm text-outline">{t('1 = 一体倾角闭环，2 = 分离初始角度 ± 倾角')}</div>
+            </div>
+            <select
+              value={levelMethod}
+              onChange={(e) => setLevelMethod(e.target.value)}
+              disabled={!connected}
+              className="ui-input w-52 !py-2"
+            >
+              <option value="1">{t('1 · 一体倾角闭环')}</option>
+              <option value="2">{t('2 · 分离初始角度 ± 倾角')}</option>
+            </select>
+            <button
+              onClick={() => actions.setLevelMethod(Number(levelMethod)).catch(() => {})}
+              disabled={!connected}
+              className="ui-action-btn !px-4 !py-2 !text-[13px]"
+            >
+              {t('应用')}
+            </button>
+          </div>
           <SettingRow
-            label="遥测上报频率"
-            hint="设备向主机上报遥测的周期，1–50 Hz"
-            unit="Hz"
-            value={reportHz}
-            onChange={setReportHz}
-            onApply={() => actions.setReport(Number(reportHz)).catch(() => {})}
-            applyLabel="应用"
-            disabled={!connected}
-          />
-          <SettingRow
-            label="推杆脉冲当量"
-            hint="推杆位置脉冲换算毫米的比例，10–10000 脉冲/mm"
+            label={t('推杆脉冲当量')}
+            hint={t('推杆位置脉冲换算毫米的比例，10–10000 脉冲/mm')}
             unit="P/mm"
             value={pulsesPerMm}
             onChange={setPulsesPerMm}
             onApply={() => actions.setPushPulsesPerMm(Number(pulsesPerMm)).catch(() => {})}
-            applyLabel="应用（NVS）"
+            applyLabel={t('应用（NVS）')}
             disabled={!connected}
           />
           <SettingRow
-            label="调平传动比"
-            hint="倾角补偿量与电机角度的换算系数，0.01–100"
-            unit=""
-            value={levelRatio}
-            onChange={setLevelRatio}
-            onApply={() => actions.setLevelRatio(Number(levelRatio)).catch(() => {})}
-            applyLabel="应用（NVS）"
+            label={t('推杆速度')}
+            hint={t('推杆电机运行速度，1–500 RPM')}
+            unit="RPM"
+            value={pushFeed}
+            onChange={setPushFeed}
+            onApply={() => actions.setPushFeed(Number(pushFeed)).catch(() => {})}
+            applyLabel={t('应用（NVS）')}
             disabled={!connected}
           />
+
         </div>
       </IndustrialCard>
 
-      {/* ===== 通信调试 ===== */}
-      <IndustrialCard title="通信调试">
+      {/* ===== 通信调试（按板） ===== */}
+      <IndustrialCard
+        title={t('通信调试')}
+        headerRight={
+          <div className="flex items-center gap-1.5">
+            {(['A', 'B'] as BoardSide[]).map((side) => (
+              <button
+                key={side}
+                onClick={() => setTarget(side)}
+                className={`glass-btn !h-7 !px-3 !text-[12px] ${target === side ? 'primary' : ''}`}
+              >
+                {t(side === 'A' ? 'A 板' : 'B 板')}
+                <span className={`led ${boards[side].is_connected ? 'on' : ''} !w-1.5 !h-1.5`} />
+              </button>
+            ))}
+          </div>
+        }
+      >
         <div className="px-4 py-3 space-y-3">
           <div className="flex items-center gap-4">
             <div className="flex-1">
-              <div className="font-label-bold text-[14px]">传输加密模式</div>
+              <div className="font-label-bold text-[14px]">{t('传输加密模式')}</div>
               <div className="font-label-sm text-outline">
-                当前：{state.plain_mode ? '明文（无加密，仅联调抓包使用）' : '加密（AES-128-CTR + HMAC-MD5）'}
-                ；断开重连后自动复位为加密
+                {t('当前：')}{targetPlain ? t('明文（无加密，仅联调抓包使用）') : t('加密（AES-128-CTR + HMAC-MD5）')}
+                {t('；断开重连后自动复位为加密')}
               </div>
             </div>
-            {!state.plain_mode ? (
+            {!targetPlain ? (
               plainConfirm ? (
                 <div className="flex items-center gap-2">
-                  <span className="font-label-bold text-critical text-[13px]">确认切换明文？</span>
+                  <span className="font-label-bold text-critical text-[13px]">{t('确认切换明文？')}</span>
                   <Button
                     variant="critical"
                     onClick={async () => {
                       setPlainConfirm(false)
-                      await actions.plainModeSet(true)
+                      await actions.plainModeSet(target, true)
                     }}
-                    disabled={!connected}
+                    disabled={!targetConnected}
                   >
-                    确认开启
+                    {t('确认开启')}
                   </Button>
-                  <Button variant="ghost" onClick={() => setPlainConfirm(false)}>取消</Button>
+                  <Button variant="ghost" onClick={() => setPlainConfirm(false)}>{t('取消')}</Button>
                 </div>
               ) : (
-                <Button variant="ghost" icon="warning" onClick={() => setPlainConfirm(true)} disabled={!connected}>
-                  开启明文模式
+                <Button variant="ghost" icon="warning" onClick={() => setPlainConfirm(true)} disabled={!targetConnected}>
+                  {t('开启明文模式')}
                 </Button>
               )
             ) : (
-              <Button onClick={() => actions.plainModeSet(false)} disabled={!connected} icon="lock">
-                切回加密模式
+              <Button onClick={() => actions.plainModeSet(target, false)} disabled={!targetConnected} icon="lock">
+                {t('切回加密模式')}
               </Button>
             )}
           </div>
@@ -537,62 +584,75 @@ export default function SettingsPage() {
 
       {/* ===== 网络配置（NET，需 WiFi 连接） ===== */}
       <IndustrialCard
-        title="网络配置（NET）"
+        title={t('网络配置（NET）')}
         headerRight={
-          <Button variant="ghost" onClick={handleQueryNet} disabled={!connected} className="!py-1.5">
-            查询当前配置
-          </Button>
+          <div className="flex items-center gap-1.5">
+            {(['A', 'B'] as BoardSide[]).map((side) => (
+              <button
+                key={side}
+                onClick={() => setTarget(side)}
+                className={`glass-btn !h-7 !px-3 !text-[12px] ${target === side ? 'primary' : ''}`}
+              >
+                {t(side === 'A' ? 'A 板' : 'B 板')}
+                <span className={`led ${boards[side].is_connected ? 'on' : ''} !w-1.5 !h-1.5`} />
+              </button>
+            ))}
+            <Button variant="ghost" onClick={handleQueryNet} disabled={!targetConnected} className="!py-1.5">
+              {t('查询当前配置')}
+            </Button>
+          </div>
         }
       >
         <div className="p-4 space-y-4">
           {netcfg && (
             <div className="rounded-[10px] bg-surface-container-low px-3 py-2 font-label-sm monospaced-data text-on-surface-variant">
-              当前 SSID：<span className="font-label-bold text-on-surface">{netcfg.ssid}</span>
-              　密码：{netcfg.pass}
+              {t('当前 SSID')}（{t(target === 'A' ? 'A 板' : 'B 板')}）：
+              <span className="font-label-bold text-on-surface">{netcfg.ssid}</span>
+              　{t('密码')}：{netcfg.pass}
             </div>
           )}
           <div className="grid grid-cols-3 gap-3 items-end">
             <div>
-              <label className="font-label-sm text-on-surface-variant">旧密码</label>
+              <label className="font-label-sm text-on-surface-variant">{t('旧密码')}</label>
               <input
                 value={netOldPass}
                 onChange={(e) => setNetOldPass(e.target.value)}
                 type="password"
-                disabled={!connected}
+                disabled={!targetConnected}
                 className="ui-input mt-1 w-full !py-2"
               />
             </div>
             <div>
-              <label className="font-label-sm text-on-surface-variant">新 SSID（1–32）</label>
+              <label className="font-label-sm text-on-surface-variant">{t('新 SSID（1–32）')}</label>
               <input
                 value={netSsid}
                 onChange={(e) => setNetSsid(e.target.value)}
-                disabled={!connected}
+                disabled={!targetConnected}
                 className="ui-input mt-1 w-full !py-2"
               />
             </div>
             <div>
-              <label className="font-label-sm text-on-surface-variant">新密码（8–64）</label>
+              <label className="font-label-sm text-on-surface-variant">{t('新密码（8–64）')}</label>
               <input
                 value={netNewPass}
                 onChange={(e) => setNetNewPass(e.target.value)}
                 type="password"
-                disabled={!connected}
+                disabled={!targetConnected}
                 className="ui-input mt-1 w-full !py-2"
               />
             </div>
           </div>
           <Button
-            onClick={() => actions.netSetcfg(netOldPass, netSsid, netNewPass).catch(() => {})}
-            disabled={!connected || !netOldPass || !netSsid || !netNewPass}
+            onClick={() => actions.netSetcfg(target, netOldPass, netSsid, netNewPass).catch(() => {})}
+            disabled={!targetConnected || !netOldPass || !netSsid || !netNewPass}
           >
-            保存网络配置（重启后生效）
+            {t('保存网络配置（重启后生效）')}
           </Button>
 
           <div className="border-t border-surface-variant pt-4">
-            <div className="font-label-bold text-[14px] text-critical">恢复默认配置</div>
+            <div className="font-label-bold text-[14px] text-critical">{t('恢复默认配置')}</div>
             <div className="font-label-sm text-outline mb-2">
-              清空 WiFi 配置并恢复出厂网络设置（需当前密码或紧急密码 XDESIN2026）
+              {t('清空 WiFi 配置并恢复出厂网络设置（需当前密码或紧急密码 XDESIN2026）')}
             </div>
             <div className="flex items-end gap-3">
               <div className="w-56">
@@ -600,17 +660,17 @@ export default function SettingsPage() {
                   value={netResetPass}
                   onChange={(e) => setNetResetPass(e.target.value)}
                   type="password"
-                  placeholder="密码"
-                  disabled={!connected}
+                  placeholder={t('密码')}
+                  disabled={!targetConnected}
                   className="ui-input w-full !py-2"
                 />
               </div>
               <Button
                 variant="critical"
-                onClick={() => actions.netReset(netResetPass).catch(() => {})}
-                disabled={!connected || !netResetPass}
+                onClick={() => actions.netReset(target, netResetPass).catch(() => {})}
+                disabled={!targetConnected || !netResetPass}
               >
-                恢复默认
+                {t('恢复默认')}
               </Button>
             </div>
           </div>

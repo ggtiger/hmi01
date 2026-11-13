@@ -3,8 +3,10 @@
 import { useCallback, useEffect } from 'react'
 import { useUpdaterStore } from '@/lib/store'
 import { downloadUpdate, installAndRelaunch } from '@/lib/updater'
+import { useT } from '@/lib/i18n'
 
 export default function UpdateNotification() {
+  const t = useT()
   const {
     stage, updateInfo, progress, errorMsg,
     setDownloading, setProgress, setDownloaded, setError, dismiss,
@@ -63,7 +65,7 @@ export default function UpdateNotification() {
           <div className="flex items-center gap-3 px-4 py-3">
             <span className="material-symbols-outlined text-lg text-emerald-500">check_circle</span>
             <span className="text-sm text-slate-700">
-              已更新到 <span className="font-mono font-semibold text-primary">v{serverUpdatedToast}</span>
+              {t('已更新到')} <span className="font-mono font-semibold text-primary">v{serverUpdatedToast}</span>
             </span>
             <button
               onClick={clearServerUpdatedToast}
@@ -85,7 +87,7 @@ export default function UpdateNotification() {
           <div className="flex items-center justify-between px-4 py-3 bg-primary/5 border-b border-slate-100">
             <div className="flex items-center gap-2">
               <span className="material-symbols-outlined text-lg text-primary">system_update</span>
-              <span className="text-sm font-semibold text-primary">热更新已就绪</span>
+              <span className="text-sm font-semibold text-primary">{t('热更新已就绪')}</span>
             </div>
             <button
               onClick={clearServerReady}
@@ -96,21 +98,21 @@ export default function UpdateNotification() {
           </div>
           <div className="px-4 py-3 space-y-3">
             <p className="text-sm text-slate-600">
-              新版本 <span className="font-mono font-semibold text-primary">v{serverUpdateVersion}</span> 已下载完成，重启应用以完成更新。
+              {t('新版本')} <span className="font-mono font-semibold text-primary">v{serverUpdateVersion}</span> {t('已下载完成，重启应用以完成更新。')}
             </p>
             <div className="flex gap-2 justify-end">
               <button
                 onClick={clearServerReady}
                 className="px-3 py-1.5 text-xs rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-50 transition-colors"
               >
-                稍后重启
+                {t('稍后重启')}
               </button>
               <button
                 onClick={handleApplyServerUpdate}
                 className="px-3 py-1.5 text-xs rounded-lg bg-primary text-white font-medium hover:bg-primary/90 transition-colors flex items-center gap-1"
               >
                 <span className="material-symbols-outlined text-sm">restart_alt</span>
-                立即重启
+                {t('立即重启')}
               </button>
             </div>
           </div>
@@ -132,10 +134,10 @@ export default function UpdateNotification() {
               {stage === 'error' ? 'error' : stage === 'downloaded' ? 'check_circle' : 'system_update'}
             </span>
             <span className="text-sm font-semibold text-primary">
-              {stage === 'available' && '发现新版本'}
-              {stage === 'downloading' && '正在下载更新'}
-              {stage === 'downloaded' && '更新已就绪'}
-              {stage === 'error' && '更新失败'}
+              {stage === 'available' && t('发现新版本')}
+              {stage === 'downloading' && t('正在下载更新')}
+              {stage === 'downloaded' && t('更新已就绪')}
+              {stage === 'error' && t('更新失败')}
             </span>
           </div>
           {(stage === 'available' || stage === 'error') && (
@@ -154,7 +156,7 @@ export default function UpdateNotification() {
           {stage === 'available' && updateInfo && (
             <div className="space-y-3">
               <p className="text-sm text-slate-600">
-                新版本 <span className="font-mono font-semibold text-primary">v{updateInfo.version}</span> 已发布
+                {t('新版本')} <span className="font-mono font-semibold text-primary">v{updateInfo.version}</span> {t('已发布')}
                 {updateInfo.body && (
                   <span className="block mt-1 text-xs text-slate-400">{updateInfo.body}</span>
                 )}
@@ -164,21 +166,21 @@ export default function UpdateNotification() {
                   onClick={dismiss}
                   className="px-3 py-1.5 text-xs rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-50 transition-colors"
                 >
-                  稍后提醒
+                  {t('稍后提醒')}
                 </button>
                 {updateInfo.canAutoInstall ? (
                   <button
                     onClick={handleUpdate}
                     className="px-3 py-1.5 text-xs rounded-lg bg-primary text-white font-medium hover:bg-primary/90 transition-colors"
                   >
-                    立即更新
+                    {t('立即更新')}
                   </button>
                 ) : updateInfo.downloadUrl ? (
                   <button
                     onClick={handleManualDownload}
                     className="px-3 py-1.5 text-xs rounded-lg bg-primary text-white font-medium hover:bg-primary/90 transition-colors"
                   >
-                    手动下载
+                    {t('手动下载')}
                   </button>
                 ) : null}
               </div>
@@ -188,7 +190,7 @@ export default function UpdateNotification() {
           {/* 下载中 */}
           {stage === 'downloading' && progress && (
             <div className="space-y-2">
-              <p className="text-sm text-slate-600">正在下载更新包…</p>
+              <p className="text-sm text-slate-600">{t('正在下载更新包…')}</p>
               <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
                 <div
                   className="h-full bg-primary rounded-full transition-all duration-300 ease-out"
@@ -203,7 +205,7 @@ export default function UpdateNotification() {
           {stage === 'downloaded' && (
             <div className="space-y-3">
               <p className="text-sm text-slate-600">
-                更新已下载完成，重启应用以完成安装。
+                {t('更新已下载完成，重启应用以完成安装。')}
               </p>
               <div className="flex justify-end">
                 <button
@@ -211,7 +213,7 @@ export default function UpdateNotification() {
                   className="px-3 py-1.5 text-xs rounded-lg bg-primary text-white font-medium hover:bg-primary/90 transition-colors flex items-center gap-1"
                 >
                   <span className="material-symbols-outlined text-sm">restart_alt</span>
-                  立即重启
+                  {t('立即重启')}
                 </button>
               </div>
             </div>
@@ -220,13 +222,13 @@ export default function UpdateNotification() {
           {/* 错误 */}
           {stage === 'error' && (
             <div className="space-y-2">
-              <p className="text-sm text-red-600">{errorMsg || '更新过程中发生未知错误'}</p>
+              <p className="text-sm text-red-600">{errorMsg || t('更新过程中发生未知错误')}</p>
               <div className="flex justify-end">
                 <button
                   onClick={dismiss}
                   className="px-3 py-1.5 text-xs rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-50 transition-colors"
                 >
-                  关闭
+                  {t('关闭')}
                 </button>
               </div>
             </div>

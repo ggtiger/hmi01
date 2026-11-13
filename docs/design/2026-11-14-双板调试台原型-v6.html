@@ -1,0 +1,3124 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>XdesinHMI · 双板调试台原型 v6</title>
+<style>
+  :root {
+    --text: #142639;
+    --muted: #5b7186;
+    --dim: #8ea2b5;
+    --cyan: #0891b2;
+    --blue: #2563eb;
+    --violet: #7c3aed;
+    --ok: #059669;
+    --warn: #d97706;
+    --danger: #e11d48;
+
+    --glass: rgba(255, 255, 255, .68);
+    --glass-strong: rgba(255, 255, 255, .86);
+    --line: rgba(255, 255, 255, .95);
+    --line-soft: rgba(15, 80, 120, .10);
+    --r: 15px;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0; overflow: hidden;
+    color: var(--text);
+    background: #e9f1f8;
+    font-family: "Inter", -apple-system, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+    font-size: 13px; line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  body::before {
+    content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 0;
+    background:
+      radial-gradient(1000px 520px at 6% -10%, rgba(8,145,178,.22), transparent 58%),
+      radial-gradient(900px 560px at 100% 0%, rgba(124,58,237,.16), transparent 58%),
+      radial-gradient(800px 500px at 55% 112%, rgba(37,99,235,.14), transparent 62%),
+      linear-gradient(180deg, #f4f9fd 0%, #dde9f4 100%);
+  }
+  body::after {
+    content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 0;
+    background-image:
+      linear-gradient(rgba(37,99,235,.045) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(37,99,235,.045) 1px, transparent 1px);
+    background-size: 46px 46px;
+    mask-image: radial-gradient(ellipse at 50% 0%, rgba(0,0,0,.65), transparent 82%);
+  }
+  .mono { font-family: "JetBrains Mono", "SF Mono", Consolas, Menlo, monospace; font-variant-numeric: tabular-nums; }
+  button { font: inherit; color: inherit; }
+
+  /* ================= 应用骨架 ================= */
+  .app { position: relative; z-index: 2; height: 100vh; display: flex; flex-direction: column; }
+
+  /* 顶栏 */
+  .topbar {
+    height: 58px; flex-shrink: 0;
+    display: flex; align-items: center; gap: 16px; padding: 0 16px 0 18px;
+    background: rgba(255,255,255,.62);
+    backdrop-filter: blur(22px) saturate(160%);
+    -webkit-backdrop-filter: blur(22px) saturate(160%);
+    border-bottom: 1px solid rgba(15,80,120,.10);
+    box-shadow: 0 6px 26px rgba(31,86,130,.06);
+  }
+  .brand { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+  .brand .mark {
+    width: 32px; height: 32px; border-radius: 10px; position: relative;
+    background: linear-gradient(140deg, #0b6b86 0%, #0891b2 45%, #2563eb 100%);
+    box-shadow: 0 6px 18px rgba(8,145,178,.30), inset 0 1px 0 rgba(255,255,255,.4);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .brand .mark svg { width: 19px; height: 19px; }
+  .brand .txt b { display: block; font-size: 13.5px; font-weight: 800; letter-spacing: .2px; color: #0f2233; line-height: 1.2; }
+  .brand .txt span { font-size: 9px; letter-spacing: 2px; color: var(--dim); text-transform: uppercase; }
+
+  .top-boards { display: flex; gap: 7px; margin-left: 4px; }
+  .top-board {
+    display: flex; align-items: center; gap: 7px;
+    height: 32px; padding: 0 11px; border-radius: 9px;
+    background: rgba(255,255,255,.52); border: 1px solid rgba(255,255,255,.9);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.7);
+    font-size: 11px; color: var(--muted); white-space: nowrap;
+    cursor: pointer; transition: all .16s;
+  }
+  .top-board:hover { background: #fff; border-color: rgba(8,145,178,.3); }
+  .top-board.target { background: #fff; border-color: rgba(8,145,178,.42); box-shadow: 0 0 0 1px rgba(8,145,178,.14), 0 4px 14px rgba(8,145,178,.10); }
+  .top-board b { font-size: 11.5px; color: var(--text); }
+  .top-board .ip { font-family: "JetBrains Mono", Consolas, monospace; font-size: 10px; color: var(--dim); }
+  .top-board.off { opacity: .62; }
+
+  .top-right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+  .top-item {
+    display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 11px;
+    border-radius: 9px; border: 1px solid transparent; background: transparent;
+    font-size: 11.5px; color: var(--muted); cursor: pointer;
+  }
+  .top-item:hover { background: rgba(255,255,255,.6); border-color: rgba(255,255,255,.9); }
+  .top-item svg { width: 16px; height: 16px; }
+  .top-item .num { font-weight: 800; color: var(--ok); }
+  .top-clock {
+    height: 32px; padding: 0 11px; border-radius: 9px; display: flex; align-items: center; gap: 7px;
+    font-family: "JetBrains Mono", Consolas, monospace; font-size: 11px; color: var(--muted);
+    background: rgba(255,255,255,.42); border: 1px solid rgba(255,255,255,.8);
+  }
+  .estop {
+    height: 38px; padding: 0 18px; border-radius: 11px; border: 1px solid rgba(225,29,72,.35);
+    display: inline-flex; align-items: center; gap: 8px; cursor: pointer;
+    background: linear-gradient(135deg, #fb7185, #e11d48);
+    color: #fff; font-weight: 800; font-size: 13px; letter-spacing: 2px;
+    box-shadow: 0 8px 22px rgba(225,29,72,.30), inset 0 1px 0 rgba(255,255,255,.4);
+    transition: transform .15s;
+  }
+  .estop:hover { transform: translateY(-1px); }
+  .estop svg { width: 18px; height: 18px; }
+
+  /* 主体 */
+  .shell { flex: 1; min-height: 0; display: flex; }
+
+  /* 左侧垂直导航（打破顶部横向导航） */
+  .rail {
+    width: 78px; flex-shrink: 0; display: flex; flex-direction: column; align-items: center;
+    padding: 14px 0 12px; gap: 7px;
+    background: rgba(255,255,255,.42);
+    backdrop-filter: blur(18px) saturate(150%);
+    border-right: 1px solid rgba(15,80,120,.09);
+  }
+  .rail .nav {
+    width: 58px; height: 56px; border-radius: 14px; border: 1px solid transparent;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+    color: var(--muted); font-size: 10px; font-weight: 700; cursor: pointer;
+    transition: all .18s;
+  }
+  .rail .nav svg { width: 20px; height: 20px; stroke-width: 1.7; }
+  .rail .nav:hover { background: rgba(255,255,255,.62); color: var(--cyan); }
+  .rail .nav.active {
+    color: #fff; border-color: rgba(8,145,178,.4);
+    background: linear-gradient(140deg, rgba(8,145,178,.94), rgba(37,99,235,.92));
+    box-shadow: 0 8px 22px rgba(8,145,178,.28), inset 0 1px 0 rgba(255,255,255,.35);
+  }
+  .rail .sp { flex: 1; }
+  .rail .user {
+    width: 40px; height: 40px; border-radius: 12px; border: 1px solid rgba(255,255,255,.9);
+    background: rgba(255,255,255,.64); display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 12px; color: var(--cyan);
+  }
+
+  .workspace { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; padding: 14px 16px 0; }
+  .view { display: none; flex: 1; min-height: 0; flex-direction: column; }
+  .view.active { display: flex; }
+
+  .view-head {
+    flex-shrink: 0; display: flex; align-items: center; gap: 16px; margin-bottom: 9px;
+    padding: 6px 11px; border-radius: 12px;
+    background: linear-gradient(120deg, rgba(255,255,255,.78), rgba(255,255,255,.48));
+    border: 1px solid rgba(255,255,255,.95);
+    box-shadow: 0 8px 22px rgba(31,86,130,.07), inset 0 1px 0 rgba(255,255,255,.9);
+  }
+  /* 压缩页头：去掉英文 kicker 与说明文字，只保留标题和操作 */
+  .view-head .kicker,
+  .view-head .vh-left p { display: none !important; }
+  .view-head .vh-left h1 { font-size: 21px; }
+  .view-head .vh-left h1 em { display: none !important; }
+  .compact-head {
+    flex-shrink: 0; display: flex; align-items: center; gap: 9px; margin-bottom: 9px;
+    padding: 6px 11px; border-radius: 12px;
+    background: linear-gradient(120deg, rgba(255,255,255,.8), rgba(255,255,255,.48));
+    border: 1px solid rgba(255,255,255,.95);
+    box-shadow: 0 8px 22px rgba(31,86,130,.07), inset 0 1px 0 rgba(255,255,255,.9);
+  }
+  .compact-head h1 { margin: 0; font-size: 21px; letter-spacing: .2px; color: #0e2133; line-height: 1.2; white-space: nowrap; }
+  .compact-head .mode-tag {
+    font-size: 9px; font-weight: 800; letter-spacing: .5px;
+    color: var(--cyan); background: rgba(8,145,178,.08);
+    border: 1px solid rgba(8,145,178,.22); border-radius: 999px; padding: 2px 8px;
+    white-space: nowrap;
+  }
+  .compact-head .right { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+  .compact-head .right .btn { height: 38px; padding: 0 13px; font-size: 12px; border-radius: 9px; }
+  .compact-head .right .side-seg button,
+  .compact-head .right .side-switch button { height: 38px; font-size: 12px; padding: 0 13px; }
+  .vh-left .kicker {
+    display: inline-flex; align-items: center; gap: 7px; font-size: 9px; letter-spacing: 2.2px;
+    color: var(--cyan); font-weight: 800; text-transform: uppercase;
+    padding: 3px 9px; border-radius: 999px;
+    background: rgba(8,145,178,.08); border: 1px solid rgba(8,145,178,.22);
+    margin-bottom: 5px;
+  }
+  .vh-left h1 { margin: 0; font-size: 23px; letter-spacing: .3px; color: #0e2133; line-height: 1.2; }
+  .vh-left h1 em { font-style: normal; font-weight: 500; font-size: 12px; color: var(--dim); margin-left: 8px; letter-spacing: 0; }
+  .vh-left p { margin: 3px 0 0; font-size: 11.5px; color: var(--muted); }
+  .vh-right { margin-left: auto; display: flex; align-items: center; gap: 7px; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px;
+    border-radius: 999px; font-size: 10.5px; font-weight: 700;
+    border: 1px solid rgba(15,80,120,.12); background: rgba(255,255,255,.5); color: var(--muted);
+    white-space: nowrap;
+  }
+  .chip.ok { color: var(--ok); border-color: rgba(5,150,105,.25); background: rgba(5,150,105,.07); }
+  .chip.warn { color: var(--warn); border-color: rgba(217,119,6,.25); background: rgba(217,119,6,.07); }
+  .chip.info { color: var(--cyan); border-color: rgba(8,145,178,.25); background: rgba(8,145,178,.07); }
+
+  .btn {
+    height: 32px; padding: 0 13px; border-radius: 9px; cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    font-size: 11.5px; font-weight: 700;
+    border: 1px solid rgba(15,80,120,.14); background: rgba(255,255,255,.52);
+    color: var(--text); box-shadow: inset 0 1px 0 rgba(255,255,255,.7);
+    transition: all .16s; white-space: nowrap;
+  }
+  .btn:hover { background: #fff; border-color: rgba(8,145,178,.3); color: var(--cyan); }
+  .btn svg { width: 15px; height: 15px; }
+  .btn.primary {
+    border-color: rgba(8,145,178,.45); color: #fff;
+    background: linear-gradient(135deg, #0a7c99, #1d4ed8);
+    box-shadow: 0 7px 20px rgba(8,145,178,.28), inset 0 1px 0 rgba(255,255,255,.35);
+  }
+  .btn.primary:hover { filter: brightness(1.04); color: #fff; }
+  .btn.danger { color: var(--danger); border-color: rgba(225,29,72,.28); background: rgba(255,255,255,.55); }
+  .btn.danger:hover { background: rgba(225,29,72,.06); color: var(--danger); }
+  .btn.ghost { background: transparent; box-shadow: none; }
+  .btn.sm { height: 26px; padding: 0 9px; font-size: 10.5px; border-radius: 8px; }
+  .btn.lg { height: 42px; padding: 0 20px; font-size: 13.5px; border-radius: 11px; }
+  .btn.wide { width: 100%; }
+  .btn .tgt {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 16px; height: 16px; padding: 0 4px; border-radius: 5px;
+    font-size: 9.5px; font-weight: 900; color: #fff;
+    background: rgba(8,145,178,.85);
+  }
+
+  /* ================= 面板 ================= */
+  .panel {
+    border-radius: var(--r); min-height: 0; display: flex; flex-direction: column;
+    background: var(--glass);
+    backdrop-filter: blur(20px) saturate(150%);
+    -webkit-backdrop-filter: blur(20px) saturate(150%);
+    border: 1px solid var(--line);
+    box-shadow: 0 16px 44px rgba(31,86,130,.10), inset 0 1px 0 rgba(255,255,255,.8);
+    overflow: hidden;
+  }
+  .panel .ph {
+    flex-shrink: 0; display: flex; align-items: center; gap: 8px;
+    padding: 9px 13px; border-bottom: 1px solid rgba(15,80,120,.09);
+    background: linear-gradient(180deg, rgba(255,255,255,.35), rgba(255,255,255,.12));
+    font-size: 10.5px; font-weight: 800; letter-spacing: 1.5px; text-transform: uppercase; color: #3f5b73;
+  }
+  .panel .ph .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--cyan); box-shadow: 0 0 8px rgba(8,145,178,.9); }
+  .panel .ph .r { margin-left: auto; display: flex; align-items: center; gap: 7px; letter-spacing: 0; text-transform: none; font-weight: 600; font-size: 10.5px; color: var(--muted); }
+  .panel .pb { flex: 1; min-height: 0; padding: 11px; display: flex; flex-direction: column; gap: 8px; overflow-y: auto; }
+
+  /* ================= 调试台 ================= */
+  .cockpit { flex: 1; min-height: 0; display: grid; grid-template-columns: 260px minmax(0,1fr) 404px; gap: 12px; padding-bottom: 11px; }
+  .col { display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+
+  /* 板卡 */
+  .board-card {
+    position: relative; padding: 11px 12px 10px; border-radius: 13px; cursor: pointer;
+    background: rgba(255,255,255,.52);
+    border: 1px solid rgba(255,255,255,.9);
+    box-shadow: 0 10px 26px rgba(31,86,130,.07), inset 0 1px 0 rgba(255,255,255,.8);
+    transition: all .18s;
+  }
+  .board-card::before {
+    content: ""; position: absolute; left: 0; top: 12px; bottom: 12px; width: 3px; border-radius: 0 3px 3px 0;
+    background: var(--accent); opacity: .55;
+  }
+  .board-card.a { --accent: #0891b2; }
+  .board-card.b { --accent: #7c3aed; }
+  .board-card:hover { background: rgba(255,255,255,.7); }
+  .board-card.target {
+    border-color: color-mix(in srgb, var(--accent) 42%, white);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 26%, transparent), 0 14px 32px rgba(31,86,130,.12);
+    background: rgba(255,255,255,.74);
+  }
+  .board-card.target::before { opacity: 1; width: 4px; }
+  .bc-head { display: flex; align-items: center; gap: 7px; }
+  .bc-side {
+    width: 22px; height: 22px; border-radius: 7px; display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 900; color: #fff;
+    background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 88%, white), var(--accent));
+    box-shadow: 0 4px 10px color-mix(in srgb, var(--accent) 30%, transparent);
+  }
+  .bc-head b { font-size: 12.5px; }
+  .tag {
+    margin-left: auto; padding: 2px 7px; border-radius: 999px;
+    font-size: 9px; font-weight: 800; letter-spacing: .3px;
+    color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 30%, white);
+    background: color-mix(in srgb, var(--accent) 7%, white);
+  }
+  .bc-ip { display: flex; align-items: center; gap: 6px; margin-top: 7px; font-size: 10px; color: var(--dim); font-family: "JetBrains Mono", Consolas, monospace; }
+  .bc-metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 8px; margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(15,80,120,.07); }
+  .bc-metric span { font-size: 9.5px; color: var(--dim); display: block; line-height: 1.2; }
+  .bc-metric b { font-size: 11.5px; font-family: "JetBrains Mono", Consolas, monospace; color: var(--text); font-weight: 700; }
+  .bc-foot { display: flex; align-items: center; gap: 6px; margin-top: 9px; }
+  .bc-foot .btn { flex: 1; }
+
+  .led { width: 9px; height: 9px; border-radius: 50%; background: #c0cdda; box-shadow: inset 0 1px 1px rgba(255,255,255,.6); flex-shrink: 0; }
+  .led.on { background: #10b981; box-shadow: 0 0 9px rgba(16,185,129,.75); }
+  .led.warn { background: #f59e0b; box-shadow: 0 0 9px rgba(245,158,11,.7); }
+  .led.err { background: #e11d48; box-shadow: 0 0 9px rgba(225,29,72,.7); }
+
+  .link-note {
+    margin-top: auto; padding: 9px 11px; border-radius: 10px;
+    border: 1px dashed rgba(15,80,120,.15); background: rgba(255,255,255,.3);
+    font-size: 10px; color: var(--dim); line-height: 1.55;
+  }
+  .link-note b { color: var(--muted); }
+
+  /* 流程 */
+  .flow-panel { flex: 1; min-height: 0; }
+  .flow-panel .pb { gap: 9px; overflow-y: auto; }
+
+  .steps { display: flex; align-items: center; gap: 0; padding: 2px 2px 4px; flex-shrink: 0; }
+  .step { display: flex; align-items: center; gap: 7px; white-space: nowrap; }
+  .step .no {
+    width: 25px; height: 25px; border-radius: 8px; display: flex; align-items: center; justify-content: center;
+    font-size: 10px; font-weight: 900; color: var(--dim);
+    border: 1px solid rgba(15,80,120,.12); background: rgba(255,255,255,.4);
+  }
+  .step .name { font-size: 10.5px; font-weight: 700; color: var(--dim); }
+  .step.done .no { color: #fff; border-color: transparent; background: linear-gradient(135deg, #34d399, #059669); }
+  .step.done .name { color: var(--ok); }
+  .step.active .no { color: #fff; border-color: transparent; background: linear-gradient(135deg, #0891b2, #2563eb); box-shadow: 0 4px 12px rgba(8,145,178,.3); }
+  .step.active .name { color: var(--cyan); font-weight: 800; }
+  .step-line { flex: 1; height: 1px; margin: 0 8px; background: linear-gradient(90deg, rgba(15,80,120,.12), rgba(15,80,120,.06)); }
+
+  .focus-card {
+    position: relative; padding: 13px 15px 14px; border-radius: 13px; flex-shrink: 0;
+    background:
+      radial-gradient(500px 160px at 0% 0%, rgba(8,145,178,.10), transparent 70%),
+      rgba(255,255,255,.62);
+    border: 1px solid rgba(8,145,178,.22);
+    box-shadow: 0 12px 30px rgba(31,86,130,.08), inset 0 1px 0 rgba(255,255,255,.85);
+  }
+  .focus-top { display: flex; align-items: flex-start; gap: 10px; }
+  .focus-title { font-size: 15.5px; font-weight: 800; color: #0e2133; display: flex; align-items: center; gap: 8px; }
+  .focus-title .step-tag {
+    font-size: 9px; letter-spacing: 1.4px; color: var(--cyan); font-weight: 900;
+    border: 1px solid rgba(8,145,178,.28); background: rgba(8,145,178,.07);
+    padding: 2px 7px; border-radius: 999px;
+  }
+  .focus-sub { margin-top: 3px; font-size: 10.5px; color: var(--dim); font-family: "JetBrains Mono", Consolas, monospace; }
+  .focus-badge { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; }
+
+  .focus-metrics { display: grid; grid-template-columns: 1.15fr 1fr 1fr; gap: 8px; margin-top: 11px; }
+  .fm {
+    padding: 8px 10px; border-radius: 10px;
+    background: rgba(255,255,255,.5); border: 1px solid rgba(15,80,120,.09);
+  }
+  .fm span { display: block; font-size: 9.5px; color: var(--dim); }
+  .fm b { display: block; margin-top: 2px; font-family: "JetBrains Mono", Consolas, monospace; font-size: 21px; font-weight: 800; letter-spacing: -.5px; color: #0b1d2e; line-height: 1.15; }
+  .fm b i { font-style: normal; font-size: 10px; color: var(--dim); font-weight: 600; margin-left: 2px; }
+  .fm.cyan b { color: var(--cyan); }
+
+  .focus-actions { display: flex; align-items: center; gap: 8px; margin-top: 11px; }
+  .focus-hint { margin-top: 9px; font-size: 10px; color: var(--dim); display: flex; align-items: center; gap: 6px; }
+  .focus-hint svg { width: 13px; height: 13px; color: var(--cyan); flex-shrink: 0; }
+
+  .progress-line { height: 3px; border-radius: 999px; background: rgba(15,80,120,.09); overflow: hidden; margin-top: 10px; }
+  .progress-line i { display: block; height: 100%; width: 0; border-radius: 999px; background: linear-gradient(90deg, var(--cyan), var(--blue)); transition: width .35s ease; }
+
+  /* 快速操作 */
+  .quick-title { display: flex; align-items: center; gap: 7px; margin-top: 2px; font-size: 10px; font-weight: 800; letter-spacing: 1.4px; color: var(--muted); text-transform: uppercase; }
+  .quick-title .line { flex: 1; height: 1px; background: rgba(15,80,120,.08); }
+  .quick-grid { display: grid; grid-template-columns: 1.2fr 1fr 1fr; gap: 7px; }
+  .qbtn {
+    min-height: 38px; padding: 7px 9px; border-radius: 10px; cursor: pointer;
+    display: flex; align-items: center; gap: 8px; text-align: left;
+    border: 1px solid rgba(15,80,120,.12); background: rgba(255,255,255,.46);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.6);
+    font-size: 11px; font-weight: 700; color: var(--text); transition: all .16s;
+  }
+  .qbtn:hover { background: rgba(255,255,255,.82); border-color: rgba(8,145,178,.3); transform: translateY(-1px); }
+  .qbtn svg { width: 16px; height: 16px; color: var(--cyan); flex-shrink: 0; }
+  .qbtn small { display: block; font-size: 9px; color: var(--dim); font-weight: 500; margin-top: 1px; }
+  .qbtn.danger { color: var(--danger); border-color: rgba(225,29,72,.22); }
+  .qbtn.danger svg { color: var(--danger); }
+  .qbtn .mini-input {
+    margin-left: auto; width: 58px; height: 26px; border-radius: 7px;
+    border: 1px solid rgba(15,80,120,.14); background: rgba(255,255,255,.7);
+    display: flex; align-items: center; justify-content: flex-end; padding: 0 7px;
+    font-family: "JetBrains Mono", Consolas, monospace; font-size: 11px; font-weight: 700; color: var(--text);
+  }
+  .qbtn .mini-input em { font-style: normal; color: var(--dim); font-size: 9px; margin-left: 3px; }
+  .safety-row {
+    display: flex; align-items: center; gap: 7px; padding-top: 9px; border-top: 1px solid rgba(15,80,120,.08);
+  }
+  .safety-row .note { margin-left: auto; font-size: 9.5px; color: var(--dim); }
+
+  .event-mini { display: flex; flex-direction: column; gap: 4px; }
+  .ev-row {
+    display: flex; align-items: center; gap: 8px; padding: 5px 9px; border-radius: 8px;
+    background: rgba(255,255,255,.34); border: 1px solid rgba(15,80,120,.06);
+    font-size: 10px; color: var(--muted);
+  }
+  .ev-row .tm { font-family: "JetBrains Mono", Consolas, monospace; font-size: 9px; color: var(--dim); }
+  .ev-row .bd { font-weight: 800; color: var(--cyan); }
+  .ev-row .bd.b { color: var(--violet); }
+  .ev-row .txt { margin-left: auto; color: var(--text); font-family: "JetBrains Mono", Consolas, monospace; font-size: 9.5px; }
+  .ev-row .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 7px rgba(5,150,105,.6); }
+
+  /* ================= 检查器 ================= */
+  .inspector { min-height: 0; }
+  .inspector .ph { padding-bottom: 0; border-bottom: 0; }
+  .tabs { display: flex; align-items: center; gap: 2px; padding: 0 8px 8px; border-bottom: 1px solid rgba(15,80,120,.08); flex-shrink: 0; }
+  .tab {
+    height: 28px; padding: 0 11px; border-radius: 8px; cursor: pointer; border: 1px solid transparent;
+    font-size: 10.5px; font-weight: 700; color: var(--muted); background: transparent;
+    display: inline-flex; align-items: center; gap: 5px;
+  }
+  .tab:hover { background: rgba(255,255,255,.5); }
+  .tab.active { color: var(--cyan); background: rgba(255,255,255,.72); border-color: rgba(255,255,255,.95); box-shadow: 0 4px 12px rgba(31,86,130,.07); }
+  .tab .badge { font-size: 8.5px; padding: 1px 5px; border-radius: 999px; background: rgba(8,145,178,.12); color: var(--cyan); font-weight: 900; }
+  .inspector-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  .pane { display: none; flex: 1; min-height: 0; overflow-y: auto; padding: 9px 11px 11px; }
+  .pane.active { display: block; }
+
+  .data-group { margin-bottom: 10px; }
+  .data-group h5 {
+    margin: 0 0 4px; display: flex; align-items: center; gap: 6px;
+    font-size: 9px; font-weight: 900; letter-spacing: 1.6px; text-transform: uppercase; color: var(--dim);
+  }
+  .data-group h5::after { content: ""; flex: 1; height: 1px; background: rgba(15,80,120,.08); }
+  .drow { display: flex; align-items: center; gap: 8px; height: 27px; padding: 0 7px; border-radius: 7px; }
+  .drow:nth-child(odd) { background: rgba(255,255,255,.30); }
+  .drow .k { font-size: 10.5px; color: var(--muted); white-space: nowrap; }
+  .drow .v { margin-left: auto; font-family: "JetBrains Mono", Consolas, monospace; font-size: 11.5px; font-weight: 700; color: #0f2233; }
+  .drow .v.cyan { color: var(--cyan); }
+  .drow .v.violet { color: var(--violet); }
+  .drow .v.ok { color: var(--ok); }
+  .drow .v.warn { color: var(--warn); }
+  .drow .u { width: 22px; text-align: right; font-size: 9px; color: var(--dim); }
+
+  .big-metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; margin-bottom: 10px; }
+  .big-metric {
+    padding: 9px 11px; border-radius: 11px;
+    background: linear-gradient(160deg, rgba(255,255,255,.7), rgba(255,255,255,.42));
+    border: 1px solid rgba(255,255,255,.95);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.9), 0 6px 16px rgba(31,86,130,.05);
+  }
+  .big-metric span { font-size: 9.5px; color: var(--dim); }
+  .big-metric b { display: block; margin-top: 2px; font-family: "JetBrains Mono", Consolas, monospace; font-size: 22px; letter-spacing: -.6px; color: #0f2233; line-height: 1.15; }
+  .big-metric b i { font-style: normal; font-size: 10px; color: var(--dim); font-weight: 600; }
+  .big-metric.cyan b { color: var(--cyan); }
+  .big-metric.violet b { color: var(--violet); }
+
+  /* 趋势 */
+  .trend-wrap { height: 100%; min-height: 300px; display: flex; flex-direction: column; gap: 8px; }
+  .chart {
+    flex: 1; min-height: 250px; position: relative; border-radius: 12px; overflow: hidden;
+    background: linear-gradient(180deg, rgba(255,255,255,.62), rgba(255,255,255,.34));
+    border: 1px solid rgba(255,255,255,.95);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.85);
+  }
+  .chart .grid {
+    position: absolute; inset: 0;
+    background:
+      repeating-linear-gradient(0deg, transparent 0 41px, rgba(37,99,235,.06) 41px 42px),
+      repeating-linear-gradient(90deg, transparent 0 59px, rgba(37,99,235,.05) 59px 60px);
+  }
+  .chart svg { position: absolute; inset: 10px; width: calc(100% - 20px); height: calc(100% - 20px); }
+  .chart .legend {
+    position: absolute; top: 9px; right: 10px; display: flex; gap: 10px; z-index: 2;
+    padding: 3px 9px; border-radius: 999px; background: rgba(255,255,255,.75);
+    border: 1px solid rgba(255,255,255,.95); backdrop-filter: blur(8px);
+    font-size: 9px; color: var(--muted);
+  }
+  .chart .legend i { display: inline-block; width: 13px; height: 2px; border-radius: 2px; margin-right: 4px; vertical-align: middle; }
+  .chart .ylab { position: absolute; left: 10px; top: 30px; font-size: 8.5px; color: var(--dim); }
+  .chart .xlab { position: absolute; right: 10px; bottom: 6px; font-size: 8.5px; color: var(--dim); }
+  .chart-stats { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
+  .chart-stat { padding: 7px 9px; border-radius: 9px; background: rgba(255,255,255,.44); border: 1px solid rgba(15,80,120,.08); }
+  .chart-stat span { font-size: 9px; color: var(--dim); }
+  .chart-stat b { display: block; font-family: "JetBrains Mono", Consolas, monospace; font-size: 13px; color: var(--text); }
+
+  /* 日志 */
+  .console-pane { padding: 0; display: none; flex-direction: column; }
+  .console-pane.active { display: flex; }
+  .log-list { flex: 1; min-height: 0; overflow-y: auto; padding: 8px 9px; background: rgba(255,255,255,.36); }
+  .lg { display: flex; gap: 7px; padding: 1.5px 0; font-family: "JetBrains Mono", Consolas, monospace; font-size: 10px; line-height: 1.45; }
+  .lg .dir { width: 12px; flex-shrink: 0; font-weight: 800; }
+  .lg .dir.tx { color: var(--blue); }
+  .lg .dir.rx { color: var(--ok); }
+  .lg .dir.sys { color: var(--dim); }
+  .lg .board { flex-shrink: 0; font-weight: 800; }
+  .lg .board.a { color: var(--cyan); }
+  .lg .board.b { color: var(--violet); }
+  .lg .ts { flex-shrink: 0; color: var(--dim); }
+  .lg .txt { color: #33475c; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .log-foot { flex-shrink: 0; border-top: 1px solid rgba(15,80,120,.08); padding: 7px 9px; }
+  .log-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
+  .log-chips span {
+    font-size: 8.5px; padding: 2px 7px; border-radius: 999px; cursor: pointer;
+    border: 1px solid rgba(15,80,120,.12); color: var(--muted); background: rgba(255,255,255,.5);
+  }
+  .log-chips span:hover { color: var(--cyan); border-color: rgba(8,145,178,.3); background: #fff; }
+  .cmd-input { display: flex; gap: 6px; }
+  .cmd-input input {
+    flex: 1; height: 30px; padding: 0 9px; border-radius: 8px; outline: none;
+    border: 1px solid rgba(15,80,120,.14); background: rgba(255,255,255,.7);
+    font-family: "JetBrains Mono", Consolas, monospace; font-size: 10px; color: var(--text);
+  }
+  .cmd-input input:focus { border-color: rgba(8,145,178,.5); box-shadow: 0 0 0 3px rgba(8,145,178,.08); }
+  .log-opts { display: flex; align-items: center; gap: 10px; margin-top: 6px; font-size: 9px; color: var(--dim); }
+  .log-opts label { display: flex; align-items: center; gap: 4px; cursor: pointer; }
+
+  /* 故障横幅 */
+  .fault-banner {
+    display: none; flex-shrink: 0; align-items: center; gap: 9px;
+    margin-bottom: 10px; padding: 9px 13px; border-radius: 11px;
+    background: linear-gradient(135deg, rgba(254,226,226,.9), rgba(255,241,242,.8));
+    border: 1px solid rgba(225,29,72,.22); color: #9f1239;
+    font-size: 11.5px; font-weight: 700;
+    box-shadow: 0 8px 22px rgba(225,29,72,.08);
+  }
+  body.fault .fault-banner { display: flex; }
+  body.fault .motion-btn { opacity: .38; pointer-events: none; filter: saturate(.4); }
+  body.fault .board-card.target .bc-head .tag { color: var(--danger); border-color: rgba(225,29,72,.3); background: rgba(225,29,72,.07); }
+  .fault-banner .btn { margin-left: auto; color: var(--danger); border-color: rgba(225,29,72,.3); }
+
+  /* ================= 其他视图 ================= */
+  .simple-grid { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0,1.4fr) minmax(300px,.6fr); gap: 12px; padding-bottom: 11px; }
+  .mini-board-list { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+
+  /* 踏板测试：会话条 / 测量组 / 判定 */
+  .session-bar {
+    flex-shrink: 0; display: grid; grid-template-columns: 1.1fr 1.25fr .8fr .8fr .8fr;
+    gap: 7px; margin-bottom: 11px;
+  }
+  .sess-item {
+    padding: 7px 10px; border-radius: 10px;
+    background: rgba(255,255,255,.5); border: 1px solid rgba(255,255,255,.9);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.7);
+    min-width: 0;
+  }
+  .sess-item span { display: block; font-size: 8.5px; color: var(--dim); letter-spacing: .3px; }
+  .sess-item b { display: block; margin-top: 1px; font-size: 11px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sess-item input {
+    width: 100%; border: 0; outline: none; background: transparent; padding: 0;
+    font-size: 11px; font-weight: 700; color: var(--text); margin-top: 1px;
+  }
+  .sess-item.verdict { background: rgba(255,248,235,.8); border-color: rgba(217,119,6,.24); }
+  .sess-item.verdict b { color: var(--warn); }
+  .sess-item.verdict.pass { background: rgba(236,253,245,.85); border-color: rgba(5,150,105,.25); }
+  .sess-item.verdict.pass b { color: var(--ok); }
+  .measure-group { border: 1px solid rgba(15,80,120,.08); border-radius: 10px; overflow: hidden; }
+  .measure-group .mg-head {
+    display: flex; align-items: center; gap: 6px; padding: 5px 9px;
+    background: rgba(255,255,255,.38); font-size: 9px; font-weight: 800; letter-spacing: 1.2px;
+    text-transform: uppercase; color: var(--dim);
+  }
+  .measure-group .mg-head .line { flex: 1; height: 1px; background: rgba(15,80,120,.07); }
+  .measure-row {
+    display: flex; align-items: center; gap: 8px; min-height: 31px; padding: 3px 8px;
+    border-top: 1px solid rgba(15,80,120,.05); background: rgba(255,255,255,.18);
+  }
+  .measure-row .mk { font-size: 10.5px; color: var(--muted); white-space: nowrap; }
+  .measure-row .mv { margin-left: auto; font-family: "JetBrains Mono", Consolas, monospace; font-size: 12px; font-weight: 700; color: #0f2233; }
+  .measure-row .mv.cyan { color: var(--cyan); }
+  .measure-row .mv.violet { color: var(--violet); }
+  .measure-row .mu { width: 20px; text-align: right; font-size: 9px; color: var(--dim); }
+  .measure-row .rec {
+    height: 22px; padding: 0 7px; border-radius: 6px; border: 1px solid rgba(15,80,120,.12);
+    background: rgba(255,255,255,.6); color: var(--muted); font-size: 9px; font-weight: 700; cursor: pointer;
+  }
+  .measure-row .rec:hover { color: var(--cyan); border-color: rgba(8,145,178,.3); }
+  .verdict-big {
+    display: flex; align-items: center; gap: 11px; padding: 10px 12px; border-radius: 11px;
+    background: linear-gradient(135deg, rgba(255,248,235,.9), rgba(255,255,255,.55));
+    border: 1px solid rgba(217,119,6,.25);
+  }
+  .verdict-big .ico {
+    width: 38px; height: 38px; border-radius: 11px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 17px;
+    color: #fff; background: linear-gradient(135deg, #fbbf24, #d97706);
+    box-shadow: 0 6px 16px rgba(217,119,6,.22);
+  }
+  .verdict-big span { display: block; font-size: 9px; color: var(--dim); }
+  .verdict-big b { display: block; font-size: 16px; color: var(--warn); line-height: 1.2; }
+  .verdict-big.pass { background: linear-gradient(135deg, rgba(236,253,245,.95), rgba(255,255,255,.55)); border-color: rgba(5,150,105,.25); }
+  .verdict-big.pass .ico { background: linear-gradient(135deg, #34d399, #059669); box-shadow: 0 6px 16px rgba(5,150,105,.22); }
+  .verdict-big.pass b { color: var(--ok); }
+  .verdict-big .sub { margin-left: auto; text-align: right; font-size: 9px; color: var(--dim); }
+  .mini-board {
+    display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 10px;
+    background: rgba(255,255,255,.46); border: 1px solid rgba(15,80,120,.09); cursor: pointer;
+  }
+  .mini-board.active { border-color: rgba(8,145,178,.36); background: rgba(255,255,255,.74); box-shadow: 0 0 0 1px rgba(8,145,178,.14); }
+  .mini-board .side { width: 24px; height: 24px; border-radius: 7px; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 900; font-size: 11px; background: linear-gradient(135deg, var(--cyan), var(--blue)); }
+  .mini-board.b .side { background: linear-gradient(135deg, #a78bfa, var(--violet)); }
+  .mini-board div { min-width: 0; }
+  .mini-board b { display: block; font-size: 11px; }
+  .mini-board span { display: block; font-size: 9px; color: var(--dim); }
+  .force-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; }
+  .force-box {
+    padding: 9px 10px; border-radius: 10px; background: rgba(255,255,255,.48);
+    border: 1px solid rgba(15,80,120,.08);
+  }
+  .force-box span { font-size: 9px; color: var(--dim); display: block; }
+  .force-box b { font-family: "JetBrains Mono", Consolas, monospace; font-size: 18px; color: #0f2233; display: block; line-height: 1.25; }
+  .force-box b i { font-style: normal; font-size: 9px; color: var(--dim); }
+  .force-box.cyan b { color: var(--cyan); }
+  .force-box.violet b { color: var(--violet); }
+  .action-row { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+  .status-band {
+    flex-shrink: 0; display: flex; align-items: center; gap: 14px;
+    padding: 10px 14px; margin-bottom: 11px; border-radius: 13px;
+    background: linear-gradient(135deg, rgba(255,248,235,.9), rgba(255,255,255,.5));
+    border: 1px solid rgba(217,119,6,.22);
+    box-shadow: 0 8px 22px rgba(31,86,130,.05), inset 0 1px 0 rgba(255,255,255,.85);
+  }
+  .status-band .vi {
+    width: 40px; height: 40px; border-radius: 11px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center; color: #fff;
+    font-size: 18px; font-weight: 900;
+    background: linear-gradient(135deg, #fbbf24, #d97706);
+    box-shadow: 0 6px 16px rgba(217,119,6,.22);
+  }
+  .status-band .vtext span { display: block; font-size: 8.5px; color: var(--dim); letter-spacing: .4px; }
+  .status-band .vtext b { display: block; font-size: 17px; color: var(--warn); line-height: 1.25; }
+  .status-band .meta { display: flex; flex-direction: column; gap: 1px; padding-left: 14px; border-left: 1px solid rgba(15,80,120,.09); min-width: 0; }
+  .status-band .meta span { font-size: 8.5px; color: var(--dim); }
+  .status-band .meta b { font-size: 10.5px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .status-band .meta.grow { flex: 1; }
+  .status-band.pass {
+    background: linear-gradient(135deg, rgba(236,253,245,.95), rgba(255,255,255,.5));
+    border-color: rgba(5,150,105,.22);
+  }
+  .status-band.pass .vi { background: linear-gradient(135deg, #34d399, #059669); box-shadow: 0 6px 16px rgba(5,150,105,.22); }
+  .status-band.pass .vtext b { color: var(--ok); }
+  .side-switch { display: flex; border-radius: 9px; overflow: hidden; border: 1px solid rgba(15,80,120,.14); background: rgba(255,255,255,.5); }
+  .side-switch button { height: 30px; padding: 0 12px; border: 0; background: transparent; font-size: 10.5px; font-weight: 700; color: var(--muted); cursor: pointer; }
+  .side-switch button.active { color: #fff; background: linear-gradient(135deg, var(--cyan), var(--blue)); }
+  .pedal-toolbar { flex-shrink: 0; display: flex; align-items: center; gap: 7px; margin-bottom: 10px; flex-wrap: wrap; }
+  .pedal-toolbar .spacer { flex: 1; }
+  .side-seg { display: flex; border-radius: 9px; overflow: hidden; border: 1px solid rgba(15,80,120,.14); background: rgba(255,255,255,.5); }
+  .side-seg button { height: 32px; padding: 0 13px; border: 0; background: transparent; font-size: 11px; font-weight: 700; color: var(--muted); cursor: pointer; }
+  .side-seg button.active { color: #fff; background: linear-gradient(135deg, var(--cyan), var(--blue)); }
+  .pm-table { border: 1px solid rgba(15,80,120,.10); border-radius: 12px; overflow: hidden; background: rgba(255,255,255,.42); }
+  .pm-row { display: flex; align-items: center; gap: 7px; padding: 7px 10px; min-height: 46px; border-top: 1px solid rgba(15,80,120,.06); }
+  .pm-row:first-child { border-top: 0; }
+  .pm-k { width: 76px; flex-shrink: 0; font-size: 10.5px; color: var(--muted); white-space: nowrap; }
+  .pm-v { flex: 1; text-align: right; font-family: "JetBrains Mono", Consolas, monospace; font-size: 17px; font-weight: 800; color: #0b1d2e; white-space: nowrap; }
+  .pm-v.cyan { color: var(--cyan); }
+  .pm-v.violet { color: var(--violet); }
+  .pm-u { width: 22px; text-align: right; font-size: 9px; color: var(--dim); }
+  .pm-btn {
+    height: 30px; min-width: 46px; padding: 0 9px; border-radius: 7px; cursor: pointer;
+    border: 1px solid rgba(15,80,120,.13); background: rgba(255,255,255,.72);
+    color: #3f5b73; font-size: 10.5px; font-weight: 700; white-space: nowrap;
+  }
+  .pm-btn:hover { color: var(--cyan); border-color: rgba(8,145,178,.3); background: #fff; }
+  .pm-btn.clear:hover { color: var(--danger); border-color: rgba(225,29,72,.3); }
+  .pm-side-label { font-size: 10px; font-weight: 800; color: var(--cyan); letter-spacing: .5px; margin: 9px 0 5px; }
+  .pm-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .motor-control { margin-top: 9px; border: 1px solid rgba(15,80,120,.10); border-radius: 12px; background: rgba(255,255,255,.38); overflow: hidden; }
+  .motor-control summary {
+    list-style: none; cursor: pointer; padding: 9px 11px;
+    display: flex; align-items: center; gap: 7px;
+    font-size: 10px; font-weight: 800; letter-spacing: 1.2px; text-transform: uppercase; color: var(--muted);
+  }
+  .motor-control summary::-webkit-details-marker { display: none; }
+  .motor-control summary::before { content: "▸"; color: var(--cyan); font-size: 10px; transition: transform .15s; }
+  .motor-control[open] summary::before { content: "▾"; }
+  .motor-control summary .r { margin-left: auto; letter-spacing: 0; text-transform: none; font-weight: 600; font-size: 9px; color: var(--dim); }
+  .mc-body { padding: 8px 10px 10px; border-top: 1px solid rgba(15,80,120,.07); display: flex; flex-direction: column; gap: 7px; }
+  .motor-control .btn.sm { height: 32px; padding: 0 10px; font-size: 11px; border-radius: 8px; }
+  .motor-control .mc-input { height: 32px; }
+  .mc-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .mc-label { width: 56px; flex-shrink: 0; font-size: 10px; color: var(--muted); }
+  .mc-input { width: 60px; height: 27px; border-radius: 7px; border: 1px solid rgba(15,80,120,.13); background: rgba(255,255,255,.72); display: flex; align-items: center; justify-content: flex-end; padding: 0 7px; font-family: "JetBrains Mono", Consolas, monospace; font-size: 10.5px; font-weight: 700; color: var(--text); }
+  .mc-input i { font-style: normal; font-size: 8.5px; color: var(--dim); margin-left: 3px; }
+  .record-list { flex: 1; min-height: 0; overflow-y: auto; padding: 5px 7px; display: flex; flex-direction: column; gap: 4px; }
+  .record-mini {
+    flex: 1; min-height: 132px; display: flex; flex-direction: column; overflow: hidden;
+    border: 1px solid rgba(15,80,120,.09); border-radius: 10px; background: rgba(255,255,255,.32);
+  }
+  .record-mini .rh {
+    height: 29px; flex-shrink: 0; display: flex; align-items: center; gap: 6px;
+    padding: 0 9px; border-bottom: 1px solid rgba(15,80,120,.07);
+    font-size: 9.5px; font-weight: 800; letter-spacing: 1.1px; text-transform: uppercase; color: var(--dim);
+  }
+  .record-mini .rh span:last-child { margin-left: auto; letter-spacing: 0; text-transform: none; font-weight: 600; color: var(--dim); }
+  .record-mini .rl { flex: 1; min-height: 0; overflow-y: auto; padding: 4px 5px; display: flex; flex-direction: column; gap: 3px; }
+  .rm-row {
+    display: flex; align-items: center; gap: 7px; min-height: 27px; padding: 0 7px;
+    border-radius: 6px; background: rgba(255,255,255,.38); font-size: 9.5px; color: var(--muted);
+  }
+  .rm-row .tm { font-family: "JetBrains Mono", Consolas, monospace; font-size: 8.5px; color: var(--dim); }
+  .rm-row .bd { font-weight: 800; color: var(--cyan); }
+  .rm-row .rv { margin-left: auto; font-family: "JetBrains Mono", Consolas, monospace; font-weight: 700; color: #0f2233; }
+  .pedal-info {
+    flex-shrink: 0; display: flex; align-items: center; gap: 8px;
+    margin-top: 2px; padding: 6px 11px; border-radius: 9px;
+    background: rgba(255,255,255,.48); border: 1px solid rgba(255,255,255,.9);
+    font-size: 10px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .pedal-info b { color: var(--cyan); }
+  .pedal-info .grow { flex: 1; }
+  .pedal-main { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(320px,.92fr) minmax(0,1.35fr); gap: 12px; padding-bottom: 0; }
+  .pedal-pane { display: none; flex: 1; min-height: 0; padding: 9px; flex-direction: column; gap: 7px; overflow-y: auto; }
+  .pedal-values { justify-content: space-between; }
+  .pedal-pane.active { display: flex; }
+  .pedal-actions {
+    flex-shrink: 0; display: flex; align-items: center; gap: 8px;
+    padding: 9px 0 11px; border-top: 1px solid rgba(15,80,120,.08);
+  }
+  .pedal-actions .pinfo {
+    flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px;
+    font-size: 10px; color: var(--muted);
+    padding: 0 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .pedal-actions .pinfo b { color: var(--cyan); font-weight: 700; }
+  .pedal-actions .btn { height: 38px; border-radius: 10px; padding: 0 16px; font-size: 12px; }
+  .record-list { display: flex; flex-direction: column; gap: 8px; overflow-y: auto; }
+  .record-card {
+    padding: 11px 13px; border-radius: 12px; background: rgba(255,255,255,.5);
+    border: 1px solid rgba(255,255,255,.9); box-shadow: 0 6px 18px rgba(31,86,130,.05);
+    display: flex; align-items: center; gap: 12px;
+  }
+  .record-card .side {
+    width: 34px; height: 34px; border-radius: 10px; display: flex; align-items: center; justify-content: center;
+    font-weight: 900; color: #fff; background: linear-gradient(135deg, var(--cyan), var(--blue)); flex-shrink: 0;
+  }
+  .record-card .side.b { background: linear-gradient(135deg, #a78bfa, #7c3aed); }
+  .record-card .main { min-width: 0; flex: 1; }
+  .record-card .main b { display: block; font-size: 12.5px; }
+  .record-card .main span { font-size: 10px; color: var(--dim); font-family: "JetBrains Mono", Consolas, monospace; }
+  .record-card .vals { display: flex; gap: 16px; }
+  .record-card .vals div { text-align: right; }
+  .record-card .vals span { display: block; font-size: 9px; color: var(--dim); }
+  .record-card .vals b { font-family: "JetBrains Mono", Consolas, monospace; font-size: 12px; }
+  .record-item { display: flex; flex-direction: column; }
+  .record-actions { display: flex; gap: 5px; flex-shrink: 0; }
+  .record-detail {
+    display: none; margin-top: 5px; padding: 9px 11px; border-radius: 11px;
+    background: rgba(255,255,255,.46); border: 1px solid rgba(255,255,255,.95);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.7);
+  }
+  .record-detail.open { display: block; }
+  .record-detail .dh { display: flex; align-items: center; gap: 7px; margin-bottom: 6px; font-size: 9px; font-weight: 800; letter-spacing: 1.2px; text-transform: uppercase; color: var(--dim); }
+  .record-detail .dh span:last-child { margin-left: auto; letter-spacing: 0; text-transform: none; font-weight: 600; }
+  .record-detail table { width: 100%; border-collapse: collapse; font-size: 9.5px; }
+  .record-detail th { text-align: left; padding: 4px 6px; color: var(--dim); font-weight: 700; border-bottom: 1px solid rgba(15,80,120,.08); background: rgba(255,255,255,.32); }
+  .record-detail td { padding: 4px 6px; font-family: "JetBrains Mono", Consolas, monospace; color: var(--text); border-bottom: 1px solid rgba(15,80,120,.05); }
+  .record-detail tr:last-child td { border-bottom: 0; }
+  .settings-grid { flex: 1; min-height: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding-bottom: 11px; align-content: start; align-items: start; }
+  .set-list { display: flex; flex-direction: column; gap: 7px; }
+  .set-row {
+    display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 10px;
+    background: rgba(255,255,255,.42); border: 1px solid rgba(15,80,120,.08);
+  }
+  .set-row .info { flex: 1; min-width: 0; }
+  .set-row .info b { display: block; font-size: 11.5px; }
+  .set-row .info span { font-size: 9.5px; color: var(--dim); }
+  .stepper { display: flex; align-items: center; gap: 0; border-radius: 8px; overflow: hidden; border: 1px solid rgba(15,80,120,.13); background: rgba(255,255,255,.7); }
+  .set-select {
+    height: 36px; min-width: 92px; border-radius: 8px;
+    border: 1px solid rgba(15,80,120,.13); background: rgba(255,255,255,.78);
+    padding: 0 8px; font-size: 12px; font-weight: 700; color: var(--text); outline: none;
+  }
+  .stepper button { width: 26px; height: 27px; border: 0; background: transparent; cursor: pointer; color: var(--muted); font-size: 14px; }
+  .stepper button:hover { background: rgba(8,145,178,.08); color: var(--cyan); }
+  .stepper input {
+    width: 64px; height: 27px; border: 0; outline: none; text-align: center; background: transparent;
+    font-family: "JetBrains Mono", Consolas, monospace; font-size: 11px; font-weight: 700; color: var(--text);
+  }
+  .param-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+  .param-chips span { font-size: 9px; padding: 3px 7px; border-radius: 7px; background: rgba(255,255,255,.55); border: 1px solid rgba(15,80,120,.09); font-family: "JetBrains Mono", Consolas, monospace; color: var(--muted); }
+  .param-chips span b { color: var(--cyan); }
+  .help-carousel { flex: 1; min-height: 0; display: flex; align-items: stretch; gap: 12px; padding-bottom: 10px; }
+  .help-arrow {
+    align-self: center; width: 44px; height: 44px; flex-shrink: 0; border-radius: 50%; cursor: pointer;
+    border: 1px solid rgba(255,255,255,.95); background: rgba(255,255,255,.66);
+    color: var(--cyan); font-size: 26px; line-height: 1; display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 8px 20px rgba(31,86,130,.09); transition: all .16s;
+  }
+  .help-arrow:hover { background: #fff; transform: scale(1.04); }
+  .help-arrow:disabled { opacity: .35; cursor: default; transform: none; }
+  .help-viewport { flex: 1; min-width: 0; min-height: 0; overflow: hidden; border-radius: 16px; }
+  .help-track { display: flex; height: 100%; transition: transform .38s cubic-bezier(.22,.8,.3,1); }
+  .help-slide {
+    flex: 0 0 100%; min-width: 0; height: 100%; display: flex; flex-direction: column; justify-content: center; gap: 14px;
+    padding: 34px 46px; border-radius: 16px;
+    background: rgba(255,255,255,.62); border: 1px solid rgba(255,255,255,.96);
+    box-shadow: 0 16px 40px rgba(31,86,130,.10), inset 0 1px 0 rgba(255,255,255,.8);
+  }
+  .help-slide .n { width: 48px; height: 48px; border-radius: 13px; display: flex; align-items: center; justify-content: center; font-weight: 900; color: #fff; background: linear-gradient(135deg, var(--cyan), var(--blue)); font-size: 18px; }
+  .help-slide.danger .n { background: linear-gradient(135deg, #fb7185, #e11d48); }
+  .help-slide h3 { margin: 0; font-size: 25px; color: #0e2133; letter-spacing: .2px; }
+  .help-slide p { margin: 0; max-width: 820px; font-size: 14px; line-height: 1.8; color: var(--muted); }
+  .help-slide ul { margin: 0; padding-left: 20px; color: var(--muted); font-size: 12.5px; line-height: 1.9; }
+  .help-slide li b { color: var(--text); }
+  .help-slide code { font-family: "JetBrains Mono", Consolas, monospace; font-size: 11px; color: var(--cyan); background: rgba(8,145,178,.07); padding: 1px 6px; border-radius: 4px; }
+  .help-indicator { flex-shrink: 0; display: flex; align-items: center; justify-content: center; gap: 10px; padding-bottom: 11px; font-size: 10.5px; color: var(--dim); }
+  .help-dots { display: flex; gap: 5px; }
+  .help-dots button { width: 7px; height: 7px; border-radius: 50%; border: 0; background: rgba(15,80,120,.16); cursor: pointer; padding: 0; }
+  .help-dots button.active { width: 18px; border-radius: 999px; background: linear-gradient(90deg, var(--cyan), var(--blue)); }
+
+  /* 底部状态栏 */
+  .statusbar {
+    height: 29px; flex-shrink: 0; display: flex; align-items: center; gap: 12px; padding: 0 16px;
+    background: rgba(255,255,255,.6); backdrop-filter: blur(16px);
+    border-top: 1px solid rgba(15,80,120,.08);
+    font-family: "JetBrains Mono", Consolas, monospace; font-size: 9.5px; color: var(--dim);
+  }
+  .statusbar b { color: var(--cyan); font-weight: 700; }
+  .statusbar .ok { color: var(--ok); font-weight: 700; }
+  .statusbar .sep { width: 1px; height: 10px; background: rgba(15,80,120,.12); }
+  .statusbar .grow { flex: 1; }
+  .statusbar .ver { color: var(--dim); }
+
+  /* 抽屉 */
+  .drawer-overlay {
+    position: fixed; inset: 0; z-index: 110; opacity: 0; pointer-events: none;
+    background: rgba(15,40,60,.16); backdrop-filter: blur(2px); transition: opacity .22s;
+  }
+  .drawer-overlay.show { opacity: 1; pointer-events: auto; }
+  .drawer {
+    position: fixed; top: 0; right: 0; bottom: 0; width: 432px; z-index: 120;
+    transform: translateX(104%); transition: transform .26s cubic-bezier(.22,.8,.3,1);
+    display: flex; flex-direction: column;
+    background: rgba(247,252,255,.92);
+    backdrop-filter: blur(26px) saturate(160%);
+    border-left: 1px solid rgba(255,255,255,.95);
+    box-shadow: -20px 0 60px rgba(31,86,130,.16);
+  }
+  .drawer.open { transform: none; }
+  .drawer-head { flex-shrink: 0; display: flex; align-items: center; gap: 9px; padding: 15px 16px; border-bottom: 1px solid rgba(15,80,120,.08); }
+  .drawer-head h2 { margin: 0; font-size: 15px; color: #0f2233; }
+  .drawer-head .x { margin-left: auto; width: 28px; height: 28px; border-radius: 8px; border: 1px solid rgba(15,80,120,.12); background: rgba(255,255,255,.6); cursor: pointer; color: var(--muted); }
+  .drawer-head .x:hover { color: var(--danger); border-color: rgba(225,29,72,.25); }
+  .drawer-body { flex: 1; min-height: 0; overflow-y: auto; padding: 13px 16px; display: flex; flex-direction: column; gap: 11px; }
+  .drawer-foot { flex-shrink: 0; padding: 11px 16px; border-top: 1px solid rgba(15,80,120,.08); display: flex; gap: 8px; }
+  .drawer .set-row { background: rgba(255,255,255,.62); }
+
+  /* ================= 登录 ================= */
+  .login-overlay {
+    position: fixed; inset: 0; z-index: 430; display: none;
+    align-items: center; justify-content: center; padding: 20px;
+    background:
+      radial-gradient(900px 500px at 50% 0%, rgba(8,145,178,.16), transparent 62%),
+      rgba(15,40,60,.25); backdrop-filter: blur(6px);
+  }
+  .login-overlay.show { display: flex; }
+  .login-card {
+    width: 410px; padding: 28px 30px 24px; border-radius: 18px;
+    background: rgba(249,253,255,.97); border: 1px solid rgba(255,255,255,.98);
+    box-shadow: 0 28px 80px rgba(15,40,60,.24); backdrop-filter: blur(24px);
+  }
+  .login-brand { display: flex; flex-direction: column; align-items: center; gap: 8px; margin-bottom: 20px; }
+  .login-brand .mark {
+    width: 52px; height: 52px; border-radius: 14px; display: flex; align-items: center; justify-content: center;
+    background: linear-gradient(140deg, #0b6b86, #0891b2 45%, #2563eb);
+    box-shadow: 0 10px 26px rgba(8,145,178,.3);
+  }
+  .login-brand .mark svg { width: 28px; height: 28px; }
+  .login-brand h2 { margin: 0; font-size: 17px; color: #0f2233; }
+  .login-brand span { font-size: 10px; color: var(--dim); letter-spacing: .6px; }
+  .login-field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 12px; }
+  .login-field label { font-size: 10.5px; font-weight: 700; color: var(--muted); }
+  .login-input {
+    height: 42px; border-radius: 9px; border: 1px solid rgba(15,80,120,.14);
+    background: rgba(255,255,255,.78); padding: 0 11px; font-size: 13px; color: var(--text);
+    outline: none;
+  }
+  .login-input:focus { border-color: rgba(8,145,178,.5); box-shadow: 0 0 0 3px rgba(8,145,178,.08); }
+  .login-error {
+    min-height: 16px; font-size: 10px; color: var(--danger); margin: -3px 0 7px;
+  }
+  .login-submit {
+    width: 100%; height: 44px; border-radius: 10px; cursor: pointer; border: 1px solid rgba(8,145,178,.4);
+    color: #fff; font-size: 14px; font-weight: 800;
+    background: linear-gradient(135deg, rgba(8,145,178,.95), rgba(37,99,235,.93));
+    box-shadow: 0 7px 20px rgba(8,145,178,.24); 
+  }
+  .login-hint { margin-top: 12px; padding: 8px 10px; border-radius: 8px; background: rgba(8,145,178,.05); border: 1px dashed rgba(8,145,178,.18); font-size: 9px; color: var(--dim); line-height: 1.6; }
+  .login-hint b { color: var(--muted); font-family: "JetBrains Mono", Consolas, monospace; }
+  .rail .user { cursor: pointer; }
+
+  /* 用户管理 */
+  .user-admin { display: flex; flex-direction: column; gap: 6px; }
+  .user-row {
+    display: flex; align-items: center; gap: 8px; padding: 8px 9px; border-radius: 10px;
+    background: rgba(255,255,255,.45); border: 1px solid rgba(15,80,120,.07);
+  }
+  .user-row .avatar {
+    width: 30px; height: 30px; border-radius: 8px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center; color: #fff; font-size: 10px; font-weight: 900;
+    background: linear-gradient(135deg, var(--cyan), var(--blue));
+  }
+  .user-row .un { flex: 1; min-width: 0; }
+  .user-row .un b { display: block; font-size: 11.5px; }
+  .user-row .un span { display: block; font-size: 8.5px; color: var(--dim); }
+  .user-row .perms { display: flex; gap: 3px; flex-wrap: wrap; max-width: 190px; }
+  .user-row .perms span { font-size: 8px; padding: 1px 5px; border-radius: 999px; background: rgba(8,145,178,.07); border: 1px solid rgba(8,145,178,.16); color: var(--cyan); }
+  .user-row .ops { display: flex; gap: 4px; }
+  .user-row .ops .btn { height: 25px; padding: 0 7px; font-size: 9px; }
+  .user-form-row { display: flex; gap: 8px; }
+  .user-form-row .login-field { flex: 1; margin-bottom: 0; }
+  .perm-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 10px; }
+  .perm-grid label { display: flex; align-items: center; gap: 5px; font-size: 10.5px; color: var(--muted); }
+
+  /* ================= 启动加载 / 连接向导 ================= */
+  .boot-screen {
+    position: fixed; inset: 0; z-index: 500; display: flex; align-items: center; justify-content: center;
+    background:
+      radial-gradient(900px 500px at 50% 0%, rgba(8,145,178,.16), transparent 62%),
+      linear-gradient(180deg, #f7fbfe, #e3edf6);
+    transition: opacity .4s ease, visibility .4s;
+  }
+  .boot-screen.hide { opacity: 0; visibility: hidden; pointer-events: none; }
+  .boot-panel {
+    display: flex; flex-direction: column; align-items: center; gap: 14px;
+    padding: 36px 46px; border-radius: 20px;
+    background: rgba(255,255,255,.72); border: 1px solid rgba(255,255,255,.98);
+    box-shadow: 0 24px 70px rgba(31,86,130,.18);
+    backdrop-filter: blur(20px);
+  }
+  .boot-logo {
+    width: 66px; height: 66px; border-radius: 18px; display: flex; align-items: center; justify-content: center;
+    background: linear-gradient(140deg, #0b6b86, #0891b2 45%, #2563eb);
+    box-shadow: 0 10px 30px rgba(8,145,178,.35), inset 0 1px 0 rgba(255,255,255,.4);
+    animation: bootPulse 1.8s ease-in-out infinite;
+  }
+  .boot-logo svg { width: 34px; height: 34px; }
+  @keyframes bootPulse {
+    0%, 100% { transform: scale(1); box-shadow: 0 10px 30px rgba(8,145,178,.35), inset 0 1px 0 rgba(255,255,255,.4); }
+    50% { transform: scale(1.04); box-shadow: 0 14px 40px rgba(8,145,178,.48), inset 0 1px 0 rgba(255,255,255,.4); }
+  }
+  .boot-title { font-size: 19px; font-weight: 800; color: #0f2233; }
+  .boot-sub { font-size: 11px; color: var(--dim); letter-spacing: 1px; }
+  .boot-ring {
+    width: 34px; height: 34px; border-radius: 50%;
+    border: 3px solid rgba(8,145,178,.18); border-top-color: var(--cyan);
+    animation: spin 1s linear infinite; margin-top: 4px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .boot-status { font-size: 11.5px; color: var(--muted); font-family: "JetBrains Mono", Consolas, monospace; }
+  .boot-bar { width: 240px; height: 4px; border-radius: 999px; background: rgba(15,80,120,.09); overflow: hidden; }
+  .boot-bar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--cyan), var(--blue)); animation: bootBar 1.6s ease forwards; }
+  @keyframes bootBar { to { width: 100%; } }
+
+  .connect-wizard {
+    position: fixed; inset: 0; z-index: 400; display: none;
+    align-items: center; justify-content: center; padding: 20px;
+    background: rgba(15,40,60,.28); backdrop-filter: blur(5px);
+  }
+  .connect-wizard.show { display: flex; }
+  .wizard {
+    width: 880px; display: flex; flex-direction: column; overflow: hidden;
+    border-radius: 18px; background: rgba(248,252,255,.96);
+    border: 1px solid rgba(255,255,255,.98); box-shadow: 0 28px 80px rgba(15,40,60,.24);
+    backdrop-filter: blur(24px);
+  }
+  .wizard-head { display: flex; align-items: center; gap: 10px; padding: 16px 18px; border-bottom: 1px solid rgba(15,80,120,.08); }
+  .wizard-head .mark {
+    width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center;
+    background: linear-gradient(140deg, #0b6b86, #0891b2 45%, #2563eb);
+  }
+  .wizard-head .mark svg { width: 21px; height: 21px; }
+  .wizard-head h2 { margin: 0; font-size: 16px; color: #0f2233; }
+  .wizard-head .sub { font-size: 10px; color: var(--dim); margin-left: 2px; }
+  .wizard-body { display: grid; grid-template-columns: repeat(3, 1fr); gap: 11px; padding: 16px 18px; }
+  .wizard-card {
+    display: flex; flex-direction: column; gap: 8px; padding: 13px;
+    border-radius: 13px; background: rgba(255,255,255,.62);
+    border: 1px solid rgba(255,255,255,.96); box-shadow: inset 0 1px 0 rgba(255,255,255,.8);
+  }
+  .wizard-card .top { display: flex; align-items: center; gap: 8px; }
+  .wizard-card .icon {
+    width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center;
+    color: #fff; background: linear-gradient(135deg, var(--cyan), var(--blue)); font-weight: 900; font-size: 13px;
+  }
+  .wizard-card .icon.b { background: linear-gradient(135deg, #a78bfa, var(--violet)); }
+  .wizard-card .icon.ble { background: linear-gradient(135deg, #38bdf8, #0891b2); }
+  .wizard-card b { display: block; font-size: 13px; color: var(--text); }
+  .wizard-card .meta { font-size: 9.5px; color: var(--dim); font-family: "JetBrains Mono", Consolas, monospace; }
+  .wizard-card .state { display: flex; align-items: center; gap: 6px; font-size: 10.5px; color: var(--muted); }
+  .wizard-card .btn { height: 38px; font-size: 12px; }
+  .wizard-card .btn + .btn { margin-top: 0; }
+  .wizard-foot { display: flex; align-items: center; gap: 8px; padding: 12px 18px; border-top: 1px solid rgba(15,80,120,.08); }
+  .wizard-foot .sp { flex: 1; }
+  .wizard-foot .btn { height: 40px; padding: 0 16px; font-size: 12.5px; }
+  .wizard-foot .skip { color: var(--muted); border-color: transparent; background: transparent; box-shadow: none; }
+  .wizard-foot .skip:hover { color: var(--cyan); background: rgba(255,255,255,.6); }
+  .guard-modal { width: 460px; }
+  .guard-list { display: flex; flex-direction: column; gap: 5px; }
+  .guard-item { display: flex; align-items: center; gap: 7px; padding: 7px 9px; border-radius: 8px; background: rgba(225,29,72,.05); border: 1px solid rgba(225,29,72,.16); font-size: 11px; color: #9f1239; }
+
+  /* ================= 连接 / 蓝牙 设置弹窗 ================= */
+  .modal-overlay {
+    position: fixed; inset: 0; z-index: 450; display: none;
+    align-items: center; justify-content: center; padding: 20px;
+    background: rgba(15,40,60,.26); backdrop-filter: blur(4px);
+  }
+  .modal-overlay.show { display: flex; }
+  .modal {
+    display: flex; flex-direction: column; overflow: hidden;
+    background: rgba(248,252,255,.96);
+    border: 1px solid rgba(255,255,255,.98);
+    border-radius: 16px;
+    box-shadow: 0 28px 80px rgba(15,40,60,.24);
+    backdrop-filter: blur(24px);
+  }
+  .modal-head {
+    flex-shrink: 0; height: 52px; display: flex; align-items: center; gap: 9px;
+    padding: 0 15px; border-bottom: 1px solid rgba(15,80,120,.08);
+    background: linear-gradient(180deg, rgba(255,255,255,.7), rgba(255,255,255,.35));
+  }
+  .modal-head h2 { margin: 0; font-size: 15px; color: #0f2233; }
+  .modal-head .sub { font-size: 10px; color: var(--dim); margin-left: 2px; }
+  .modal-head .x {
+    margin-left: auto; width: 30px; height: 30px; border-radius: 8px; cursor: pointer;
+    border: 1px solid rgba(15,80,120,.12); background: rgba(255,255,255,.7);
+    color: var(--muted); font-size: 14px;
+  }
+  .modal-head .x:hover { color: var(--danger); border-color: rgba(225,29,72,.25); }
+  .modal-body { flex: 1; min-height: 0; overflow-y: auto; padding: 13px 15px; display: flex; flex-direction: column; gap: 10px; }
+  .modal-foot { flex-shrink: 0; padding: 10px 15px; border-top: 1px solid rgba(15,80,120,.08); display: flex; justify-content: flex-end; gap: 8px; }
+
+  .conn-modal { width: 640px; }
+  .conn-row {
+    display: flex; align-items: center; gap: 10px; padding: 11px; border-radius: 12px;
+    background: rgba(255,255,255,.6); border: 1px solid rgba(255,255,255,.95);
+  }
+  .conn-row .side {
+    width: 36px; height: 36px; border-radius: 9px; display: flex; align-items: center; justify-content: center;
+    font-weight: 900; color: #fff; background: linear-gradient(135deg, var(--cyan), var(--blue));
+  }
+  .conn-row .side.b { background: linear-gradient(135deg, #a78bfa, var(--violet)); }
+  .conn-row .nm { width: 74px; font-weight: 800; font-size: 12px; }
+  .conn-row .field { display: flex; flex-direction: column; gap: 2px; }
+  .conn-row .field span { font-size: 8.5px; color: var(--dim); }
+  .conn-input {
+    height: 36px; border-radius: 8px; border: 1px solid rgba(15,80,120,.14);
+    background: rgba(255,255,255,.8); padding: 0 9px;
+    font-family: "JetBrains Mono", Consolas, monospace; font-size: 11px; color: var(--text);
+    outline: none;
+  }
+  .conn-input:focus { border-color: rgba(8,145,178,.5); box-shadow: 0 0 0 3px rgba(8,145,178,.08); }
+  .conn-ip { width: 140px; }
+  .conn-port { width: 74px; }
+  .conn-row .state { margin-left: auto; display: flex; align-items: center; gap: 6px; font-size: 10px; color: var(--muted); }
+  .hb { font-family: "JetBrains Mono", Consolas, monospace; font-size: 9px; color: var(--dim); white-space: nowrap; }
+  .conn-row .hb { width: 96px; text-align: right; }
+  .wizard-card .hb { margin-left: auto; }
+  .conn-row .btn { height: 36px; padding: 0 12px; font-size: 11px; }
+  .conn-note { padding: 8px 11px; border: 1px dashed rgba(15,80,120,.14); border-radius: 9px; font-size: 9.5px; color: var(--dim); }
+
+  .ble-modal { width: 930px; height: 672px; max-height: 88vh; }
+  .ble-body { flex: 1; min-height: 0; display: flex; }
+  .ble-channels {
+    width: 252px; flex-shrink: 0; padding: 9px; display: flex; flex-direction: column; gap: 5px;
+    border-right: 1px solid rgba(15,80,120,.08); overflow-y: auto;
+    background: rgba(255,255,255,.22);
+  }
+  .ble-ch {
+    width: 100%; text-align: left; display: flex; align-items: center; gap: 8px; padding: 8px 9px;
+    border-radius: 9px; border: 1px solid transparent; background: transparent; cursor: pointer;
+  }
+  .ble-ch:hover { background: rgba(255,255,255,.55); }
+  .ble-ch.active {
+    background: rgba(255,255,255,.82); border-color: rgba(8,145,178,.22);
+    box-shadow: 0 5px 14px rgba(31,86,130,.07);
+  }
+  .ble-ch .si {
+    width: 28px; height: 28px; border-radius: 8px; flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 900; color: #fff;
+    background: linear-gradient(135deg, var(--cyan), var(--blue));
+  }
+  .ble-ch .si.b { background: linear-gradient(135deg, #a78bfa, var(--violet)); }
+  .ble-ch .si.s { background: linear-gradient(135deg, #34d399, #059669); }
+  .ble-ch .si.w { background: linear-gradient(135deg, #fbbf24, #d97706); }
+  .ble-ch div { min-width: 0; }
+  .ble-ch b { display: block; font-size: 11px; color: var(--text); }
+  .ble-ch span { display: block; font-size: 8.5px; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ble-ch .led { margin-left: auto; }
+  .ble-detail { flex: 1; min-width: 0; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+  .ble-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .ble-top h3 { margin: 0; font-size: 14px; color: #0f2233; }
+  .ble-top .st { font-size: 9.5px; color: var(--dim); }
+  .ble-top .acts { margin-left: auto; display: flex; gap: 5px; }
+  .ble-block {
+    border: 1px solid rgba(15,80,120,.09); border-radius: 11px; padding: 9px;
+    background: rgba(255,255,255,.48);
+  }
+  .ble-block h4 { margin: 0 0 7px; display: flex; align-items: center; gap: 6px; font-size: 9px; font-weight: 900; letter-spacing: 1.2px; text-transform: uppercase; color: var(--dim); }
+  .ble-block h4 .r { margin-left: auto; letter-spacing: 0; text-transform: none; font-weight: 600; font-size: 9px; color: var(--dim); }
+  .ble-metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 7px; }
+  .ble-metric { padding: 7px 9px; border-radius: 8px; background: rgba(255,255,255,.6); border: 1px solid rgba(15,80,120,.06); }
+  .ble-metric span { display: block; font-size: 8.5px; color: var(--dim); }
+  .ble-metric b { display: block; font-family: "JetBrains Mono", Consolas, monospace; font-size: 16px; color: #0f2233; }
+  .ble-metric b.cyan { color: var(--cyan); }
+  .ble-actions { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+  .ble-actions .btn { height: 30px; padding: 0 10px; font-size: 10px; }
+  .ble-input {
+    height: 30px; border-radius: 7px; border: 1px solid rgba(15,80,120,.14);
+    background: rgba(255,255,255,.8); padding: 0 8px; font-family: "JetBrains Mono", Consolas, monospace;
+    font-size: 10px; color: var(--text); outline: none;
+  }
+  .ble-input.wide { flex: 1; min-width: 140px; }
+  .device-list { display: flex; flex-direction: column; gap: 4px; }
+  .device-row { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 8px; background: rgba(255,255,255,.45); border: 1px solid rgba(15,80,120,.06); }
+  .device-row .n { font-size: 10.5px; font-weight: 700; }
+  .device-row .r { font-size: 8.5px; color: var(--dim); font-family: "JetBrains Mono", Consolas, monospace; }
+  .device-row .btn { margin-left: auto; height: 26px; padding: 0 9px; font-size: 9.5px; }
+  .relay-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .relay-card { padding: 7px 9px; border-radius: 8px; background: rgba(255,255,255,.55); border: 1px solid rgba(15,80,120,.07); }
+  .relay-card .t { font-size: 9px; color: var(--dim); display: flex; justify-content: space-between; }
+  .relay-card .t b { color: var(--ok); }
+  .relay-card .acts { display: flex; gap: 4px; margin-top: 5px; }
+  .relay-card .acts .btn { height: 26px; flex: 1; padding: 0 4px; font-size: 9px; }
+  .ble-log {
+    height: 62px; overflow-y: auto; padding: 5px 7px; border-radius: 7px;
+    background: rgba(255,255,255,.55); border: 1px solid rgba(15,80,120,.07);
+    font-family: "JetBrains Mono", Consolas, monospace; font-size: 8.5px; color: var(--muted);
+    display: flex; flex-direction: column; gap: 2px;
+  }
+  .ble-log .tx { color: var(--blue); }
+  .ble-log .rx { color: var(--ok); }
+  .ble-log .sys { color: var(--dim); }
+
+  /* Toast */
+  .toast {
+    position: fixed; left: 50%; bottom: 42px; transform: translateX(-50%) translateY(10px);
+    z-index: 600; opacity: 0; pointer-events: none; transition: all .22s;
+    padding: 8px 16px; border-radius: 10px; font-size: 11.5px; font-weight: 700;
+    background: rgba(15,34,51,.86); color: #fff; box-shadow: 0 12px 30px rgba(15,34,51,.2);
+    white-space: nowrap;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%); }
+
+  /* 滚动条 */
+  ::-webkit-scrollbar { width: 7px; height: 7px; }
+  ::-webkit-scrollbar-thumb { background: rgba(15,80,120,.14); border-radius: 999px; }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(15,80,120,.24); }
+  ::-webkit-scrollbar-track { background: transparent; }
+
+  /* 宽度自适应：缩窄时优先保留流程与检查器，板卡坞在小窗口收起（顶部板卡仍可点选目标板） */
+  .focus-metrics .fm { min-width: 0; overflow: hidden; }
+  .fm b { white-space: nowrap; }
+  .focus-actions { flex-wrap: wrap; }
+  .quick-grid { align-content: start; }
+  .qbtn { align-self: start; }
+  .qbtn > span:not(.mini-input) { min-width: 0; overflow: hidden; }
+  .qbtn > span small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  @media (max-width: 1460px) {
+    .cockpit { grid-template-columns: 244px minmax(0,1fr) 374px; }
+    .fm b { font-size: 18px; }
+  }
+  @media (max-width: 1300px) {
+    .cockpit { grid-template-columns: 224px minmax(0,1fr) 346px; }
+    .top-board .ip { display: none; }
+    .brand .txt span { display: none; }
+    .focus-metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .fm { padding: 7px 8px; }
+    .fm b { font-size: 16px; }
+    .quick-grid { grid-template-columns: 1fr 1fr; }
+    .qbtn small { display: none; }
+  }
+  @media (max-width: 1120px) {
+    .cockpit { grid-template-columns: minmax(0,1fr) 336px; }
+    .cockpit > .col:first-child { display: none; }
+    .vh-left p { display: none; }
+  }
+  @media (max-width: 900px) {
+    .cockpit { grid-template-columns: 1fr; }
+    .inspector { display: none; }
+    .top-boards { display: none; }
+  }
+</style>
+</head>
+<body data-target="A">
+
+<!-- 启动加载动画 -->
+<div class="boot-screen" id="bootScreen">
+  <div class="boot-panel">
+    <div class="boot-logo">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 13h4l2-5 3 10 2-7 2 2h5"/></svg>
+    </div>
+    <div class="boot-title">智能驾驶舱检测系统</div>
+    <div class="boot-sub">DUAL-BOARD CONSOLE</div>
+    <div class="boot-ring"></div>
+    <div class="boot-status" id="bootStatus">正在初始化设备通信…</div>
+    <div class="boot-bar"><i></i></div>
+  </div>
+</div>
+
+<div class="login-overlay" id="loginOverlay">
+  <div class="login-card">
+    <div class="login-brand">
+      <div class="mark">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 13h4l2-5 3 10 2-7 2 2h5"/></svg>
+      </div>
+      <h2>智能驾驶舱检测系统</h2>
+      <span>DUAL-BOARD CONSOLE</span>
+    </div>
+    <form onsubmit="doLogin(event)">
+      <div class="login-field"><label>用户名</label><input class="login-input" id="loginUser" placeholder="请输入用户名" autocomplete="username"></div>
+      <div class="login-field"><label>密码</label><input class="login-input" id="loginPass" type="password" placeholder="请输入密码" autocomplete="current-password"></div>
+      <div class="login-error" id="loginError"></div>
+      <button class="login-submit" type="submit">登 录</button>
+    </form>
+    <div class="login-hint">演示账户：<b>admin / admin123</b>（管理员）<br><b>operator / 123456</b>（操作员）· <b>debug / debug123</b>（调试员）</div>
+  </div>
+</div>
+
+<div class="app">
+
+  <!-- ================= 顶栏 ================= -->
+  <header class="topbar">
+    <div class="brand">
+      <div class="mark">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 13h4l2-5 3 10 2-7 2 2h5"/>
+        </svg>
+      </div>
+      <div class="txt">
+        <b>智能驾驶舱检测系统</b>
+        <span>Dual-Board Console</span>
+      </div>
+    </div>
+
+    <div class="top-boards">
+      <div class="top-board target" id="top-board-A" onclick="selectBoard('A')" title="设为目标板">
+        <span class="led off" id="top-led-A"></span><b>A 板</b><span class="ip">192.168.8.88</span><span id="top-text-A">离线</span>
+      </div>
+      <div class="top-board" id="top-board-B" onclick="selectBoard('B')" title="设为目标板">
+        <span class="led off" id="top-led-B"></span><b>B 板</b><span class="ip">192.168.8.89</span><span id="top-text-B">离线</span>
+      </div>
+      <button class="top-board" onclick="openBle()" title="蓝牙模块设置">
+        <span class="led off" id="top-ble-led"></span>
+        <b>BLE</b><span id="top-ble-count">0/5</span>
+      </button>
+    </div>
+
+    <div class="top-right">
+      <button class="top-item" onclick="openWizard()" title="打开设备连接向导">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 7V3M15 7V3M7 7h10v4a5 5 0 0 1-10 0z"/><path d="M12 16v5"/></svg>
+        连接
+      </button>
+      <button class="top-item" onclick="openDrawer()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2.2"/><circle cx="8" cy="17" r="2.2"/></svg>
+        参数
+      </button>
+      <button class="top-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.7 3.8 5.8 3.8 9S14.5 18.3 12 21c-2.5-2.7-3.8-5.8-3.8-9S9.5 5.7 12 3z"/></svg>
+        简体中文
+      </button>
+      <div class="top-clock">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="width:14px;height:14px"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+        <span id="clock">--:--:--</span>
+      </div>
+      <button class="estop" onclick="triggerEstop()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v6"/><circle cx="12" cy="16.6" r=".9" fill="currentColor" stroke="none"/></svg>
+        急停
+      </button>
+    </div>
+  </header>
+
+  <div class="shell">
+    <!-- ================= 左侧导航 ================= -->
+    <aside class="rail">
+      <button class="nav active" data-view="cockpit" data-fn="debug" onclick="setView('cockpit', this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7.5" height="7.5" rx="2"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="2"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="2"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="2"/></svg>
+        调试台
+      </button>
+      <button class="nav" data-view="pedal" data-fn="pedal" onclick="setView('pedal', this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M5 20c0-5 2-9 7-9h1c3 0 5 2.4 5 5.4V20"/><path d="M5 20h13"/><path d="M9.5 7.5c.6 1.6 1.8 2.5 3.5 2.5"/><circle cx="9" cy="4.6" r="1.6"/></svg>
+        踏板
+      </button>
+      <button class="nav" data-view="steer" data-fn="steer" onclick="setView('steer', this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="2.2"/><path d="M12 9.8V3.5M9.8 12H3.5M14.2 12h6.3"/></svg>
+        转盘
+      </button>
+      <button class="nav" data-view="records" data-fn="records" onclick="setView('records', this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h9l4 4v14H6z"/><path d="M9 11h6M9 15h6M9 7h3"/></svg>
+        记录
+      </button>
+      <button class="nav" data-view="settings" data-fn="settings" onclick="setView('settings', this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2.2"/><circle cx="8" cy="17" r="2.2"/></svg>
+        设置
+      </button>
+      <button class="nav" data-view="help" data-fn="help" onclick="setView('help', this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 1 1 3.4 2.3c-.8.4-1 .9-1 1.7"/><circle cx="12" cy="17" r=".8" fill="currentColor" stroke="none"/></svg>
+        帮助
+      </button>
+      <div class="sp"></div>
+      <button class="user" id="userBadge" onclick="logout()" title="未登录">--</button>
+    </aside>
+
+    <!-- ================= 工作区 ================= -->
+    <main class="workspace">
+
+      <!-- ========== 调试台 ========== -->
+      <section class="view active" id="view-cockpit">
+        <div class="view-head">
+          <div class="vh-left">
+            <span class="kicker">A/B Dual-Board · Plaintext v1.1</span>
+            <h1>双板调试台 <em>连接、单步、观测，一屏完成</em></h1>
+            <p>目标板决定命令去向；流程引导调平与推出；右侧常驻全字段遥测与通信日志。</p>
+          </div>
+          <div class="vh-right">
+            <span class="chip ok" id="cockpit-online-chip"><span class="led off"></span> A/B 0/2 在线</span>
+            <span class="chip info" id="fault-chip">无故障</span>
+            <button class="btn sm" onclick="connAll()">连接双板</button>
+          </div>
+        </div>
+
+        <div class="fault-banner">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:17px;height:17px"><path d="M12 3 2.5 20h19z"/><path d="M12 9v5"/><circle cx="12" cy="17.2" r=".9" fill="currentColor" stroke="none"/></svg>
+          故障态：急停已锁存，运动命令被拒绝。请先执行「故障复位」，再重新使能电机。
+          <button class="btn sm" onclick="resetFault()">故障复位</button>
+        </div>
+
+        <div class="cockpit">
+          <!-- 左：板卡 -->
+          <div class="col">
+            <article class="board-card a target" id="board-A" onclick="selectBoard('A')">
+              <div class="bc-head">
+                <span class="bc-side">A</span>
+                <b>A 板</b>
+                <span class="led on"></span>
+                <span class="tag">目标板</span>
+              </div>
+              <div class="bc-ip">192.168.8.88 : 10001 <span style="margin-left:auto;color:var(--ok)">已连接</span></div>
+              <div class="bc-metrics">
+                <div class="bc-metric"><span>状态机</span><b>IDLE</b></div>
+                <div class="bc-metric"><span>心跳</span><b id="card-hb-A">--</b></div>
+                <div class="bc-metric"><span>倾角 X</span><b>-0.012°</b></div>
+                <div class="bc-metric"><span>推杆</span><b>12.5 mm</b></div>
+              </div>
+              <div class="bc-foot">
+                <button class="btn sm" onclick="event.stopPropagation();toggleConn('A')">断开</button>
+                <button class="btn sm ghost" onclick="event.stopPropagation();setBoardConnected('A',true)">重连</button>
+              </div>
+            </article>
+
+            <article class="board-card b" id="board-B" onclick="selectBoard('B')">
+              <div class="bc-head">
+                <span class="bc-side">B</span>
+                <b>B 板</b>
+                <span class="led on"></span>
+                <span class="tag" style="visibility:hidden">目标板</span>
+              </div>
+              <div class="bc-ip">192.168.8.89 : 10001 <span style="margin-left:auto;color:var(--ok)">已连接</span></div>
+              <div class="bc-metrics">
+                <div class="bc-metric"><span>状态机</span><b>IDLE</b></div>
+                <div class="bc-metric"><span>心跳</span><b id="card-hb-B">--</b></div>
+                <div class="bc-metric"><span>倾角 X</span><b>0.004°</b></div>
+                <div class="bc-metric"><span>推杆</span><b>0.0 mm</b></div>
+              </div>
+              <div class="bc-foot">
+                <button class="btn sm" onclick="event.stopPropagation();toggleConn('B')">断开</button>
+                <button class="btn sm ghost" onclick="event.stopPropagation();setBoardConnected('B',true)">重连</button>
+              </div>
+            </article>
+
+            <div class="link-note">
+              <b>连接策略</b><br>
+              A/B 独立心跳与遥测；断线 15s 自动标记离线。点击板卡即切换「目标板」，所有动作按钮只作用于目标板。
+            </div>
+          </div>
+
+          <!-- 中：流程 + 快速操作 -->
+          <div class="col">
+            <section class="panel flow-panel">
+              <div class="ph">
+                <span class="dot"></span>操作流程
+                <span class="r">目标板 <span class="tag" id="target-tag" style="margin-left:2px">A</span> · 速度优先</span>
+              </div>
+              <div class="pb">
+                <div class="steps">
+                  <div class="step done"><span class="no">01</span><span class="name">连接</span></div>
+                  <span class="step-line"></span>
+                  <div class="step done"><span class="no">02</span><span class="name">选侧</span></div>
+                  <span class="step-line"></span>
+                  <div class="step active" id="step-3"><span class="no">03</span><span class="name">调平</span></div>
+                  <span class="step-line"></span>
+                  <div class="step" id="step-4"><span class="no">04</span><span class="name">推出</span></div>
+                  <span class="step-line"></span>
+                  <div class="step" id="step-5"><span class="no">05</span><span class="name">记录</span></div>
+                </div>
+
+                <div class="focus-card">
+                  <div class="focus-top">
+                    <div>
+                      <div class="focus-title">
+                        <span class="step-tag">STEP 03</span>
+                        角度补偿
+                      </div>
+                      <div class="focus-sub">PEDAL <span id="focus-side">A</span> LEVEL · 倾角闭环调平</div>
+                    </div>
+                    <div class="focus-badge">
+                      <span class="chip info" id="focus-state">待执行</span>
+                    </div>
+                  </div>
+
+                  <div class="focus-metrics">
+                    <div class="fm cyan">
+                      <span>当前倾角 X</span>
+                      <b id="tilt-value">-0.012<i>°</i></b>
+                    </div>
+                    <div class="fm"><span>目标</span><b>0.000<i>°</i></b></div>
+                    <div class="fm"><span>死区 ±</span><b>0.05<i>°</i></b></div>
+                  </div>
+
+                  <div class="progress-line"><i id="level-progress"></i></div>
+
+                  <div class="focus-actions">
+                    <button class="btn primary lg" id="level-btn" onclick="runLevel()">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m8 5 11 7-11 7z"/></svg>
+                      开始角度补偿
+                    </button>
+                    <button class="btn" onclick="toast('已切换为手动微调模式（原型演示）')">手动微调</button>
+                    <button class="btn ghost sm" style="margin-left:auto" onclick="toast('已跳过调平，进入推出步骤')">跳过 →</button>
+                  </div>
+                  <div class="focus-hint">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5"/><circle cx="12" cy="16.4" r=".8" fill="currentColor" stroke="none"/></svg>
+                    故障态下该动作会被固件拒绝；完成后自动进入「推出」步骤。
+                  </div>
+                </div>
+
+                <div class="quick-title">手动单步 <span class="line"></span> <span style="letter-spacing:0;text-transform:none;font-weight:600;color:var(--dim)">命令发往目标板</span></div>
+
+                <div class="quick-grid">
+                  <button class="qbtn motion-btn" onclick="toast('已下发 PEDAL A SET PUSH_DIST 80')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 12h13M13 7l5 5-5 5"/><path d="M20 5v14"/></svg>
+                    <span>设置推出距离<small>PEDAL SET PUSH_DIST</small></span>
+                    <span class="mini-input"><span>80</span><em>mm</em></span>
+                  </button>
+                  <button class="qbtn motion-btn" onclick="pushStart()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="m8 5 11 7-11 7z"/></svg>
+                    <span>开始推出<small>自动回零后可执行</small></span>
+                  </button>
+                  <button class="qbtn motion-btn" onclick="toast('已下发 PEDAL A PUSH STOP')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="6" y="6" width="12" height="12" rx="1.5"/></svg>
+                    <span>停止推出<small>仅停推杆，不中止调平</small></span>
+                  </button>
+
+                  <button class="qbtn motion-btn" onclick="toast('已下发 MOTOR PUSH_A HOME')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11 12 4l8 7"/><path d="M6 10v9h12v-9"/></svg>
+                    <span>推杆回零<small>MOTOR PUSH_A HOME</small></span>
+                  </button>
+                  <button class="qbtn motion-btn" onclick="toast('已下发 MOTOR A ZERO（MSH 软件零点）')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="8"/><path d="M12 8v8M8 12h8"/></svg>
+                    <span>角度电机设零点<small>当前物理位置记为 0°</small></span>
+                  </button>
+                  <button class="qbtn motion-btn" onclick="sendScan()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 8V5h3M17 5h3v3M20 16v3h-3M7 19H4v-3"/><circle cx="12" cy="12" r="3"/></svg>
+                    <span>扫描 Modbus<small>地址 1–32，结果入日志</small></span>
+                  </button>
+
+                  <button class="qbtn motion-btn" style="grid-column: span 2" onclick="toast('已下发 SET MSH_ZERO_CLEAR（目标板）')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 12a8 8 0 1 0 2.3-5.7"/><path d="M4 4v4h4"/></svg>
+                    <span>清除 MSH 零点<small>SET MSH_ZERO_CLEAR · 软零点复位</small></span>
+                  </button>
+                  <button class="qbtn danger" onclick="toast('已下发 PEDAL A STOP')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="6" y="6" width="12" height="12" rx="1.5"/></svg>
+                    <span>STOP<small>中止目标板流程</small></span>
+                  </button>
+                </div>
+
+                <div class="safety-row">
+                  <button class="btn danger sm" onclick="resetFault()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 12a8 8 0 1 0 2.3-5.7"/><path d="M4 4v4h4"/></svg>
+                    故障复位
+                  </button>
+                  <span class="chip" style="height:24px;font-size:9.5px">急停后唯一恢复入口</span>
+                  <span class="note">当前所有动作仅发往 <b id="safety-target">A</b> 板</span>
+                </div>
+
+              </div>
+            </section>
+          </div>
+
+          <!-- 右：遥测 / 趋势 / 日志 -->
+          <aside class="panel inspector">
+            <div class="ph">
+              <span class="dot"></span>检查器
+              <span class="r"><span class="led on"></span>实时流 · 10 Hz</span>
+            </div>
+            <div class="tabs">
+              <button class="tab active" data-pane="rt" onclick="setPane('rt', this)">实时数据</button>
+              <button class="tab" data-pane="trend" onclick="setPane('trend', this)">趋势</button>
+              <button class="tab" data-pane="log" onclick="setPane('log', this)">日志 <span class="badge">24</span></button>
+            </div>
+            <div class="inspector-body">
+              <!-- 实时 -->
+              <div class="pane active" id="pane-rt">
+                <div class="big-metrics">
+                  <div class="big-metric cyan"><span>推杆行程</span><b id="rt-push">12.5<i>mm</i></b></div>
+                  <div class="big-metric violet"><span>倾角 X</span><b id="rt-tilt">-0.012<i>°</i></b></div>
+                </div>
+
+                <div class="data-group">
+                  <h5>系统</h5>
+                  <div class="drow"><span class="k">运行时间</span><span class="v">12345</span><span class="u">ms</span></div>
+                  <div class="drow"><span class="k">本板侧别</span><span class="v cyan" id="rt-side">A</span><span class="u"></span></div>
+                  <div class="drow"><span class="k">设备状态</span><span class="v" id="rt-state">IDLE</span><span class="u"></span></div>
+                  <div class="drow"><span class="k">传感器汇总</span><span class="v ok">OK</span><span class="u"></span></div>
+                  <div class="drow"><span class="k">踏板选中</span><span class="v" id="rt-select">A</span><span class="u"></span></div>
+                </div>
+
+                <div class="data-group">
+                  <h5>执行机构</h5>
+                  <div class="drow"><span class="k">推杆行程</span><span class="v cyan">12.5</span><span class="u">mm</span></div>
+                  <div class="drow"><span class="k">推杆位置</span><span class="v">9850</span><span class="u">脉冲</span></div>
+                  <div class="drow"><span class="k">推杆状态字</span><span class="v">0x0002 <span style="color:var(--ok);font-size:9px">已回原点</span></span><span class="u"></span></div>
+                  <div class="drow"><span class="k">角度校正位置</span><span class="v">0.42</span><span class="u">°</span></div>
+                </div>
+
+                <div class="data-group">
+                  <h5>传感器</h5>
+                  <div class="drow"><span class="k">倾角 X / Y</span><span class="v cyan">-0.012 / 0.003</span><span class="u">°</span></div>
+                  <div class="drow"><span class="k">激光距离</span><span class="v">128.4</span><span class="u">mm</span></div>
+                  <div class="drow"><span class="k">转向 X / Y</span><span class="v">0.00 / 0.00</span><span class="u">°</span></div>
+                  <div class="drow"><span class="k">释放标志</span><span class="v dim">0</span><span class="u"></span></div>
+                </div>
+              </div>
+
+              <!-- 趋势 -->
+              <div class="pane" id="pane-trend">
+                <div class="trend-wrap">
+                  <div class="chart">
+                    <div class="grid"></div>
+                    <div class="legend"><span><i style="background:#0891b2"></i>倾角 X</span><span><i style="background:#7c3aed"></i>推杆 mm</span></div>
+                    <div class="ylab">倾角 °</div>
+                    <div class="xlab">最近 60 s</div>
+                    <svg viewBox="0 0 400 260" preserveAspectRatio="none">
+                      <defs>
+                        <linearGradient id="fillCyan" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0" stop-color="#0891b2" stop-opacity=".18"/>
+                          <stop offset="1" stop-color="#0891b2" stop-opacity="0"/>
+                        </linearGradient>
+                      </defs>
+                      <path d="M0,208 C30,205 55,210 80,196 S130,150 160,160 S210,130 240,140 S300,100 330,112 S380,86 400,92 L400,260 L0,260 Z" fill="url(#fillCyan)"/>
+                      <path d="M0,208 C30,205 55,210 80,196 S130,150 160,160 S210,130 240,140 S300,100 330,112 S380,86 400,92" fill="none" stroke="#0891b2" stroke-width="2.2" stroke-linecap="round"/>
+                      <path d="M0,238 C40,236 70,232 100,228 S160,210 200,214 S270,190 310,196 S370,178 400,182" fill="none" stroke="#7c3aed" stroke-width="1.8" stroke-dasharray="4 4" stroke-linecap="round"/>
+                    </svg>
+                  </div>
+                  <div class="chart-stats">
+                    <div class="chart-stat"><span>倾角峰值</span><b>0.312°</b></div>
+                    <div class="chart-stat"><span>推杆行程</span><b>80.0 mm</b></div>
+                    <div class="chart-stat"><span>调平次数</span><b>3</b></div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 日志 -->
+              <div class="pane console-pane" id="pane-log">
+                <div class="log-list" id="log-list">
+                  <div class="lg"><span class="dir sys">●</span><span class="board a">[A]</span><span class="ts">12:41:58</span><span class="txt">心跳 PONG · 已连接</span></div>
+                  <div class="lg"><span class="dir tx">→</span><span class="board a">[A]</span><span class="ts">12:42:02</span><span class="txt">PEDAL A LEVEL</span></div>
+                  <div class="lg"><span class="dir rx">←</span><span class="board a">[A]</span><span class="ts">12:42:02</span><span class="txt">OK PEDAL A LEVEL</span></div>
+                  <div class="lg"><span class="dir rx">←</span><span class="board a">[A]</span><span class="ts">12:42:03</span><span class="txt">DEBUG LEVEL A START</span></div>
+                  <div class="lg"><span class="dir rx">←</span><span class="board b">[B]</span><span class="ts">12:42:03</span><span class="txt">TELEMETRY t=12345 side=B state=IDLE</span></div>
+                  <div class="lg"><span class="dir rx">←</span><span class="board a">[A]</span><span class="ts">12:42:05</span><span class="txt">DEBUG LEVEL A DONE comp=0.42</span></div>
+                  <div class="lg"><span class="dir tx">→</span><span class="board a">[A]</span><span class="ts">12:42:06</span><span class="txt">PEDAL A SET PUSH_DIST 80</span></div>
+                  <div class="lg"><span class="dir rx">←</span><span class="board a">[A]</span><span class="ts">12:42:06</span><span class="txt">OK PEDAL</span></div>
+                  <div class="lg"><span class="dir rx">←</span><span class="board a">[A]</span><span class="ts">12:42:07</span><span class="txt">TELEMETRY t=12400 side=A state=IDLE pedal_select=A</span></div>
+                </div>
+                <div class="log-foot">
+                  <div class="log-chips">
+                    <span onclick="quickCmd('PING')">PING</span>
+                    <span onclick="quickCmd('INFO')">INFO</span>
+                    <span onclick="quickCmd('GET PARAMS')">GET PARAMS</span>
+                    <span onclick="quickCmd('RESET FAULT')">RESET FAULT</span>
+                    <span onclick="quickCmd('SCAN 1 32')">SCAN 1 32</span>
+                    <span onclick="quickCmd('MOTOR STOP')">MOTOR STOP</span>
+                  </div>
+                  <div class="cmd-input">
+                    <input id="cmd-input" placeholder="输入命令并回车，如 PING" onkeydown="if(event.key==='Enter')sendCmd()">
+                    <button class="btn primary sm" onclick="sendCmd()">发送</button>
+                  </div>
+                  <div class="log-opts">
+                    <label><input type="checkbox" checked> 自动滚动</label>
+                    <label><input type="checkbox"> 显示心跳</label>
+                    <span style="margin-left:auto">TX 蓝 / RX 绿 / 事件 橙</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <!-- ========== 踏板测试 ========== -->
+      <section class="view" id="view-pedal">
+        <div class="compact-head">
+          <h1>踏板测试</h1>
+          <span class="mode-tag">生产检测</span>
+          <div class="right">
+            <button class="btn primary" onclick="openBle()">蓝牙模块联结</button>
+            <div class="side-seg">
+              <button class="active" data-side="A" onclick="selectBoard('A')">A 模块</button>
+              <button data-side="B" onclick="selectBoard('B')">B 模块</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="pedal-main">
+          <!-- 左：测量 + 电机控制 -->
+          <section class="panel">
+            <div class="ph"><span class="dot"></span>踏板 <b id="pedal-side-label" style="color:var(--cyan)">A</b> · 数据面板</div>
+            <div class="pb pedal-values">
+              <div class="pm-pair">
+                <div class="pm-row"><span class="pm-k">倾角 X</span><span class="pm-v cyan">-0.012</span><span class="pm-u">°</span></div>
+                <div class="pm-row"><span class="pm-k">倾角 Y</span><span class="pm-v">0.003</span><span class="pm-u">°</span></div>
+              </div>
+
+              <div class="pm-row"><span class="pm-k">垂直测距</span><span class="pm-v">128.4</span><span class="pm-u">mm</span><button class="pm-btn" onclick="toast('垂直测距已清零（原型演示）')">清零</button></div>
+
+              <div class="pm-row"><span class="pm-k">起始高度</span><span class="pm-v">52.0</span><span class="pm-u">mm</span><button class="pm-btn" onclick="recordSnapshot('起始高度','52.0 mm')">记录</button><button class="pm-btn clear" onclick="clearField('起始高度')">清除</button></div>
+              <div class="pm-row"><span class="pm-k">终末高度</span><span class="pm-v">78.4</span><span class="pm-u">mm</span><button class="pm-btn" onclick="recordSnapshot('终末高度','78.4 mm')">记录</button><button class="pm-btn clear" onclick="clearField('终末高度')">清除</button></div>
+              <div class="pm-row"><span class="pm-k">高度差</span><span class="pm-v violet">26.4</span><span class="pm-u">mm</span><button class="pm-btn" onclick="recordSnapshot('高度差','26.4 mm')">记录</button><button class="pm-btn clear" onclick="clearField('高度差')">清除</button></div>
+              <div class="pm-row"><span class="pm-k">实时力值</span><span class="pm-v cyan">9.62</span><span class="pm-u">N</span><button class="pm-btn" onclick="recordSnapshot('实时力值','9.62 N')">记录</button><button class="pm-btn clear" onclick="clearField('实时力值')">清除</button></div>
+
+              <div class="pm-pair">
+                <div class="pm-row"><span class="pm-k">最大力值</span><span class="pm-v">12.80</span><span class="pm-u">N</span></div>
+                <div class="pm-row"><span class="pm-k">均匀力值</span><span class="pm-v">9.41</span><span class="pm-u">N</span></div>
+              </div>
+
+              <details class="motor-control" open>
+                <summary>电机控制部分 <span class="r">需总使能 · 命令发往目标板</span></summary>
+                <div class="mc-body">
+                  <div class="mc-row">
+                    <span class="mc-label">调平电机</span>
+                    <span class="mc-input">0.0<i>°</i></span>
+                    <button class="btn sm motion-btn" onclick="toast('已下发 MOTOR A MOVE 0.0')">启动</button>
+                    <button class="btn sm motion-btn" onclick="toast('已下发 PEDAL A LEVEL')">调平补偿</button>
+                  </div>
+                  <div class="mc-row">
+                    <span class="mc-label">加载电机</span>
+                    <span class="mc-input">80<i>mm</i></span>
+                    <button class="btn sm motion-btn" onclick="toast('已下发 PEDAL A SET PUSH_DIST 80')">推出距离</button>
+                    <button class="btn sm motion-btn" onclick="toast('已下发 PEDAL A PUSH START')">启动加载</button>
+                    <button class="btn sm motion-btn" onclick="toast('已下发 MOTOR PUSH_A HOME')">推杆回零</button>
+                    <button class="btn sm motion-btn" onclick="toast('已下发 JOG -1mm')">−</button>
+                    <button class="btn sm motion-btn" onclick="toast('已下发 JOG +1mm')">＋</button>
+                  </div>
+                  <div class="mc-row">
+                    <button class="btn sm motion-btn" onclick="toast('已下发 MOTOR ENABLE')">总使能</button>
+                    <button class="btn sm danger motion-btn" onclick="toast('已下发 PEDAL A STOP')">STOP</button>
+                    <button class="btn sm motion-btn" onclick="resetFault()">故障复位</button>
+                    <span style="font-size:9px;color:var(--dim);margin-left:auto">急停后必须先故障复位</span>
+                  </div>
+                </div>
+              </details>
+            </div>
+          </section>
+
+          <!-- 右：图表 A + 本次记录 -->
+          <div class="col">
+            <section class="panel" style="flex:1">
+              <div class="ph"><span class="dot"></span>图表 A <span class="r">倾角 ° / 高度 mm / 力值 N</span></div>
+              <div class="pedal-pane active" style="padding:10px">
+                <div class="chart" style="flex:1;min-height:260px">
+                  <div class="grid"></div>
+                  <div class="legend"><span><i style="background:#0891b2"></i>倾角 X</span><span><i style="background:#d97706"></i>高度</span><span><i style="background:#7c3aed"></i>力值</span></div>
+                  <div class="ylab">倾角 °</div>
+                  <div class="xlab">最近 60 s · 事件标记 2</div>
+                  <svg viewBox="0 0 320 220" preserveAspectRatio="none">
+                    <path d="M0,130 C30,120 55,134 85,108 S135,74 165,86 S225,58 255,72 S300,46 320,54" fill="none" stroke="#0891b2" stroke-width="2"/>
+                    <path d="M0,160 C40,156 75,148 110,140 S175,122 215,126 S270,104 320,98" fill="none" stroke="#d97706" stroke-width="1.8" stroke-dasharray="4 4"/>
+                    <path d="M0,182 C45,178 75,186 105,172 S170,156 210,160 S275,140 320,146" fill="none" stroke="#7c3aed" stroke-width="1.6"/>
+                  </svg>
+                </div>
+              </div>
+            </section>
+
+            <section class="panel" style="flex-shrink:0;height:186px">
+              <div class="ph"><span class="dot"></span>本次记录 <span class="r" id="record-list-count">3 条</span></div>
+              <div class="record-list" id="pedal-records">
+                <div class="rm-row"><span class="tm">12:41:22</span><span class="bd">[A]</span><span>高度差</span><span class="rv">26.4 mm</span></div>
+                <div class="rm-row"><span class="tm">12:41:20</span><span class="bd">[A]</span><span>实时力值</span><span class="rv">9.62 N</span></div>
+                <div class="rm-row"><span class="tm">12:41:18</span><span class="bd">[A]</span><span>起始高度</span><span class="rv">52.0 mm</span></div>
+              </div>
+            </section>
+          </div>
+        </div>
+
+        <div class="pedal-info">
+          <span>Info:</span><b id="pedal-info">A 侧 · 待机 · 传感器 OK · 已记录 3 条</b>
+          <span class="grow"></span>
+          <span>已记录 <b id="pedal-record-count">3</b> 条</span>
+        </div>
+
+        <div class="pedal-actions">
+          <button class="btn primary" id="pedal-start-btn" style="height:42px;padding:0 28px;font-size:13.5px" onclick="togglePedalTest()">开始测试</button>
+          <button class="btn" onclick="recordSnapshot('记录','高度差 26.4 mm / 力值 9.62 N')">记录</button>
+          <button class="btn" onclick="toast('测试记录已导出（原型演示）')">导出</button>
+          <button class="btn" id="pedal-next-btn" onclick="switchPedalSide()">踏板 B</button>
+        </div>
+      </section>
+
+      <!-- ========== 转盘测试 ========== -->
+      <section class="view" id="view-steer">
+        <div class="compact-head">
+          <h1>转盘测试</h1>
+          <span class="mode-tag">双模块采集</span>
+          <div class="right">
+            <button class="btn primary" onclick="openBle()">蓝牙模块联结</button>
+            <button class="btn" onclick="toast('倾角模块已连接 · 可查看角度与校准（原型演示）')">倾角模块</button>
+            <button class="btn" onclick="toast('转向力模块已连接 · 可查看力值与校准（原型演示）')">转向力模块</button>
+          </div>
+        </div>
+
+        <div class="pedal-main">
+          <!-- 左：测量与记录 -->
+          <section class="panel">
+            <div class="ph"><span class="dot"></span>转盘 · 数据面板</div>
+            <div class="pb">
+              <div class="pm-pair">
+                <div class="pm-row"><span class="pm-k">倾角 X</span><span class="pm-v cyan">-0.012</span><span class="pm-u">°</span></div>
+                <div class="pm-row"><span class="pm-k">倾角 Y</span><span class="pm-v">0.003</span><span class="pm-u">°</span></div>
+              </div>
+
+              <div class="pm-row">
+                <span class="pm-k">自由转角</span>
+                <span class="pm-v cyan">12.480</span><span class="pm-u">°</span>
+                <span style="font-size:9px;color:var(--violet);font-weight:800">顺时针</span>
+                <button class="pm-btn" onclick="toast('自由转角已清零（基准 -0.012°）')">清零</button>
+                <button class="pm-btn" onclick="recordSteer('自由转角','12.480 °')">记录</button>
+              </div>
+              <div class="pm-row">
+                <span class="pm-k">顺时针峰值</span>
+                <span class="pm-v violet">12.480</span><span class="pm-u">°</span>
+                <button class="pm-btn" onclick="recordSteer('顺时针峰值','12.480 °')">记录</button>
+                <button class="pm-btn clear" onclick="clearSteer('顺时针峰值')">清除</button>
+              </div>
+              <div class="pm-row">
+                <span class="pm-k">逆时针峰值</span>
+                <span class="pm-v violet">-7.260</span><span class="pm-u">°</span>
+                <button class="pm-btn" onclick="recordSteer('逆时针峰值','-7.260 °')">记录</button>
+                <button class="pm-btn clear" onclick="clearSteer('逆时针峰值')">清除</button>
+              </div>
+              <div class="pm-row">
+                <span class="pm-k">实时力值</span>
+                <span class="pm-v cyan">8.34</span><span class="pm-u">N</span>
+                <button class="pm-btn" onclick="toast('转向力已清零（原型演示）')">清零</button>
+                <button class="pm-btn" onclick="recordSteer('实时力值','8.34 N')">记录</button>
+              </div>
+              <div class="pm-row">
+                <span class="pm-k">最大力值</span>
+                <span class="pm-v">11.82</span><span class="pm-u">N</span>
+                <button class="pm-btn" onclick="recordSteer('最大力值','11.82 N')">记录</button>
+                <button class="pm-btn clear" onclick="clearSteer('最大力值')">清除</button>
+              </div>
+
+            </div>
+          </section>
+
+          <!-- 右：图表 A -->
+          <section class="panel">
+            <div class="ph"><span class="dot"></span>图表 A <span class="r">倾角 ° / 自由转角 °</span></div>
+            <div class="pedal-pane active" style="padding:10px">
+              <div class="chart" style="flex:1;min-height:320px">
+                <div class="grid"></div>
+                <div class="legend"><span><i style="background:#0891b2"></i>倾角 X</span><span><i style="background:#7c3aed"></i>自由转角</span></div>
+                <div class="ylab">角度 °</div>
+                <div class="xlab">仅测试中采集 · 最近 60 s</div>
+                <svg viewBox="0 0 320 260" preserveAspectRatio="none">
+                  <path d="M0,150 C35,140 65,158 95,126 S150,84 185,98 S240,66 275,78 S305,62 320,66" fill="none" stroke="#0891b2" stroke-width="2"/>
+                  <path d="M0,190 C45,182 80,166 115,158 S180,140 220,118 S280,96 320,102" fill="none" stroke="#7c3aed" stroke-width="1.8"/>
+                  <line x1="180" y1="12" x2="180" y2="250" stroke="rgba(8,145,178,.25)" stroke-width="1" stroke-dasharray="3 4"/>
+                  <circle cx="180" cy="98" r="3" fill="#0891b2"/>
+                </svg>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <div class="pedal-info">
+          <span>Info:</span><b id="steer-info">倾角模块 / 转向力模块已连接 · 待机 · 自由转角基准 -0.012°</b>
+          <span class="grow"></span>
+          <span>已记录 <b id="steer-record-count">0</b> 条</span>
+        </div>
+
+        <div class="pedal-actions">
+          <button class="btn primary" id="steer-start-btn" style="height:42px;padding:0 28px;font-size:13.5px" onclick="toggleSteerTest()">开始测试</button>
+          <button class="btn" onclick="recordSteer('自由转角','12.480 °')">记录</button>
+          <button class="btn" onclick="toast('转盘测试记录已导出 Excel（原型演示）')">导出 Excel</button>
+          <button class="btn" onclick="clearSteerAll()">清空</button>
+        </div>
+      </section>
+
+      <!-- ========== 记录 ========== -->
+      <section class="view" id="view-records">
+        <div class="view-head">
+          <div class="vh-left">
+            <span class="kicker">TEST RECORDS</span>
+            <h1>数据记录 <em>按板侧与时间归档</em></h1>
+            <p>测试记录、测量点与曲线集中管理；支持筛选、详情与导出。</p>
+          </div>
+          <div class="vh-right">
+            <span class="chip">本周 12 条</span>
+            <button class="btn sm">筛选</button>
+            <button class="btn primary sm">导出 Excel</button>
+          </div>
+        </div>
+        <div class="simple-grid">
+          <section class="panel">
+            <div class="ph"><span class="dot"></span>最近记录 <span class="r">按时间倒序 <button class="btn sm" onclick="toast('已导出全部记录')">导出全部</button></span></div>
+            <div class="pb">
+              <div class="record-list">
+                <div class="record-item">
+                  <div class="record-card">
+                    <div class="side">A</div>
+                    <div class="main"><b>踏板 A 侧 · 自动流程</b><span>2026-11-13 12:41:22 · 操作员 admin</span></div>
+                    <div class="vals">
+                      <div><span>调平</span><b>0.42°</b></div>
+                      <div><span>推杆</span><b>80.0 mm</b></div>
+                      <div><span>结果</span><b style="color:var(--ok)">PASS</b></div>
+                    </div>
+                    <div class="record-actions">
+                      <button class="btn sm ghost" onclick="toggleRecordDetail(1, this)">详情</button>
+                      <button class="btn sm" onclick="exportRecord('踏板 A 侧 · 2026-11-13 12:41:22')">导出</button>
+                    </div>
+                  </div>
+                  <div class="record-detail" id="rec-detail-1">
+                    <div class="dh">测量点明细 <span>共 12 点 · 自动记录</span></div>
+                    <table>
+                      <thead><tr><th>#</th><th>时间</th><th>倾角 X</th><th>倾角 Y</th><th>激光</th><th>推杆</th><th>力值</th></tr></thead>
+                      <tbody>
+                        <tr><td>1</td><td>12:41:18</td><td>-0.012</td><td>0.003</td><td>128.4</td><td>0.0</td><td>9.41 N</td></tr>
+                        <tr><td>2</td><td>12:41:20</td><td>-0.008</td><td>0.002</td><td>128.6</td><td>0.0</td><td>9.62 N</td></tr>
+                        <tr><td>3</td><td>12:41:22</td><td>0.000</td><td>0.001</td><td>128.8</td><td>80.0</td><td>9.62 N</td></tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+                <div class="record-item">
+                  <div class="record-card">
+                    <div class="side b">B</div>
+                    <div class="main"><b>踏板 B 侧 · 手动单步</b><span>2026-11-13 12:35:08 · 操作员 admin</span></div>
+                    <div class="vals">
+                      <div><span>调平</span><b>0.18°</b></div>
+                      <div><span>推杆</span><b>60.0 mm</b></div>
+                      <div><span>结果</span><b style="color:var(--ok)">PASS</b></div>
+                    </div>
+                    <div class="record-actions">
+                      <button class="btn sm ghost" onclick="toggleRecordDetail(2, this)">详情</button>
+                      <button class="btn sm" onclick="exportRecord('踏板 B 侧 · 2026-11-13 12:35:08')">导出</button>
+                    </div>
+                  </div>
+                  <div class="record-detail" id="rec-detail-2">
+                    <div class="dh">测量点明细 <span>共 8 点 · 手动记录</span></div>
+                    <table>
+                      <thead><tr><th>#</th><th>时间</th><th>倾角 X</th><th>倾角 Y</th><th>激光</th><th>推杆</th><th>力值</th></tr></thead>
+                      <tbody>
+                        <tr><td>1</td><td>12:35:02</td><td>0.006</td><td>-0.002</td><td>117.2</td><td>0.0</td><td>7.18 N</td></tr>
+                        <tr><td>2</td><td>12:35:05</td><td>0.004</td><td>-0.001</td><td>118.6</td><td>30.0</td><td>7.82 N</td></tr>
+                        <tr><td>3</td><td>12:35:08</td><td>0.002</td><td>0.000</td><td>119.0</td><td>60.0</td><td>8.15 N</td></tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+                <div class="record-item">
+                  <div class="record-card">
+                    <div class="side">A</div>
+                    <div class="main"><b>踏板 A 侧 · 自动流程</b><span>2026-11-13 11:58:41 · 操作员 user</span></div>
+                    <div class="vals">
+                      <div><span>调平</span><b>0.66°</b></div>
+                      <div><span>推杆</span><b>80.0 mm</b></div>
+                      <div><span>结果</span><b style="color:var(--warn)">复查</b></div>
+                    </div>
+                    <div class="record-actions">
+                      <button class="btn sm ghost" onclick="toggleRecordDetail(3, this)">详情</button>
+                      <button class="btn sm" onclick="exportRecord('踏板 A 侧 · 2026-11-13 11:58:41')">导出</button>
+                    </div>
+                  </div>
+                  <div class="record-detail" id="rec-detail-3">
+                    <div class="dh">测量点明细 <span>共 12 点 · 需复查</span></div>
+                    <table>
+                      <thead><tr><th>#</th><th>时间</th><th>倾角 X</th><th>倾角 Y</th><th>激光</th><th>推杆</th><th>力值</th></tr></thead>
+                      <tbody>
+                        <tr><td>1</td><td>11:58:35</td><td>-0.020</td><td>0.010</td><td>128.1</td><td>0.0</td><td>9.21 N</td></tr>
+                        <tr><td>2</td><td>11:58:38</td><td>-0.014</td><td>0.008</td><td>128.3</td><td>40.0</td><td>9.44 N</td></tr>
+                        <tr><td>3</td><td>11:58:41</td><td>-0.006</td><td>0.004</td><td>128.5</td><td>80.0</td><td>9.58 N</td></tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+                <div class="record-item">
+                  <div class="record-card">
+                    <div class="side b">B</div>
+                    <div class="main"><b>踏板 B 侧 · 手动单步</b><span>2026-11-12 17:20:10 · 操作员 user</span></div>
+                    <div class="vals">
+                      <div><span>调平</span><b>0.24°</b></div>
+                      <div><span>推杆</span><b>80.0 mm</b></div>
+                      <div><span>结果</span><b style="color:var(--ok)">PASS</b></div>
+                    </div>
+                    <div class="record-actions">
+                      <button class="btn sm ghost" onclick="toggleRecordDetail(4, this)">详情</button>
+                      <button class="btn sm" onclick="exportRecord('踏板 B 侧 · 2026-11-12 17:20:10')">导出</button>
+                    </div>
+                  </div>
+                  <div class="record-detail" id="rec-detail-4">
+                    <div class="dh">测量点明细 <span>共 10 点 · 手动记录</span></div>
+                    <table>
+                      <thead><tr><th>#</th><th>时间</th><th>倾角 X</th><th>倾角 Y</th><th>激光</th><th>推杆</th><th>力值</th></tr></thead>
+                      <tbody>
+                        <tr><td>1</td><td>17:20:04</td><td>0.005</td><td>-0.003</td><td>117.0</td><td>0.0</td><td>7.02 N</td></tr>
+                        <tr><td>2</td><td>17:20:07</td><td>0.003</td><td>-0.001</td><td>118.8</td><td>40.0</td><td>7.66 N</td></tr>
+                        <tr><td>3</td><td>17:20:10</td><td>0.001</td><td>0.000</td><td>119.4</td><td>80.0</td><td>8.04 N</td></tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+          <section class="panel">
+            <div class="ph"><span class="dot"></span>统计概览</div>
+            <div class="pb">
+              <div class="big-metrics">
+                <div class="big-metric cyan"><span>本周记录</span><b>12<i>条</i></b></div>
+                <div class="big-metric violet"><span>合格率</span><b>91.7<i>%</i></b></div>
+              </div>
+              <div class="chart" style="min-height:220px">
+                <div class="grid"></div>
+                <div class="ylab">记录数</div>
+                <div class="xlab">最近 7 天</div>
+                <svg viewBox="0 0 300 180" preserveAspectRatio="none">
+                  <path d="M0,140 L40,120 L80,128 L120,90 L160,102 L200,62 L240,70 L280,38 L300,44" fill="none" stroke="#0891b2" stroke-width="2"/>
+                  <path d="M0,140 L40,120 L80,128 L120,90 L160,102 L200,62 L240,70 L280,38 L300,44 L300,180 L0,180 Z" fill="rgba(8,145,178,.10)"/>
+                </svg>
+              </div>
+              <span class="chip">最近一次导出：今天 11:30</span>
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <!-- ========== 设置 ========== -->
+      <section class="view" id="view-settings">
+        <div class="view-head">
+          <div class="vh-left"><h1>设置</h1></div>
+        </div>
+        <div class="settings-grid">
+          <section class="panel">
+            <div class="ph"><span class="dot"></span>参数设置（SET） <span class="r">掉电保存 NVS</span></div>
+            <div class="pb">
+              <div class="set-list">
+                <div class="set-row">
+                  <div class="info"><b>补正模式</b><span>1 = 一体倾角闭环，2 = 分离初始角度 ± 倾角</span></div>
+                  <select class="set-select"><option>1</option><option>2</option></select>
+                  <button class="btn sm">设置</button>
+                </div>
+                <div class="set-row">
+                  <div class="info"><b>推杆脉冲当量</b><span>pulse/mm · 10–10000</span></div>
+                  <div class="stepper"><button>−</button><input value="787.4"><button>＋</button></div>
+                  <button class="btn sm">设置</button>
+                </div>
+                <div class="set-row">
+                  <div class="info"><b>推杆速度</b><span>RPM · 1–500</span></div>
+                  <div class="stepper"><button>−</button><input value="60"><button>＋</button></div>
+                  <button class="btn sm">设置</button>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="ph"><span class="dot"></span>用户管理 <span class="r"><button class="btn sm" onclick="openUserEditor(-1)">新增用户</button></span></div>
+            <div class="pb">
+              <div class="user-admin" id="userList">
+                <div class="user-row"><div class="avatar">AD</div><div class="un"><b>admin</b><span>管理员</span></div><div class="perms"><span>全部功能</span></div><div class="ops"><button class="btn sm ghost" onclick="openUserEditor(0)">编辑</button></div></div>
+                <div class="user-row"><div class="avatar" style="background:linear-gradient(135deg,#a78bfa,#7c3aed)">OP</div><div class="un"><b>operator</b><span>操作员</span></div><div class="perms"><span>踏板</span><span>转盘</span><span>记录</span></div><div class="ops"><button class="btn sm ghost" onclick="openUserEditor(1)">编辑</button></div></div>
+              </div>
+              <div class="conn-note" style="margin-top:8px">用户名 / 密码 / 可用功能均可修改；修改当前登录用户后立即生效。</div>
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <!-- ========== 帮助 ========== -->
+      <section class="view" id="view-help">
+        <div class="view-head">
+          <div class="vh-left">
+            <span class="kicker">GUIDE</span>
+            <h1>操作指引 <em>先连板，再选侧，最后动</em></h1>
+            <p>面向现场调试的五步流程与故障处理速查。</p>
+          </div>
+          <div class="vh-right"><button class="btn sm">导出操作手册</button></div>
+        </div>
+        <div class="help-carousel">
+          <button class="help-arrow" id="helpPrev" onclick="helpMove(-1)" aria-label="上一页">‹</button>
+          <div class="help-viewport" id="helpViewport">
+            <div class="help-track" id="helpTrack">
+              <article class="help-slide">
+                <div class="n">01</div><h3>连接双板</h3>
+                <p>在「连接」中分别连接 A/B 板；默认地址 <code>192.168.8.88:10001</code> 与 <code>192.168.8.89:10001</code>。板卡 LED 变绿并显示心跳时间，表示连接正常。</p>
+                <ul><li>已连接状态下 IP/端口锁定，需先断开再修改</li><li>A/B 独立心跳，15 秒无数据自动标记离线</li></ul>
+              </article>
+              <article class="help-slide">
+                <div class="n">02</div><h3>选择目标板</h3>
+                <p>点击左侧板卡或顶部 A/B 状态胶囊，切换目标板。所有动作按钮只作用于目标板，按钮上的 A/B 标识始终显示命令去向。</p>
+                <ul><li>调平、推出、回零、扫描等命令均按目标板路由</li><li>切换目标板时同步该板 <code>PEDAL SELECT</code></li></ul>
+              </article>
+              <article class="help-slide">
+                <div class="n">03</div><h3>调平</h3>
+                <p>点击「开始角度补偿」执行闭环调平；完成后日志显示 <code>DEBUG LEVEL DONE comp=…</code>，流程自动进入推出步骤。</p>
+                <ul><li>目标倾角 X = 0°，进入死区并确认后判定完成</li><li>调平过程中手动操作电机会中止自动流程</li></ul>
+              </article>
+              <article class="help-slide">
+                <div class="n">04</div><h3>推出</h3>
+                <p>先设置推出距离（0–500 mm），再点击「启动加载」。未回原点时固件会自动回零，完成后自动推出。</p>
+                <ul><li>推出前请确认安全区域无人</li><li><code>STOP</code> 只停止目标板流程</li></ul>
+              </article>
+              <article class="help-slide">
+                <div class="n">05</div><h3>记录与导出</h3>
+                <p>测试完成后在「记录」中查看调平、推杆与测量点数据；记录可展开查看明细，每条记录和全部记录均可导出。</p>
+                <ul><li>自动流程记录稳定点快照</li><li>导出内容包含测量点明细与判定结果</li></ul>
+              </article>
+              <article class="help-slide danger">
+                <div class="n">!</div><h3>故障恢复</h3>
+                <p>急停后设备进入 <code>FAULT</code>，所有运动命令被拒绝。必须先执行「故障复位」<code>RESET FAULT</code>，再总使能继续操作。</p>
+                <ul><li>急停命令同时下发 A/B 两块板</li><li>故障未复位时，开始测试会被拦截</li></ul>
+              </article>
+            </div>
+          </div>
+          <button class="help-arrow" id="helpNext" onclick="helpMove(1)" aria-label="下一页">›</button>
+        </div>
+        <div class="help-indicator">
+          <span id="helpPageText">1 / 6</span>
+          <div class="help-dots" id="helpDots">
+            <button class="active" onclick="helpGo(0)"></button><button onclick="helpGo(1)"></button><button onclick="helpGo(2)"></button><button onclick="helpGo(3)"></button><button onclick="helpGo(4)"></button><button onclick="helpGo(5)"></button>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- ================= 底部状态 ================= -->
+  <footer class="statusbar">
+    <span>A <b id="foot-state-A" style="color:var(--dim)">OFFLINE</b> · 192.168.8.88</span>
+    <span class="sep"></span>
+    <span>B <b id="foot-state-B" style="color:var(--dim)">OFFLINE</b> · 192.168.8.89</span>
+    <span class="sep"></span>
+    <span>心跳 A <b id="foot-hb-A">--</b> · B <b id="foot-hb-B">--</b> · 15s 超时</span>
+    <span class="sep"></span>
+    <span>FW 1.1.0 / 1.1.0</span>
+    <span class="sep"></span>
+    <span>AES-128-CTR · HMAC-MD5</span>
+    <span class="grow"></span>
+    <span>目标板 <b id="status-target">A</b></span>
+    <span class="sep"></span>
+    <span class="ver">XdesinHMI v0.1.1 · 原型 v6</span>
+  </footer>
+</div>
+
+<!-- ================= 参数抽屉 ================= -->
+<div class="drawer-overlay" id="drawer-overlay" onclick="closeDrawer()"></div>
+<aside class="drawer" id="drawer">
+  <div class="drawer-head">
+    <svg viewBox="0 0 24 24" fill="none" stroke="#0891b2" stroke-width="1.8" style="width:19px;height:19px"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2.2"/><circle cx="8" cy="17" r="2.2"/></svg>
+    <h2>参数设置</h2>
+    <button class="x" onclick="closeDrawer()">✕</button>
+  </div>
+  <div class="drawer-body">
+    <div class="chip">目标板：<b id="drawer-target" style="color:var(--cyan)">A</b> · 参数立即生效</div>
+    <div class="set-list">
+      <div class="set-row">
+        <div class="info"><b>补正模式</b><span>1 = 一体倾角闭环 · 2 = 分离初始角度 ± 倾角</span></div>
+        <select class="set-select"><option>1</option><option>2</option></select>
+        <button class="btn sm" onclick="toast('补正模式已设置')">设置</button>
+      </div>
+      <div class="set-row">
+        <div class="info"><b>推杆脉冲当量</b><span>pulse/mm</span></div>
+        <div class="stepper"><button>−</button><input value="787.4"><button>＋</button></div>
+        <button class="btn sm" onclick="toast('推杆脉冲当量已设置')">设置</button>
+      </div>
+      <div class="set-row">
+        <div class="info"><b>推杆速度</b><span>RPM</span></div>
+        <div class="stepper"><button>−</button><input value="60"><button>＋</button></div>
+        <button class="btn sm" onclick="toast('推杆速度已设置')">设置</button>
+      </div>
+    </div>
+  </div>
+  <div class="drawer-foot">
+    <button class="btn primary wide" onclick="closeDrawer()">完成</button>
+  </div>
+</aside>
+
+<!-- ================= 首次连接向导 ================= -->
+<div class="connect-wizard" id="connectWizard">
+  <div class="wizard" onclick="event.stopPropagation()">
+    <div class="wizard-head">
+      <div class="mark">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 13h4l2-5 3 10 2-7 2 2h5"/></svg>
+      </div>
+      <h2>设备连接</h2>
+      <span class="sub">可跳过，稍后可在顶部「连接」中重新打开</span>
+    </div>
+    <div class="wizard-body">
+      <div class="wizard-card">
+        <div class="top"><div class="icon">A</div><div><b>A 板</b><div class="meta">192.168.8.88 : 10001</div></div></div>
+        <div class="state"><span class="led off" id="wz-led-A"></span><span id="wz-state-A">未连接</span><span class="hb" id="wz-hb-A">心跳: --</span></div>
+        <button class="btn" id="wz-btn-A" onclick="connectBoard('A')">连接 A 板</button>
+      </div>
+      <div class="wizard-card">
+        <div class="top"><div class="icon b">B</div><div><b>B 板</b><div class="meta">192.168.8.89 : 10001</div></div></div>
+        <div class="state"><span class="led off" id="wz-led-B"></span><span id="wz-state-B">未连接</span><span class="hb" id="wz-hb-B">心跳: --</span></div>
+        <button class="btn" id="wz-btn-B" onclick="connectBoard('B')">连接 B 板</button>
+      </div>
+      <div class="wizard-card">
+        <div class="top"><div class="icon ble">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:19px;height:19px"><path d="M7 7l10 10-5 4V3l5 4L7 17"/></svg>
+        </div><div><b>蓝牙模块</b><div class="meta">力值 / 倾角 / 转向力 / 二路开关</div></div></div>
+        <div class="state"><span class="led off" id="wz-led-ble"></span><span id="wz-state-ble">0/5 已连接</span></div>
+        <button class="btn primary" id="wz-btn-ble" onclick="toggleAllBle()">连接蓝牙</button>
+        <button class="btn" onclick="openBle()">详细设置</button>
+      </div>
+    </div>
+    <div class="wizard-foot">
+      <button class="btn skip" onclick="skipWizard()">跳过</button>
+      <button class="btn" onclick="openConn()">IP / 端口设置</button>
+      <span class="sp"></span>
+      <button class="btn primary" onclick="enterSystem()">进入系统</button>
+    </div>
+  </div>
+</div>
+
+<!-- 测试前连接校验 -->
+<div class="modal-overlay" id="guardOverlay" onclick="closeGuard()">
+  <div class="modal guard-modal" onclick="event.stopPropagation()">
+    <div class="modal-head">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2" style="width:17px;height:17px"><circle cx="12" cy="12" r="9"/><path d="M12 7v6"/><circle cx="12" cy="16.4" r=".9" fill="currentColor" stroke="none"/></svg>
+      <h2>无法开始测试</h2>
+      <button class="x" onclick="closeGuard()">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="margin:0;font-size:11.5px;color:var(--muted)">以下对应设备尚未连接：</p>
+      <div class="guard-list" id="guardList"></div>
+      <p style="margin:0;font-size:9.5px;color:var(--dim)">连接完成后即可开始测试；也可稍后从顶部「连接」重新进入向导。</p>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" onclick="closeGuard()">取消</button>
+      <button class="btn primary" onclick="goConnect()">去连接</button>
+    </div>
+  </div>
+</div>
+
+<!-- ================= 连接设置 ================= -->
+<div class="modal-overlay" id="connOverlay" onclick="closeConn()">
+  <div class="modal conn-modal" onclick="event.stopPropagation()">
+    <div class="modal-head">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#0891b2" stroke-width="1.8" style="width:17px;height:17px"><path d="M9 7V3M15 7V3M7 7h10v4a5 5 0 0 1-10 0z"/><path d="M12 16v5"/></svg>
+      <h2>设备连接</h2><span class="sub">A/B 双板 TCP</span>
+      <button class="x" onclick="closeConn()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="conn-row">
+        <div class="side">A</div>
+        <div class="nm">A 板</div>
+        <div class="field"><span>IP 地址</span><input class="conn-input conn-ip" id="conn-ip-A" value="192.168.8.88"></div>
+        <div class="field"><span>端口</span><input class="conn-input conn-port" id="conn-port-A" value="10001"></div>
+        <div class="state"><span class="led off" id="conn-led-A"></span><span id="conn-state-A">未连接</span></div>
+        <span class="hb" id="conn-hb-A">心跳: --</span>
+        <button class="btn" id="conn-btn-A" onclick="toggleConn('A')">连接</button>
+      </div>
+      <div class="conn-row">
+        <div class="side b">B</div>
+        <div class="nm">B 板</div>
+        <div class="field"><span>IP 地址</span><input class="conn-input conn-ip" id="conn-ip-B" value="192.168.8.89" disabled></div>
+        <div class="field"><span>端口</span><input class="conn-input conn-port" id="conn-port-B" value="10001"></div>
+        <div class="state"><span class="led off" id="conn-led-B"></span><span id="conn-state-B">未连接</span></div>
+        <span class="hb" id="conn-hb-B">心跳: --</span>
+        <button class="btn" id="conn-btn-B" onclick="toggleConn('B')">连接</button>
+      </div>
+      <div class="conn-note">A/B 板独立连接；默认 IP 为下位机 STA 固定地址，端口 10001。心跳 3s，15s 无数据自动断开；修改 IP/端口后需重新连接。</div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" onclick="connAll()">全部连接</button>
+      <button class="btn primary" onclick="closeConn()">完成</button>
+    </div>
+  </div>
+</div>
+
+<!-- ================= 蓝牙模块设置 ================= -->
+<div class="modal-overlay" id="bleOverlay" onclick="closeBle()">
+  <div class="modal ble-modal" onclick="event.stopPropagation()">
+    <div class="modal-head">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#0891b2" stroke-width="1.8" style="width:17px;height:17px"><path d="M7 7l10 10-5 4V3l5 4L7 17"/></svg>
+      <h2>蓝牙模块联结</h2><span class="sub">扫描 / 连接 / 清零 / 校准 / 手动调试</span>
+      <button class="x" onclick="closeBle()">✕</button>
+    </div>
+    <div class="ble-body">
+      <aside class="ble-channels">
+        <button class="ble-ch active" data-ch="A" onclick="selectBle('A')">
+          <span class="si">A</span><div><b>模块 A</b><span>踏板 A 加载力</span></div><span class="led off"></span>
+        </button>
+        <button class="ble-ch" data-ch="B" onclick="selectBle('B')">
+          <span class="si b">B</span><div><b>模块 B</b><span>踏板 B 加载力</span></div><span class="led off"></span>
+        </button>
+        <button class="ble-ch" data-ch="TORQUE" onclick="selectBle('TORQUE')">
+          <span class="si">T</span><div><b>转向力</b><span>转盘力值</span></div><span class="led off"></span>
+        </button>
+        <button class="ble-ch" data-ch="STEER" onclick="selectBle('STEER')">
+          <span class="si s">S</span><div><b>倾角模块</b><span>转盘 X / Y</span></div><span class="led off"></span>
+        </button>
+        <button class="ble-ch" data-ch="SWITCH" onclick="selectBle('SWITCH')">
+          <span class="si w">W</span><div><b>二路开关</b><span>加载控制</span></div><span class="led off"></span>
+        </button>
+      </aside>
+
+      <section class="ble-detail">
+        <div class="ble-top">
+          <h3 id="ble-title">模块 A（踏板 A 加载力）</h3>
+          <span class="st" id="ble-status">已连接 · XDS-WEIGHT-A · ——</span>
+          <div class="acts">
+            <button class="btn sm" id="ble-toggle" onclick="bleToggle()">断开</button>
+            <button class="btn sm" onclick="toast('正在重连上次设备…')">重连</button>
+          </div>
+        </div>
+
+        <div class="ble-block">
+          <h4>扫描设备 <span class="r">选择目标模块后连接</span>
+            <button class="btn sm" onclick="bleScan()" style="margin-left:auto;height:26px;font-size:9.5px">扫描</button>
+          </h4>
+          <div id="ble-scan-hint" style="font-size:9.5px;color:var(--dim)">点击「扫描」查找附近的 BLE 模块</div>
+          <div class="device-list" id="ble-devices" style="display:none">
+            <div class="device-row"><span class="led on"></span><div><div class="n">XDS-WEIGHT-A</div><div class="r">-46 dBm</div></div><button class="btn" onclick="toast('正在连接 XDS-WEIGHT-A…')">连接</button></div>
+            <div class="device-row"><span class="led off"></span><div><div class="n">SCT726T-M</div><div class="r">-63 dBm</div></div><button class="btn" onclick="toast('正在连接 SCT726T-M…')">连接</button></div>
+            <div class="device-row"><span class="led off"></span><div><div class="n">WCH-BLE-01</div><div class="r">-78 dBm · 信号弱</div></div><button class="btn" onclick="toast('正在连接 WCH-BLE-01…')">连接</button></div>
+          </div>
+        </div>
+
+        <div class="ble-block" id="ble-force">
+          <h4>力值通道 <span class="r">零点 / 砝码校准</span></h4>
+          <div class="ble-metrics">
+            <div class="ble-metric"><span>实时力值</span><b class="cyan">9.62 N</b></div>
+            <div class="ble-metric"><span>最大力值</span><b>12.80 N</b></div>
+            <div class="ble-metric"><span>校正系数</span><b>1.00000</b></div>
+          </div>
+          <div class="ble-actions">
+            <button class="btn" onclick="toast('已清零（当前负载视为 0 N）')">清零</button>
+            <input class="ble-input" value="10.000" title="标准 N">
+            <button class="btn primary" onclick="toast('校准完成：系数 1.00000')">校准</button>
+            <button class="btn" onclick="toast('最大力值已重置')">重置最大</button>
+            <button class="btn danger" onclick="toast('已下发恢复出厂设置')">恢复出厂</button>
+          </div>
+        </div>
+
+        <div class="ble-block" id="ble-steer" style="display:none">
+          <h4>倾角通道 <span class="r">Modbus RTU · 10Hz</span></h4>
+          <div class="ble-metrics">
+            <div class="ble-metric"><span>角度 X</span><b class="cyan">-0.012°</b></div>
+            <div class="ble-metric"><span>角度 Y</span><b>0.003°</b></div>
+            <div class="ble-metric"><span>采样周期</span><b>100 ms</b></div>
+          </div>
+          <div class="ble-actions">
+            <button class="btn" onclick="bleQuick('01 03 00 01 00 02 95 CB')">读取 X</button>
+            <button class="btn" onclick="bleQuick('01 03 00 03 00 02 34 0B')">读取 Y</button>
+            <label style="display:flex;align-items:center;gap:5px;font-size:9.5px;color:var(--dim)"><input type="checkbox"> 原始数据监视</label>
+          </div>
+        </div>
+
+        <div class="ble-block" id="ble-switch" style="display:none">
+          <h4>开关控制 <span class="r">EE 协议</span></h4>
+          <div class="relay-grid">
+            <div class="relay-card"><div class="t">第 1 路 <b>开</b></div><div class="acts"><button class="btn" onclick="toast('第1路已开')">开</button><button class="btn" onclick="toast('第1路已关')">关</button><button class="btn" onclick="toast('第1路点动')">点动</button></div></div>
+            <div class="relay-card"><div class="t">第 2 路 <b style="color:var(--dim)">关</b></div><div class="acts"><button class="btn" onclick="toast('第2路已开')">开</button><button class="btn" onclick="toast('第2路已关')">关</button><button class="btn" onclick="toast('第2路点动')">点动</button></div></div>
+          </div>
+          <div class="ble-actions" style="margin-top:6px"><button class="btn" onclick="toast('已查询开关状态')">查询状态</button></div>
+        </div>
+
+        <div class="ble-block">
+          <h4>手动调试 <span class="r">hex 直发</span></h4>
+          <div class="ble-actions" style="margin-bottom:6px">
+            <input class="ble-input wide" id="ble-hex" placeholder="输入 hex，如 01 03 00 01 00 02 95 CB">
+            <button class="btn primary" onclick="bleSendHex()">发送</button>
+          </div>
+          <div class="ble-actions" style="margin-bottom:6px">
+            <button class="btn" onclick="bleQuick('01 03 00 01 00 04 15 C9')">读角度(01)</button>
+            <button class="btn" onclick="bleQuick('03 03 00 01 00 04 15 C9')">读角度(03)</button>
+            <button class="btn" onclick="bleQuick('AA 01 03 08 A6 01 07 00')">清零(AA帧)</button>
+            <button class="btn" onclick="bleQuick('EE 03 E1 01 FF')">开第1路</button>
+            <button class="btn" onclick="bleQuick('EE 03 E1 01 00')">关第1路</button>
+            <button class="btn" onclick="bleQuick('EE 01 E0')">查状态</button>
+          </div>
+          <div class="ble-log" id="ble-log">
+            <div class="sys">[A] 点击「扫描」或输入 hex 开始调试</div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+</div>
+
+<!-- 用户编辑 -->
+<div class="modal-overlay" id="userEditorOverlay" onclick="closeUserEditor()">
+  <div class="modal" style="width:540px" onclick="event.stopPropagation()">
+    <div class="modal-head">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#0891b2" stroke-width="1.8" style="width:17px;height:17px"><circle cx="12" cy="8" r="3.2"/><path d="M5 20c0-3.6 2.5-6 7-6s7 2.4 7 6"/></svg>
+      <h2 id="userEditorTitle">新增用户</h2>
+      <button class="x" onclick="closeUserEditor()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="user-form-row">
+        <div class="login-field"><label>用户名</label><input class="login-input" id="ueUser" placeholder="用户名"></div>
+        <div class="login-field"><label>密码</label><input class="login-input" id="uePass" placeholder="密码"></div>
+      </div>
+      <div class="login-field"><label>角色</label>
+        <select class="set-select" id="ueRole" style="width:100%"><option>管理员</option><option>操作员</option><option>调试员</option><option>计量员</option></select>
+      </div>
+      <div class="login-field"><label>可用功能</label>
+        <div class="perm-grid">
+          <label><input type="checkbox" value="pedal" class="ue-perm"> 踏板测试</label>
+          <label><input type="checkbox" value="steer" class="ue-perm"> 转盘测试</label>
+          <label><input type="checkbox" value="debug" class="ue-perm"> 调试台</label>
+          <label><input type="checkbox" value="records" class="ue-perm"> 数据记录</label>
+          <label><input type="checkbox" value="settings" class="ue-perm"> 设置</label>
+          <label><input type="checkbox" value="help" class="ue-perm"> 帮助</label>
+        </div>
+      </div>
+      <div class="login-error" id="ueError"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" onclick="closeUserEditor()">取消</button>
+      <button class="btn primary" onclick="saveUser()">保存</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  /* ================= 时间 ================= */
+  function tickClock() {
+    const d = new Date();
+    const p = n => String(n).padStart(2, '0');
+    document.getElementById('clock').textContent = `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+  }
+  tickClock(); setInterval(tickClock, 1000);
+
+  /* ================= 视图切换 ================= */
+  function setView(name, el) {
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    document.getElementById('view-' + name).classList.add('active');
+    document.querySelectorAll('.rail .nav').forEach(n => n.classList.remove('active'));
+    if (el) el.classList.add('active');
+  }
+
+  /* ================= 目标板 ================= */
+  let target = 'A';
+  let pedalRunning = false;
+  function selectBoard(side) {
+    target = side;
+    document.body.dataset.target = side;
+    document.querySelectorAll('.board-card').forEach(c => {
+      const isTarget = c.id === 'board-' + side;
+      c.classList.toggle('target', isTarget);
+      const tag = c.querySelector('.bc-head .tag');
+      if (tag) tag.style.visibility = isTarget ? 'visible' : 'hidden';
+    });
+    document.querySelectorAll('.top-board[id^="top-board-"]').forEach(t => {
+      t.classList.toggle('target', t.id === 'top-board-' + side);
+    });
+    document.querySelectorAll('.mini-board[data-side]').forEach(m => {
+      m.classList.toggle('active', m.dataset.side === side);
+    });
+    document.querySelectorAll('.side-switch button').forEach(b => {
+      b.classList.toggle('active', b.dataset.side === side);
+    });
+    document.querySelectorAll('.side-seg button').forEach(b => {
+      b.classList.toggle('active', b.dataset.side === side);
+    });
+    const pt = document.getElementById('pedal-target');
+    if (pt) pt.textContent = side;
+    const ptc = document.getElementById('pedal-target-chip');
+    if (ptc) ptc.textContent = side;
+    const psl = document.getElementById('pedal-side-label');
+    if (psl) psl.textContent = side;
+    const pnb = document.getElementById('pedal-next-btn');
+    if (pnb) pnb.textContent = '踏板 ' + (side === 'A' ? 'B' : 'A');
+    pedalRunning = false;
+    const pstate = document.getElementById('pedal-test-state');
+    if (pstate) { pstate.textContent = '待机'; pstate.className = 'chip info'; }
+    const pstart = document.getElementById('pedal-start-btn');
+    if (pstart) pstart.textContent = '开始测试';
+    const pinfo = document.getElementById('pedal-info');
+    if (pinfo) pinfo.textContent = side + ' 侧 · 待机 · 传感器 OK · 稳定点自动记录已开启';
+    ['target-tag', 'focus-side', 'safety-target', 'status-target', 'drawer-target', 'rt-side', 'settings-target'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = side === 'A' ? 'A' : 'B';
+    });
+    const save = document.getElementById('rt-select');
+    if (save) save.textContent = side;
+    toast('目标板已切换为 ' + side + ' 板');
+  }
+
+  /* ================= 连接状态（演示） ================= */
+  function toggleBoard(side) {
+    const card = document.getElementById('board-' + side);
+    const connected = !card.classList.contains('disconnected');
+    card.classList.toggle('disconnected', connected);
+    const led = card.querySelector('.bc-head .led');
+    led.className = 'led' + (connected ? '' : ' on');
+    const ip = card.querySelector('.bc-ip');
+    ip.innerHTML = `192.168.8.8${side === 'A' ? '8' : '9'} : 10001 <span style="margin-left:auto;color:${connected ? 'var(--dim)' : 'var(--ok)'}">${connected ? '未连接' : '已连接'}</span>`;
+    const btn = card.querySelector('.bc-foot .btn');
+    btn.textContent = connected ? '连接' : '断开';
+    const top = document.getElementById('top-board-' + side);
+    top.classList.toggle('off', connected);
+    top.querySelector('.led').className = 'led' + (connected ? '' : ' on');
+    toast(`${side} 板已${connected ? '断开' : '连接'}（原型演示）`);
+  }
+  function connectAll() {
+    ['A', 'B'].forEach(side => {
+      const card = document.getElementById('board-' + side);
+      if (card.classList.contains('disconnected')) toggleBoard(side);
+    });
+    toast('正在连接全部板卡…');
+  }
+
+  /* ================= 检查器 Tab ================= */
+  function setPane(name, el) {
+    document.querySelectorAll('.pane').forEach(p => p.classList.remove('active'));
+    document.getElementById('pane-' + name).classList.add('active');
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    if (el) el.classList.add('active');
+  }
+
+  /* ================= 流程动作（原型演示） ================= */
+  let levelRunning = false;
+  function runLevel() {
+    if (levelRunning) return;
+    levelRunning = true;
+    const btn = document.getElementById('level-btn');
+    const state = document.getElementById('focus-state');
+    const bar = document.getElementById('level-progress');
+    const tilt = document.getElementById('tilt-value');
+    btn.textContent = '调平中…';
+    btn.classList.add('dis');
+    state.textContent = '执行中';
+    bar.style.width = '8%';
+    addLog('tx', target, 'PEDAL ' + target + ' LEVEL');
+    setTimeout(() => { bar.style.width = '58%'; tilt.innerHTML = '-0.004<i>°</i>'; document.getElementById('rt-tilt').innerHTML = '-0.004<i>°</i>'; }, 700);
+    setTimeout(() => {
+      bar.style.width = '100%';
+      tilt.innerHTML = '0.000<i>°</i>';
+      document.getElementById('rt-tilt').innerHTML = '0.000<i>°</i>';
+      state.textContent = '已完成';
+      btn.textContent = '重新调平';
+      btn.classList.remove('dis');
+      levelRunning = false;
+      document.getElementById('step-3').classList.remove('active');
+      document.getElementById('step-3').classList.add('done');
+      document.getElementById('step-4').classList.add('active');
+      addLog('rx', target, 'DEBUG LEVEL ' + target + ' DONE comp=0.42');
+      toast('角度补偿完成 · comp=0.42°');
+    }, 2200);
+  }
+
+  function pushStart() {
+    addLog('tx', target, 'PEDAL ' + target + ' PUSH START');
+    document.getElementById('rt-push').innerHTML = '0.0<i>mm</i>';
+    toast('推杆推出中（目标板 ' + target + '）');
+    setTimeout(() => {
+      document.getElementById('rt-push').innerHTML = '80.0<i>mm</i>';
+      addLog('rx', target, 'DEBUG PUSH ' + target + ' DONE');
+      document.getElementById('step-4').classList.add('done');
+      document.getElementById('step-5').classList.add('active');
+      toast('推杆推出完成 · 80.0 mm');
+    }, 1600);
+  }
+
+  function sendScan() {
+    addLog('tx', target, 'SCAN 1 32');
+    toast('正在扫描 Modbus 从站 1–32…');
+    setTimeout(() => addLog('rx', target, 'SCAN  addr=1 .. 32  found: 1, 10, 11'), 700);
+  }
+
+  function quickCmd(cmd) {
+    addLog('tx', target, cmd);
+    if (cmd === 'PING') setTimeout(() => addLog('rx', target, 'PONG'), 150);
+    if (cmd === 'INFO') setTimeout(() => addLog('rx', target, 'INFO fw=1.1.0 side=' + target + ' hw=xdesin-s3 uptime=12345 ssid=Xdesin2016'), 300);
+    if (cmd === 'GET PARAMS') setTimeout(() => { addLog('rx', target, 'PARAMS report_hz=10 push_feed_rpm=60 level_tol=0.05'); addLog('rx', target, 'OK GET'); }, 300);
+  }
+
+  /* ================= 踏板测试（保留原线框全部操作） ================= */
+  function togglePedalTest() {
+    const btn = document.getElementById('pedal-start-btn');
+    const info = document.getElementById('pedal-info');
+    if (pedalRunning) {
+      pedalRunning = false;
+      btn.textContent = '开始测试';
+      info.textContent = target + ' 侧 · 已停止 · 传感器 OK';
+      toast('踏板测试已停止');
+      return;
+    }
+    const missing = [];
+    if (!connState[side]) missing.push(side + ' 板连接');
+    if (!bleConnectedMap[side]) missing.push(side + ' 力值模块蓝牙');
+    if (missing.length) { showGuard(missing); return; }
+    pedalRunning = true;
+    btn.textContent = '停止测试';
+    info.textContent = target + ' 侧 · 自动流程进行中 · 稳定点自动记录';
+    toast('踏板测试已开始');
+    setTimeout(() => {
+      if (!pedalRunning) return;
+      pedalRunning = false;
+      btn.textContent = '开始测试';
+      info.textContent = target + ' 侧 · 判定合格 · 高度差 26.4 mm / 力值 9.62 N';
+      recordSnapshot('稳定点快照', '高度差 26.4 mm / 9.62 N');
+      toast('测试完成 · 判定合格');
+    }, 2200);
+  }
+
+  function recordSnapshot(item, val) {
+    const count = document.getElementById('pedal-record-count');
+    if (count) count.textContent = String((Number(count.textContent) || 0) + 1);
+    const list = document.getElementById('pedal-records');
+    if (list) {
+      const d = new Date(); const p = n => String(n).padStart(2, '0');
+      const row = document.createElement('div');
+      row.className = 'rm-row';
+      row.innerHTML = `<span class="tm">${p(d.getHours())}:${p(d.getMinutes())}</span><span class="bd">[${target}]</span><span>${item}</span><span class="rv">${val}</span>`;
+      list.prepend(row);
+      const lc = document.getElementById('record-list-count');
+      if (lc) lc.textContent = list.children.length + ' 条';
+    }
+    const info = document.getElementById('pedal-info');
+    if (info) info.textContent = target + ' 侧 · 已记录 ' + item + '：' + val;
+    toast('已记录：' + item + ' = ' + val);
+  }
+
+  function clearField(name) {
+    const info = document.getElementById('pedal-info');
+    if (info) info.textContent = target + ' 侧 · 已清除：' + name;
+    toast('已清除：' + name);
+  }
+
+  function switchPedalSide() {
+    const next = target === 'A' ? 'B' : 'A';
+    selectBoard(next);
+    toast('已切换到踏板 ' + next + ' 侧');
+  }
+
+  /* ================= 转盘测试 ================= */
+  let steerRunning = false;
+  function toggleSteerTest() {
+    const btn = document.getElementById('steer-start-btn');
+    const info = document.getElementById('steer-info');
+    if (steerRunning) {
+      steerRunning = false;
+      btn.textContent = '开始测试';
+      info.textContent = '倾角模块 / 转向力模块已连接 · 已停止 · 自由转角基准 -0.012°';
+      toast('转盘测试已停止');
+      return;
+    }
+    const missing = [];
+    if (!bleConnectedMap.STEER) missing.push('倾角模块蓝牙');
+    if (!bleConnectedMap.TORQUE) missing.push('转向力模块蓝牙');
+    if (missing.length) { showGuard(missing); return; }
+    steerRunning = true;
+    btn.textContent = '停止测试';
+    info.textContent = '倾角模块 / 转向力模块已连接 · 测试中 · 趋势采集中';
+    toast('转盘测试已开始');
+    setTimeout(() => {
+      if (!steerRunning) return;
+      steerRunning = false;
+      btn.textContent = '开始测试';
+      info.textContent = '测试完成 · 顺时针峰值 12.480° · 逆时针峰值 -7.260°';
+      recordSteer('测试记录', '顺时针 12.480° / 逆时针 -7.260°');
+      toast('转盘测试完成');
+    }, 2200);
+  }
+
+  function recordSteer(item, val) {
+    const count = document.getElementById('steer-record-count');
+    if (count) count.textContent = String((Number(count.textContent) || 0) + 1);
+    const info = document.getElementById('steer-info');
+    if (info) info.textContent = '已记录 ' + item + '：' + val;
+    toast('已记录：' + item + ' = ' + val);
+  }
+
+  function clearSteer(item) {
+    const info = document.getElementById('steer-info');
+    if (info) info.textContent = '已清除 ' + item;
+    toast('已清除：' + item);
+  }
+
+  function clearSteerAll() {
+    const count = document.getElementById('steer-record-count');
+    if (count) count.textContent = '0';
+    const info = document.getElementById('steer-info');
+    if (info) info.textContent = '趋势与记录已清空 · 自由转角基准保留';
+    toast('已清空趋势与记录');
+  }
+
+  function sendCmd() {
+    const input = document.getElementById('cmd-input');
+    const cmd = input.value.trim();
+    if (!cmd) return;
+    addLog('tx', target, cmd);
+    input.value = '';
+    setTimeout(() => addLog('rx', target, 'OK ' + cmd.split(' ')[0]), 350);
+  }
+
+  function addLog(dir, side, text) {
+    const list = document.getElementById('log-list');
+    if (!list) return;
+    const d = new Date(); const p = n => String(n).padStart(2, '0');
+    const el = document.createElement('div');
+    el.className = 'lg';
+    el.innerHTML = `<span class="dir ${dir}">${dir === 'tx' ? '→' : dir === 'rx' ? '←' : '●'}</span>
+      <span class="board ${side === 'A' ? 'a' : 'b'}">[${side}]</span>
+      <span class="ts">${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}</span>
+      <span class="txt">${text.replace(/</g, '&lt;')}</span>`;
+    list.appendChild(el);
+    list.scrollTop = list.scrollHeight;
+  }
+
+  /* ================= 急停 / 故障 ================= */
+  function triggerEstop() {
+    document.body.classList.add('fault');
+    document.getElementById('fault-chip').textContent = 'FAULT';
+    document.getElementById('fault-chip').className = 'chip warn';
+    document.getElementById('rt-state').textContent = 'FAULT';
+    document.getElementById('rt-state').style.color = 'var(--danger)';
+    addLog('tx', 'A', 'ESTOP');
+    addLog('tx', 'B', 'ESTOP');
+    toast('急停已下发两块板 · 需故障复位');
+  }
+  function resetFault() {
+    document.body.classList.remove('fault');
+    document.getElementById('fault-chip').textContent = '无故障';
+    document.getElementById('fault-chip').className = 'chip info';
+    document.getElementById('rt-state').textContent = 'IDLE';
+    document.getElementById('rt-state').style.color = '';
+    addLog('tx', target, 'RESET FAULT');
+    addLog('rx', target, 'OK RESET FAULT');
+    toast('故障已复位 · 请先总使能再运动');
+  }
+
+  /* ================= 抽屉 ================= */
+  function openDrawer() {
+    document.getElementById('drawer').classList.add('open');
+    document.getElementById('drawer-overlay').classList.add('show');
+  }
+  function closeDrawer() {
+    document.getElementById('drawer').classList.remove('open');
+    document.getElementById('drawer-overlay').classList.remove('show');
+  }
+
+  /* ================= 连接状态 / 向导 ================= */
+  const connState = { A: false, B: false };
+  const hbTimes = { A: null, B: null };
+
+  function nowTimeString() {
+    const d = new Date(); const p = n => String(n).padStart(2, '0');
+    return p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds());
+  }
+  function updateHeartbeatUi(side) {
+    const t = hbTimes[side];
+    const label = '心跳: ' + (t || '--');
+    const ids = ['wz-hb-' + side, 'conn-hb-' + side];
+    ids.forEach(id => { const el = document.getElementById(id); if (el) el.textContent = label; });
+    const card = document.getElementById('card-hb-' + side);
+    if (card) card.textContent = t || '--';
+    const foot = document.getElementById('foot-hb-' + side);
+    if (foot) foot.textContent = t || '--';
+    const top = document.getElementById('top-board-' + side);
+    if (top) top.title = (connState[side] ? '已连接' : '未连接') + ' · 心跳 ' + (t || '--');
+  }
+
+  function renderBoardUi(side) {
+    const connected = connState[side];
+    if (connected) {
+      if (!hbTimes[side]) hbTimes[side] = nowTimeString();
+    } else {
+      hbTimes[side] = null;
+    }
+    const topLed = document.getElementById('top-led-' + side);
+    const topText = document.getElementById('top-text-' + side);
+    const topCard = document.getElementById('top-board-' + side);
+    if (topLed) topLed.className = 'led ' + (connected ? 'on' : 'off');
+    if (topText) topText.textContent = connected ? '在线' : '离线';
+    if (topCard) topCard.classList.toggle('off', !connected);
+
+    const led = document.getElementById('conn-led-' + side);
+    const state = document.getElementById('conn-state-' + side);
+    const btn = document.getElementById('conn-btn-' + side);
+    const ip = document.getElementById('conn-ip-' + side);
+    const port = document.getElementById('conn-port-' + side);
+    if (led) led.className = 'led ' + (connected ? 'on' : 'off');
+    if (state) state.textContent = connected ? '已连接' : '未连接';
+    if (btn) btn.textContent = connected ? '断开' : '连接';
+    if (ip) ip.disabled = connected;
+    if (port) port.disabled = connected;
+
+    const wled = document.getElementById('wz-led-' + side);
+    const wstate = document.getElementById('wz-state-' + side);
+    const wbtn = document.getElementById('wz-btn-' + side);
+    if (wled) wled.className = 'led ' + (connected ? 'on' : 'off');
+    if (wstate) wstate.textContent = connected ? '已连接' : '未连接';
+    if (wbtn) wbtn.textContent = connected ? ('断开 ' + side + ' 板') : ('连接 ' + side + ' 板');
+
+    const card = document.getElementById('board-' + side);
+    if (card) {
+      const cardLed = card.querySelector('.bc-head .led');
+      if (cardLed) cardLed.className = 'led ' + (connected ? 'on' : 'off');
+      const status = card.querySelector('.bc-ip span:last-child');
+      if (status) {
+        status.textContent = connected ? '已连接' : '未连接';
+        status.style.color = connected ? 'var(--ok)' : 'var(--dim)';
+      }
+      const cardBtn = card.querySelector('.bc-foot .btn');
+      if (cardBtn) cardBtn.textContent = connected ? '断开' : '连接';
+    }
+
+    const online = (connState.A ? 1 : 0) + (connState.B ? 1 : 0);
+    const chip = document.getElementById('cockpit-online-chip');
+    if (chip) {
+      chip.className = 'chip ' + (online > 0 ? 'ok' : '');
+      const led = chip.querySelector('.led');
+      if (led) led.className = 'led ' + (online > 0 ? 'on' : 'off');
+      chip.lastChild.textContent = ' A/B ' + online + '/2 在线';
+    }
+    const foot = document.getElementById('foot-state-' + side);
+    if (foot) {
+      foot.textContent = connected ? 'ONLINE' : 'OFFLINE';
+      foot.style.color = connected ? 'var(--ok)' : 'var(--dim)';
+    }
+    updateHeartbeatUi(side);
+  }
+
+  function setBoardConnected(side, val, silent) {
+    connState[side] = val;
+    renderBoardUi(side);
+    if (!silent) toast(side + ' 板' + (val ? '已连接' : '已断开'));
+  }
+  function toggleConn(side) {
+    setBoardConnected(side, !connState[side]);
+  }
+  function connectBoard(side) {
+    setBoardConnected(side, !connState[side]);
+  }
+  function connAll() {
+    ['A', 'B'].forEach(side => setBoardConnected(side, true, true));
+    toast('A/B 两块板已连接');
+  }
+  function openConn() {
+    renderBoardUi('A');
+    renderBoardUi('B');
+    document.getElementById('connOverlay').classList.add('show');
+  }
+  function closeConn() {
+    document.getElementById('connOverlay').classList.remove('show');
+  }
+
+  function openWizard() {
+    renderBoardUi('A');
+    renderBoardUi('B');
+    updateBleUi();
+    document.getElementById('connectWizard').classList.add('show');
+  }
+  function closeWizard() {
+    document.getElementById('connectWizard').classList.remove('show');
+  }
+  function skipWizard() {
+    closeWizard();
+    toast('已跳过连接，可稍后在顶部「连接」中重新设置');
+  }
+  function enterSystem() {
+    closeWizard();
+  }
+
+  /* ================= 蓝牙模块设置 ================= */
+  const BLE_META = {
+    A:      { name: '模块 A（踏板 A 加载力）', type: 'force', device: 'XDS-WEIGHT-A', addr: '—' },
+    B:      { name: '模块 B（踏板 B 加载力）', type: 'force', device: 'XDS-WEIGHT-B', addr: '—' },
+    TORQUE: { name: '转向力（转盘力值）', type: 'force', device: 'XDS-TORQUE', addr: '—' },
+    STEER:  { name: '倾角模块（转盘 X/Y）', type: 'steer', device: 'SCT726T-M', addr: '—' },
+    SWITCH: { name: '二路开关（加载控制）', type: 'switch', device: 'WCH-BLE-01', addr: '—' },
+  };
+  const bleConnectedMap = { A: false, B: false, TORQUE: false, STEER: false, SWITCH: false };
+  let bleChannel = 'A';
+
+  function bleCount() {
+    return Object.values(bleConnectedMap).filter(Boolean).length;
+  }
+  function updateBleUi() {
+    const count = bleCount();
+    const topCount = document.getElementById('top-ble-count');
+    const topLed = document.getElementById('top-ble-led');
+    if (topCount) topCount.textContent = count + '/5';
+    if (topLed) topLed.className = 'led ' + (count > 0 ? 'on' : 'off');
+
+    const wBle = document.getElementById('wz-state-ble');
+    const wLed = document.getElementById('wz-led-ble');
+    const wBtn = document.getElementById('wz-btn-ble');
+    if (wBle) wBle.textContent = count + '/5 已连接';
+    if (wLed) wLed.className = 'led ' + (count > 0 ? 'on' : 'off');
+    if (wBtn) wBtn.textContent = count === 5 ? '断开蓝牙' : '连接蓝牙';
+
+    document.querySelectorAll('.ble-ch').forEach(b => {
+      const ch = b.dataset.ch;
+      const led = b.querySelector('.led');
+      if (led) led.className = 'led ' + (bleConnectedMap[ch] ? 'on' : 'off');
+    });
+
+    const m = BLE_META[bleChannel];
+    if (m) {
+      const status = document.getElementById('ble-status');
+      const toggle = document.getElementById('ble-toggle');
+      if (status) status.textContent = (bleConnectedMap[bleChannel] ? '已连接 · ' : '未连接 · ') + m.device + ' · ' + m.addr;
+      if (toggle) toggle.textContent = bleConnectedMap[bleChannel] ? '断开' : '连接';
+    }
+
+    const steerInfo = document.getElementById('steer-info');
+    if (steerInfo && !steerRunning) {
+      steerInfo.textContent =
+        '倾角模块' + (bleConnectedMap.STEER ? '已连接' : '未连接') +
+        ' · 转向力模块' + (bleConnectedMap.TORQUE ? '已连接' : '未连接') +
+        ' · 待机';
+    }
+  }
+  function openBle() {
+    document.getElementById('bleOverlay').classList.add('show');
+    selectBle(bleChannel);
+  }
+  function closeBle() {
+    document.getElementById('bleOverlay').classList.remove('show');
+  }
+  function selectBle(ch) {
+    bleChannel = ch;
+    document.querySelectorAll('.ble-ch').forEach(b => b.classList.toggle('active', b.dataset.ch === ch));
+    const m = BLE_META[ch];
+    document.getElementById('ble-title').textContent = m.name;
+    document.getElementById('ble-force').style.display = m.type === 'force' ? 'block' : 'none';
+    document.getElementById('ble-steer').style.display = m.type === 'steer' ? 'block' : 'none';
+    document.getElementById('ble-switch').style.display = m.type === 'switch' ? 'block' : 'none';
+    document.getElementById('ble-devices').style.display = 'none';
+    document.getElementById('ble-scan-hint').style.display = 'block';
+    updateBleUi();
+  }
+  function bleToggle() {
+    const ch = bleChannel;
+    bleConnectedMap[ch] = !bleConnectedMap[ch];
+    updateBleUi();
+    toast(BLE_META[ch].name + (bleConnectedMap[ch] ? ' 已连接' : ' 已断开'));
+  }
+  function toggleAllBle() {
+    const connectAll = bleCount() !== 5;
+    Object.keys(bleConnectedMap).forEach(k => { bleConnectedMap[k] = connectAll; });
+    updateBleUi();
+    toast(connectAll ? '蓝牙模块已全部连接' : '蓝牙模块已全部断开');
+  }
+  function bleScan() {
+    document.getElementById('ble-scan-hint').style.display = 'none';
+    document.getElementById('ble-devices').style.display = 'flex';
+    toast('正在扫描附近 BLE 设备…');
+  }
+  function addBleLog(dir, text) {
+    const log = document.getElementById('ble-log');
+    const d = document.createElement('div');
+    d.className = dir;
+    d.textContent = '[' + bleChannel + '] ' + text;
+    log.prepend(d);
+    while (log.children.length > 8) log.removeChild(log.lastChild);
+  }
+  function bleSendHex() {
+    const input = document.getElementById('ble-hex');
+    const v = input.value.trim();
+    if (!v) return;
+    addBleLog('tx', 'TX → ' + v);
+    input.value = '';
+    setTimeout(() => addBleLog('rx', 'RX ← 应答数据（模拟）'), 350);
+  }
+  function bleQuick(hex) {
+    addBleLog('tx', 'TX → ' + hex);
+    setTimeout(() => addBleLog('rx', 'RX ← 应答数据（模拟）'), 350);
+  }
+
+  /* ================= 测试前连接校验 ================= */
+  function showGuard(items) {
+    const list = document.getElementById('guardList');
+    list.innerHTML = items.map(i =>
+      '<div class="guard-item"><span class="led off"></span>' + i + '</div>'
+    ).join('');
+    document.getElementById('guardOverlay').classList.add('show');
+  }
+  function closeGuard() {
+    document.getElementById('guardOverlay').classList.remove('show');
+  }
+  function goConnect() {
+    closeGuard();
+    openWizard();
+  }
+
+  /* ================= 启动 ================= */
+  renderBoardUi('A');
+  renderBoardUi('B');
+  updateBleUi();
+  setInterval(() => {
+    ['A', 'B'].forEach(side => {
+      if (connState[side]) {
+        hbTimes[side] = nowTimeString();
+        updateHeartbeatUi(side);
+      }
+    });
+  }, 3000);
+  window.setTimeout(() => {
+    const boot = document.getElementById('bootScreen');
+    if (boot) {
+      boot.classList.add('hide');
+      setTimeout(() => boot.remove(), 450);
+    }
+    showLogin();
+  }, 1650);
+
+  /* ================= 登录 / 用户管理 ================= */
+  const FUNC_LABELS = {
+    pedal: '踏板', steer: '转盘', debug: '调试台',
+    records: '记录', settings: '设置', help: '帮助',
+  };
+  let users = [
+    { username: 'admin', password: 'admin123', role: '管理员', perms: ['pedal', 'steer', 'debug', 'records', 'settings', 'help'] },
+    { username: 'operator', password: '123456', role: '操作员', perms: ['pedal', 'steer', 'records', 'help'] },
+    { username: 'debug', password: 'debug123', role: '调试员', perms: ['debug', 'records', 'help'] },
+  ];
+  let currentUser = null;
+  let editingUserIndex = -1;
+
+  function initials(name) {
+    return (name || '?').slice(0, 2).toUpperCase();
+  }
+  function showLogin() {
+    const el = document.getElementById('loginOverlay');
+    if (el) el.classList.add('show');
+    const err = document.getElementById('loginError');
+    if (err) err.textContent = '';
+    const u = document.getElementById('loginUser');
+    const p = document.getElementById('loginPass');
+    if (u) u.value = '';
+    if (p) p.value = '';
+    setTimeout(() => u && u.focus(), 50);
+  }
+  function doLogin(e) {
+    if (e) e.preventDefault();
+    const u = (document.getElementById('loginUser').value || '').trim();
+    const p = document.getElementById('loginPass').value || '';
+    const err = document.getElementById('loginError');
+    if (!u || !p) { err.textContent = '请输入用户名和密码'; return; }
+    const user = users.find(x => x.username === u && x.password === p);
+    if (!user) { err.textContent = '用户名或密码错误'; return; }
+    currentUser = user;
+    err.textContent = '';
+    document.getElementById('loginOverlay').classList.remove('show');
+    updateUserBadge();
+    applyPermissions(user);
+    renderUsers();
+    openWizard();
+    toast('欢迎，' + user.username + '（' + user.role + '）');
+  }
+  function logout() {
+    currentUser = null;
+    closeWizard();
+    closeBle();
+    closeConn();
+    closeGuard();
+    ['connectWizard', 'bleOverlay', 'connOverlay', 'guardOverlay'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.classList.remove('show');
+    });
+    document.getElementById('userBadge').textContent = '--';
+    document.getElementById('userBadge').title = '未登录';
+    showLogin();
+  }
+  function updateUserBadge() {
+    const b = document.getElementById('userBadge');
+    if (!b || !currentUser) return;
+    b.textContent = initials(currentUser.username);
+    b.title = currentUser.username + ' · ' + currentUser.role + ' · 点击退出';
+  }
+  function applyPermissions(user) {
+    document.querySelectorAll('.rail .nav[data-fn]').forEach(btn => {
+      btn.style.display = user.perms.includes(btn.dataset.fn) ? '' : 'none';
+    });
+    const active = document.querySelector('.rail .nav.active');
+    if (active && active.style.display === 'none') {
+      const first = Array.from(document.querySelectorAll('.rail .nav[data-fn]'))
+        .find(b => b.style.display !== 'none');
+      if (first) first.click();
+    }
+  }
+  function renderUsers() {
+    const list = document.getElementById('userList');
+    if (!list) return;
+    list.innerHTML = users.map((u, i) => {
+      const isSelf = currentUser && u.username === currentUser.username;
+      const perms = u.perms.length === 6
+        ? '<span>全部功能</span>'
+        : u.perms.map(p => '<span>' + (FUNC_LABELS[p] || p) + '</span>').join('');
+      return `<div class="user-row">
+        <div class="avatar" style="${u.role === '操作员' ? 'background:linear-gradient(135deg,#a78bfa,#7c3aed)' : ''}">${initials(u.username)}</div>
+        <div class="un"><b>${u.username}${isSelf ? '（当前）' : ''}</b><span>${u.role}</span></div>
+        <div class="perms">${perms}</div>
+        <div class="ops">
+          <button class="btn sm ghost" onclick="openUserEditor(${i})">编辑</button>
+          ${isSelf ? '' : `<button class="btn sm danger" onclick="deleteUser(${i})">删除</button>`}
+        </div>
+      </div>`;
+    }).join('');
+  }
+  function openUserEditor(index) {
+    if (!currentUser || currentUser.role !== '管理员') { toast('仅管理员可管理用户'); return; }
+    editingUserIndex = index;
+    const u = index >= 0 ? users[index] : { username: '', password: '', role: '操作员', perms: ['pedal', 'steer', 'records', 'help'] };
+    document.getElementById('userEditorTitle').textContent = index >= 0 ? '编辑用户' : '新增用户';
+    document.getElementById('ueUser').value = u.username;
+    document.getElementById('uePass').value = u.password;
+    document.getElementById('ueRole').value = u.role;
+    document.querySelectorAll('.ue-perm').forEach(cb => { cb.checked = u.perms.includes(cb.value); });
+    document.getElementById('ueError').textContent = '';
+    document.getElementById('userEditorOverlay').classList.add('show');
+  }
+  function closeUserEditor() {
+    document.getElementById('userEditorOverlay').classList.remove('show');
+  }
+  function saveUser() {
+    const username = (document.getElementById('ueUser').value || '').trim();
+    const password = document.getElementById('uePass').value || '';
+    const role = document.getElementById('ueRole').value;
+    const perms = Array.from(document.querySelectorAll('.ue-perm:checked')).map(cb => cb.value);
+    const err = document.getElementById('ueError');
+    if (!username || !password) { err.textContent = '用户名和密码不能为空'; return; }
+    if (perms.length === 0) { err.textContent = '至少选择一项可用功能'; return; }
+    const dup = users.some((u, i) => u.username === username && i !== editingUserIndex);
+    if (dup) { err.textContent = '用户名已存在'; return; }
+    const data = { username, password, role, perms };
+    if (editingUserIndex >= 0) {
+      const wasSelf = currentUser && users[editingUserIndex].username === currentUser.username;
+      users[editingUserIndex] = data;
+      if (wasSelf) { currentUser = data; updateUserBadge(); applyPermissions(data); }
+    } else {
+      users.push(data);
+    }
+    closeUserEditor();
+    renderUsers();
+    toast('用户已保存');
+  }
+  function deleteUser(index) {
+    if (!currentUser || currentUser.role !== '管理员') return;
+    if (users[index].username === currentUser.username) { toast('不能删除当前登录用户'); return; }
+    users.splice(index, 1);
+    renderUsers();
+    toast('用户已删除');
+  }
+
+  /* ================= 帮助左右切换 ================= */
+  const HELP_TOTAL = 6;
+  let helpIndex = 0;
+  function helpRender() {
+    const track = document.getElementById('helpTrack');
+    if (!track) return;
+    track.style.transform = 'translateX(-' + (helpIndex * 100) + '%)';
+    const page = document.getElementById('helpPageText');
+    if (page) page.textContent = (helpIndex + 1) + ' / ' + HELP_TOTAL;
+    const prev = document.getElementById('helpPrev');
+    const next = document.getElementById('helpNext');
+    if (prev) prev.disabled = helpIndex === 0;
+    if (next) next.disabled = helpIndex === HELP_TOTAL - 1;
+    const dots = document.querySelectorAll('#helpDots button');
+    dots.forEach((d, i) => d.classList.toggle('active', i === helpIndex));
+  }
+  function helpMove(delta) {
+    helpIndex = Math.max(0, Math.min(HELP_TOTAL - 1, helpIndex + delta));
+    helpRender();
+  }
+  function helpGo(i) {
+    helpIndex = Math.max(0, Math.min(HELP_TOTAL - 1, i));
+    helpRender();
+  }
+  (function initHelp() {
+    const vp = document.getElementById('helpViewport');
+    if (!vp) return;
+    let startX = 0;
+    vp.addEventListener('touchstart', e => { startX = e.touches[0].clientX; }, { passive: true });
+    vp.addEventListener('touchend', e => {
+      const dx = e.changedTouches[0].clientX - startX;
+      if (Math.abs(dx) > 50) helpMove(dx < 0 ? 1 : -1);
+    }, { passive: true });
+    window.addEventListener('keydown', e => {
+      const helpView = document.getElementById('view-help');
+      if (!helpView || !helpView.classList.contains('active')) return;
+      if (e.key === 'ArrowLeft') helpMove(-1);
+      if (e.key === 'ArrowRight') helpMove(1);
+    });
+    helpRender();
+  })();
+
+  /* ================= 记录展开 / 导出 ================= */
+  function toggleRecordDetail(id, btn) {
+    const el = document.getElementById('rec-detail-' + id);
+    if (!el) return;
+    el.classList.toggle('open');
+    btn.textContent = el.classList.contains('open') ? '收起' : '详情';
+  }
+  function exportRecord(name) {
+    toast('已导出记录：' + name);
+  }
+
+  let toastTimer;
+  function toast(msg) {
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.classList.remove('show'), 2200);
+  }
+</script>
+</body>
+</html>

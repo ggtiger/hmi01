@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=1024, initial-scale=1" />
+<title>下位机触屏原型 · 1024×768</title>
+<style>
+  :root {
+    --text: #142639;
+    --muted: #5b7186;
+    --dim: #8ea2b5;
+    --cyan: #0891b2;
+    --blue: #2563eb;
+    --violet: #7c3aed;
+    --ok: #059669;
+    --warn: #d97706;
+    --danger: #e11d48;
+    --glass: rgba(255,255,255,.62);
+    --line: rgba(255,255,255,.92);
+    --line-soft: rgba(15,80,120,.10);
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; }
+  body {
+    margin: 0; overflow: auto;
+    display: flex; align-items: center; justify-content: center;
+    background: #dfe9f3;
+    color: var(--text);
+    font-family: "Inter", -apple-system, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+    font-size: 15px; line-height: 1.45;
+    -webkit-font-smoothing: antialiased;
+  }
+  button { font: inherit; color: inherit; }
+  .mono { font-family: "JetBrains Mono", "SF Mono", Consolas, Menlo, monospace; font-variant-numeric: tabular-nums; }
+
+  /* ================= 设备画布 1024×768 ================= */
+  .screen {
+    width: 1024px; height: 768px; flex-shrink: 0; position: relative; overflow: hidden;
+    display: flex; flex-direction: column;
+    border-radius: 14px;
+    background:
+      radial-gradient(760px 380px at 4% -8%, rgba(8,145,178,.15), transparent 58%),
+      radial-gradient(680px 420px at 100% 0%, rgba(124,58,237,.12), transparent 60%),
+      linear-gradient(180deg, #f7fbfe 0%, #e8f0f7 100%);
+    box-shadow: 0 24px 70px rgba(31,86,130,.22);
+  }
+  .screen::before {
+    content: ""; position: absolute; inset: 0; pointer-events: none;
+    background-image:
+      linear-gradient(rgba(37,99,235,.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(37,99,235,.04) 1px, transparent 1px);
+    background-size: 40px 40px;
+    mask-image: radial-gradient(ellipse at 50% 0%, rgba(0,0,0,.6), transparent 82%);
+  }
+  .screen > * { position: relative; z-index: 1; }
+
+  /* ================= 顶栏 ================= */
+  .topbar {
+    height: 58px; flex-shrink: 0; display: flex; align-items: center; gap: 10px;
+    padding: 0 12px;
+    background: rgba(255,255,255,.68);
+    backdrop-filter: blur(20px) saturate(150%);
+    border-bottom: 1px solid rgba(15,80,120,.09);
+  }
+  .brand { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+  .brand .mark {
+    width: 32px; height: 32px; border-radius: 9px;
+    display: flex; align-items: center; justify-content: center;
+    background: linear-gradient(140deg, #0b6b86, #0891b2 45%, #2563eb);
+    box-shadow: 0 5px 14px rgba(8,145,178,.28), inset 0 1px 0 rgba(255,255,255,.4);
+  }
+  .brand .mark svg { width: 19px; height: 19px; }
+  .brand b { font-size: 14px; font-weight: 800; letter-spacing: .2px; color: #0f2233; }
+
+  .nav { display: flex; align-items: center; gap: 4px; margin-left: 5px; }
+  .nav button {
+    height: 44px; padding: 0 14px; border-radius: 10px; border: 1px solid transparent;
+    background: transparent; font-size: 15px; font-weight: 700; color: var(--muted);
+    cursor: pointer; white-space: nowrap;
+  }
+  .nav button.active {
+    color: #fff; border-color: rgba(8,145,178,.4);
+    background: linear-gradient(135deg, rgba(8,145,178,.95), rgba(37,99,235,.92));
+    box-shadow: 0 6px 16px rgba(8,145,178,.25), inset 0 1px 0 rgba(255,255,255,.35);
+  }
+  .top-right { margin-left: auto; display: flex; align-items: center; gap: 7px; }
+  .status {
+    height: 36px; padding: 0 10px; border-radius: 9px;
+    display: inline-flex; align-items: center; gap: 6px;
+    background: rgba(255,255,255,.55); border: 1px solid rgba(255,255,255,.9);
+    font-size: 12.5px; font-weight: 700; color: var(--muted);
+  }
+  .led { width: 9px; height: 9px; border-radius: 50%; background: #10b981; box-shadow: 0 0 8px rgba(16,185,129,.7); flex-shrink: 0; }
+  .led.off { background: #c0cdda; box-shadow: none; }
+  .lang {
+    width: 44px; height: 36px; border-radius: 9px; cursor: pointer;
+    border: 1px solid rgba(15,80,120,.12); background: rgba(255,255,255,.55);
+    font-size: 12px; font-weight: 800; color: var(--muted);
+  }
+  .estop {
+    height: 44px; padding: 0 15px; border-radius: 10px; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 7px;
+    border: 1px solid rgba(225,29,72,.35); color: #fff;
+    background: linear-gradient(135deg, #fb7185, #e11d48);
+    font-size: 14px; font-weight: 800; letter-spacing: 1px;
+    box-shadow: 0 6px 18px rgba(225,29,72,.28), inset 0 1px 0 rgba(255,255,255,.4);
+  }
+  .estop svg { width: 18px; height: 18px; }
+
+  /* ================= 页面骨架 ================= */
+  .workspace { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 8px 12px 10px; }
+  .page { display: none; flex: 1; min-height: 0; flex-direction: column; }
+  .page.active { display: flex; }
+
+  .page-head { height: 54px; flex-shrink: 0; display: flex; align-items: center; gap: 12px; }
+  .page-title { font-size: 23px; font-weight: 800; letter-spacing: .2px; color: #0e2133; white-space: nowrap; }
+  .toolbar { display: flex; align-items: center; gap: 7px; }
+  .big-btn {
+    height: 46px; padding: 0 16px; border-radius: 10px; cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    border: 1px solid rgba(15,80,120,.14); background: rgba(255,255,255,.6);
+    font-size: 14px; font-weight: 700; color: var(--text);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.7);
+  }
+  .big-btn.primary {
+    color: #fff; border-color: rgba(8,145,178,.42);
+    background: linear-gradient(135deg, rgba(8,145,178,.95), rgba(37,99,235,.92));
+    box-shadow: 0 5px 16px rgba(8,145,178,.22), inset 0 1px 0 rgba(255,255,255,.35);
+  }
+  .seg { display: flex; border-radius: 10px; overflow: hidden; border: 1px solid rgba(15,80,120,.14); background: rgba(255,255,255,.55); }
+  .seg button {
+    height: 44px; min-width: 88px; padding: 0 16px; border: 0; cursor: pointer;
+    background: transparent; font-size: 14px; font-weight: 700; color: var(--muted);
+  }
+  .seg button.active { color: #fff; background: linear-gradient(135deg, var(--cyan), var(--blue)); }
+  .head-chip { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--muted); }
+
+  .main { flex: 1; min-height: 0; display: grid; grid-template-columns: 478px minmax(0,1fr); gap: 10px; }
+
+  .panel {
+    border-radius: 13px; min-height: 0; display: flex; flex-direction: column; overflow: hidden;
+    background: var(--glass);
+    border: 1px solid var(--line);
+    box-shadow: 0 12px 32px rgba(31,86,130,.09), inset 0 1px 0 rgba(255,255,255,.8);
+  }
+  .panel-head {
+    height: 42px; flex-shrink: 0; display: flex; align-items: center; gap: 7px;
+    padding: 0 12px; border-bottom: 1px solid rgba(15,80,120,.08);
+    font-size: 12px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; color: var(--muted);
+  }
+  .panel-head .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--cyan); }
+  .panel-head .r { margin-left: auto; letter-spacing: 0; text-transform: none; font-weight: 600; font-size: 11px; color: var(--dim); }
+
+  /* 页签（大触控） */
+  .tabs { display: flex; gap: 5px; padding: 7px 8px 0; flex-shrink: 0; }
+  .tab {
+    height: 44px; flex: 1; border-radius: 9px 9px 0 0; border: 1px solid transparent;
+    background: transparent; color: var(--muted); font-size: 14px; font-weight: 700; cursor: pointer;
+  }
+  .tab.active { background: rgba(255,255,255,.72); border-color: rgba(255,255,255,.95); color: var(--cyan); box-shadow: 0 -2px 10px rgba(31,86,130,.05); }
+  .pane { display: none; flex: 1; min-height: 0; }
+  .pane.active { display: flex; flex-direction: column; }
+
+  /* 测量卡片 */
+  .card-grid {
+    flex: 1; min-height: 0; overflow-y: auto;
+    display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 9px;
+    align-content: start;
+  }
+  .mcard {
+    display: flex; flex-direction: column; gap: 4px; min-height: 96px;
+    padding: 8px 10px; border-radius: 11px;
+    background: rgba(255,255,255,.5); border: 1px solid rgba(255,255,255,.95);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.75);
+  }
+  .mcard.compact { min-height: 72px; }
+  .mcard.wide { grid-column: span 2; }
+  .mcard .lab { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+  .mcard .lab .dir { font-size: 10px; font-weight: 800; color: var(--violet); }
+  .mcard .val {
+    font-family: "JetBrains Mono", Consolas, monospace; font-size: 26px; font-weight: 700;
+    letter-spacing: -.8px; line-height: 1.1; color: #0f2233;
+  }
+  .mcard .val.cyan { color: var(--cyan); }
+  .mcard .val.violet { color: var(--violet); }
+  .mcard .val i { font-style: normal; font-size: 11px; font-weight: 600; color: var(--dim); margin-left: 2px; letter-spacing: 0; }
+  .mcard .acts { margin-top: auto; display: flex; gap: 6px; }
+  .act {
+    flex: 1; height: 42px; border-radius: 8px; cursor: pointer;
+    border: 1px solid rgba(15,80,120,.14); background: rgba(255,255,255,.72);
+    font-size: 13px; font-weight: 700; color: var(--text);
+  }
+  .act:hover { color: var(--cyan); border-color: rgba(8,145,178,.3); }
+  .act.clear { color: var(--muted); }
+  .act.clear:hover { color: var(--danger); border-color: rgba(225,29,72,.3); }
+  .act.primary { color: #fff; border-color: rgba(8,145,178,.35); background: linear-gradient(135deg, rgba(8,145,178,.9), rgba(37,99,235,.9)); }
+  .duo { display: flex; gap: 10px; }
+  .duo > div { flex: 1; }
+  .duo .val { font-size: 20px; }
+
+  /* 电机触控区 */
+  .motor-grid { flex: 1; min-height: 0; overflow-y: auto; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 9px; align-content: start; }
+  .motion {
+    height: 52px; border-radius: 10px; cursor: pointer;
+    border: 1px solid rgba(15,80,120,.14); background: rgba(255,255,255,.62);
+    font-size: 14px; font-weight: 700; color: var(--text);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.7);
+  }
+  .motion:hover { color: var(--cyan); border-color: rgba(8,145,178,.3); }
+  .motion.primary { color: #fff; border-color: rgba(8,145,178,.35); background: linear-gradient(135deg, rgba(8,145,178,.9), rgba(37,99,235,.9)); }
+  .motion.danger { color: var(--danger); border-color: rgba(225,29,72,.25); }
+  .motion.wide { grid-column: span 2; }
+  .motion-input {
+    display: flex; align-items: center; gap: 6px; height: 52px; padding: 0 8px;
+    border-radius: 10px; border: 1px solid rgba(15,80,120,.14); background: rgba(255,255,255,.52);
+  }
+  .motion-input .k { font-size: 11px; color: var(--muted); }
+  .motion-input input {
+    flex: 1; min-width: 0; height: 36px; border-radius: 7px; border: 1px solid rgba(15,80,120,.12);
+    background: rgba(255,255,255,.8); text-align: right; padding: 0 8px;
+    font-family: "JetBrains Mono", Consolas, monospace; font-size: 14px; font-weight: 700; color: var(--text);
+  }
+  .motion-input .u { font-size: 10px; color: var(--dim); }
+
+  /* 图表 */
+  .chart-panel .chart { flex: 1; min-height: 0; margin: 9px; position: relative; border-radius: 10px; overflow: hidden; background: rgba(255,255,255,.45); border: 1px solid rgba(15,80,120,.08); }
+  .chart .grid { position: absolute; inset: 0; background: repeating-linear-gradient(0deg, transparent 0 44px, rgba(37,99,235,.06) 44px 45px), repeating-linear-gradient(90deg, transparent 0 66px, rgba(37,99,235,.05) 66px 67px); }
+  .chart svg { position: absolute; inset: 8px; width: calc(100% - 16px); height: calc(100% - 16px); }
+  .chart .legend { position: absolute; top: 10px; right: 12px; display: flex; gap: 12px; padding: 4px 10px; border-radius: 999px; background: rgba(255,255,255,.8); border: 1px solid rgba(255,255,255,.95); font-size: 10.5px; color: var(--muted); }
+  .chart .legend i { display: inline-block; width: 14px; height: 2px; border-radius: 2px; margin-right: 4px; vertical-align: middle; }
+  .chart .ylab { position: absolute; left: 10px; top: 10px; font-size: 10px; color: var(--dim); }
+
+  /* 底部 Info / 操作 */
+  .page-info {
+    flex-shrink: 0; height: 30px; margin-top: 6px; display: flex; align-items: center; gap: 6px;
+    padding: 0 10px; border-radius: 8px;
+    background: rgba(255,255,255,.55); border: 1px solid rgba(255,255,255,.9);
+    font-size: 11.5px; color: var(--muted); white-space: nowrap; overflow: hidden;
+  }
+  .page-info b { color: var(--cyan); }
+  .page-info .grow { flex: 1; }
+  .page-actions { flex-shrink: 0; height: 62px; display: flex; align-items: center; gap: 9px; padding-top: 8px; }
+  .page-actions button {
+    height: 50px; padding: 0 20px; border-radius: 11px; cursor: pointer;
+    border: 1px solid rgba(15,80,120,.15); background: rgba(255,255,255,.68);
+    font-size: 15px; font-weight: 700; color: var(--text);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.7);
+  }
+  .page-actions button:hover { color: var(--cyan); border-color: rgba(8,145,178,.3); }
+  .page-actions .start {
+    flex: 1; max-width: 260px; color: #fff; border-color: rgba(8,145,178,.4);
+    background: linear-gradient(135deg, rgba(8,145,178,.95), rgba(37,99,235,.93));
+    font-size: 18px; font-weight: 800;
+    box-shadow: 0 6px 20px rgba(8,145,178,.26), inset 0 1px 0 rgba(255,255,255,.35);
+  }
+
+  /* 简化列表/设置页 */
+  .list { flex: 1; min-height: 0; overflow-y: auto; padding: 9px; display: flex; flex-direction: column; gap: 8px; }
+  .rec {
+    display: flex; align-items: center; gap: 12px; padding: 10px 13px; border-radius: 11px;
+    background: rgba(255,255,255,.52); border: 1px solid rgba(255,255,255,.95);
+    font-size: 13px;
+  }
+  .rec .side { width: 36px; height: 36px; border-radius: 9px; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 900; background: linear-gradient(135deg, var(--cyan), var(--blue)); }
+  .rec .main { flex: 1; min-width: 0; }
+  .rec .main b { display: block; font-size: 14px; }
+  .rec .main span { font-size: 11px; color: var(--dim); }
+  .rec .val { font-family: "JetBrains Mono", Consolas, monospace; font-size: 14px; color: var(--ok); font-weight: 700; }
+  .settings-grid { flex: 1; min-height: 0; overflow-y: auto; padding: 9px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; align-content: start; }
+  .set-row {
+    display: flex; align-items: center; gap: 10px; min-height: 64px; padding: 8px 10px;
+    border-radius: 11px; background: rgba(255,255,255,.52); border: 1px solid rgba(255,255,255,.95);
+  }
+  .set-row .info { flex: 1; min-width: 0; }
+  .set-row .info b { display: block; font-size: 13px; }
+  .set-row .info span { font-size: 11px; color: var(--dim); }
+  .stepper { display: flex; align-items: center; border-radius: 8px; overflow: hidden; border: 1px solid rgba(15,80,120,.13); background: rgba(255,255,255,.75); }
+  .stepper button { width: 34px; height: 38px; border: 0; background: transparent; font-size: 17px; color: var(--muted); cursor: pointer; }
+  .stepper input { width: 64px; height: 38px; border: 0; text-align: center; background: transparent; font-family: "JetBrains Mono", Consolas, monospace; font-size: 13px; font-weight: 700; color: var(--text); }
+  .set-row.wide { grid-column: span 2; }
+  .set-row .big-btn { height: 38px; padding: 0 16px; font-size: 13px; }
+  .set-select {
+    height: 38px; min-width: 100px; border-radius: 8px;
+    border: 1px solid rgba(15,80,120,.13); background: rgba(255,255,255,.78);
+    padding: 0 10px; font-size: 14px; font-weight: 700; color: var(--text); outline: none;
+  }
+
+  /* 调试页 */
+  .debug-grid { flex: 1; min-height: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .debug-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 9px; align-content: start; overflow-y: auto; }
+  .telemetry { display: flex; flex-direction: column; gap: 7px; padding: 9px; overflow-y: auto; }
+  .tel-row { display: flex; align-items: center; min-height: 46px; padding: 0 11px; border-radius: 9px; background: rgba(255,255,255,.46); border: 1px solid rgba(15,80,120,.07); font-size: 13px; color: var(--muted); }
+  .tel-row b { margin-left: auto; font-family: "JetBrains Mono", Consolas, monospace; font-size: 16px; color: #0f2233; }
+
+  /* Toast */
+  .toast {
+    position: fixed; left: 50%; bottom: 26px; z-index: 50;
+    transform: translateX(-50%) translateY(8px); opacity: 0; pointer-events: none;
+    transition: all .2s; padding: 10px 18px; border-radius: 10px;
+    background: rgba(15,34,51,.88); color: #fff; font-size: 13px; font-weight: 700;
+    box-shadow: 0 12px 28px rgba(15,34,51,.22); white-space: nowrap;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%); }
+
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-thumb { background: rgba(15,80,120,.16); border-radius: 999px; }
+</style>
+</head>
+<body>
+
+<div class="screen">
+
+  <!-- ================= 顶栏（无时钟 / 无 IP / 无窗口按钮） ================= -->
+  <header class="topbar">
+    <div class="brand">
+      <div class="mark">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 13h4l2-5 3 10 2-7 2 2h5"/></svg>
+      </div>
+      <b>智能驾驶舱检测系统</b>
+    </div>
+
+    <nav class="nav">
+      <button class="active" onclick="go('pedal', this)">踏板测试</button>
+      <button onclick="go('steer', this)">转盘测试</button>
+      <button onclick="go('debug', this)">调试</button>
+      <button onclick="go('records', this)">记录</button>
+      <button onclick="go('settings', this)">设置</button>
+    </nav>
+
+    <div class="top-right">
+      <span class="status"><span class="led" id="ledA"></span>A 板</span>
+      <span class="status"><span class="led" id="ledB"></span>B 板</span>
+      <button class="lang" title="切换语言">中</button>
+      <button class="estop" onclick="toast('急停已下发 A/B 两块板')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v6"/><circle cx="12" cy="16.6" r=".9" fill="currentColor" stroke="none"/></svg>
+        急停
+      </button>
+    </div>
+  </header>
+
+  <main class="workspace">
+
+    <!-- ================= 踏板 ================= -->
+    <section class="page active" id="page-pedal">
+      <div class="page-head">
+        <div class="page-title">踏板测试</div>
+        <div class="toolbar">
+          <button class="big-btn primary" onclick="toast('打开蓝牙模块联结')">蓝牙模块联结</button>
+          <div class="seg">
+            <button class="active" data-side="A" onclick="setSide('A')">A 模块</button>
+            <button data-side="B" onclick="setSide('B')">B 模块</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="main">
+        <section class="panel">
+          <div class="tabs">
+            <button class="tab active" onclick="pedalTab('measure', this)">测量与记录</button>
+            <button class="tab" onclick="pedalTab('motor', this)">电机控制</button>
+          </div>
+
+          <div class="pane active" id="pedal-measure">
+            <div class="card-grid">
+              <div class="mcard compact"><div class="lab">倾角 X</div><div class="val cyan">-0.012<i>°</i></div></div>
+              <div class="mcard compact"><div class="lab">倾角 Y</div><div class="val">0.003<i>°</i></div></div>
+
+              <div class="mcard"><div class="lab">垂直测距</div><div class="val">128.4<i>mm</i></div><div class="acts"><button class="act" onclick="toast('垂直测距已清零')">清零</button></div></div>
+              <div class="mcard"><div class="lab">起始高度</div><div class="val">52.0<i>mm</i></div><div class="acts"><button class="act" onclick="rec('起始高度','52.0 mm')">记录</button><button class="act clear" onclick="clr('起始高度')">清除</button></div></div>
+
+              <div class="mcard"><div class="lab">终末高度</div><div class="val">78.4<i>mm</i></div><div class="acts"><button class="act" onclick="rec('终末高度','78.4 mm')">记录</button><button class="act clear" onclick="clr('终末高度')">清除</button></div></div>
+              <div class="mcard"><div class="lab">高度差</div><div class="val violet">26.4<i>mm</i></div><div class="acts"><button class="act" onclick="rec('高度差','26.4 mm')">记录</button><button class="act clear" onclick="clr('高度差')">清除</button></div></div>
+
+              <div class="mcard"><div class="lab">实时力值</div><div class="val cyan">9.62<i>N</i></div><div class="acts"><button class="act" onclick="rec('实时力值','9.62 N')">记录</button><button class="act clear" onclick="clr('实时力值')">清除</button></div></div>
+              <div class="mcard"><div class="lab">最大 / 均匀力值</div><div class="duo"><div><div class="val">12.80<i>N</i></div></div><div><div class="val">9.41<i>N</i></div></div></div></div>
+            </div>
+          </div>
+
+          <div class="pane" id="pedal-motor">
+            <div class="motor-grid">
+              <button class="motion primary" onclick="toast('已使能电机')">总使能</button>
+              <button class="motion" onclick="toast('已下发调平补偿')">调平补偿</button>
+              <div class="motion-input"><span class="k">角度</span><input value="0.0"><span class="u">°</span></div>
+              <button class="motion" onclick="toast('已启动调平电机')">启动</button>
+              <div class="motion-input"><span class="k">推出</span><input value="80"><span class="u">mm</span></div>
+              <button class="motion" onclick="toast('已设置推出距离 80 mm')">设置距离</button>
+              <button class="motion" onclick="toast('已开始推出')">启动加载</button>
+              <button class="motion" onclick="toast('已下发推杆回零')">推杆回零</button>
+              <button class="motion" onclick="toast('已下发 -1 mm 微调')">− 微调</button>
+              <button class="motion" onclick="toast('已下发 +1 mm 微调')">＋ 微调</button>
+              <button class="motion danger" onclick="toast('已下发 STOP')">STOP</button>
+              <button class="motion" onclick="toast('已下发 RESET FAULT')">故障复位</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel chart-panel">
+          <div class="panel-head"><span class="dot"></span>图表 A <span class="r">倾角 · 高度 · 力值</span></div>
+          <div class="chart">
+            <div class="grid"></div>
+            <div class="legend"><span><i style="background:#0891b2"></i>倾角</span><span><i style="background:#d97706"></i>高度</span><span><i style="background:#7c3aed"></i>力值</span></div>
+            <div class="ylab">倾角 °</div>
+            <svg viewBox="0 0 440 380" preserveAspectRatio="none">
+              <path d="M0,210 C40,196 70,216 105,176 S180,126 220,144 S300,102 345,118 S415,86 440,98" fill="none" stroke="#0891b2" stroke-width="2.4"/>
+              <path d="M0,260 C50,254 90,244 140,232 S220,206 275,212 S365,180 440,174" fill="none" stroke="#d97706" stroke-width="2" stroke-dasharray="5 5"/>
+              <path d="M0,300 C60,294 100,304 150,284 S235,262 285,268 S390,240 440,250" fill="none" stroke="#7c3aed" stroke-width="2"/>
+            </svg>
+          </div>
+        </section>
+      </div>
+
+      <div class="page-info"><span>Info:</span><b id="pedal-info">A 侧 · 待机 · 已记录 0 条</b><span class="grow"></span></div>
+      <div class="page-actions">
+        <button class="start" id="pedal-start" onclick="togglePedal()">开始测试</button>
+        <button onclick="rec('记录','高度差 26.4 mm / 9.62 N')">记录</button>
+        <button onclick="toast('测试记录已导出')">导出</button>
+        <button onclick="switchPedal()">踏板 B</button>
+      </div>
+    </section>
+
+    <!-- ================= 转盘 ================= -->
+    <section class="page" id="page-steer">
+      <div class="page-head">
+        <div class="page-title">转盘测试</div>
+        <div class="toolbar">
+          <button class="big-btn primary" onclick="toast('打开蓝牙模块联结')">蓝牙模块联结</button>
+          <button class="big-btn" onclick="toast('倾角模块已连接')">倾角模块</button>
+          <button class="big-btn" onclick="toast('转向力模块已连接')">转向力模块</button>
+        </div>
+      </div>
+
+      <div class="main">
+        <section class="panel">
+          <div class="panel-head"><span class="dot"></span>转盘数据 <span class="r">倾角 10Hz · 力值 100ms</span></div>
+          <div class="card-grid">
+            <div class="mcard compact"><div class="lab">倾角 X</div><div class="val cyan">-0.012<i>°</i></div></div>
+            <div class="mcard compact"><div class="lab">倾角 Y</div><div class="val">0.003<i>°</i></div></div>
+
+            <div class="mcard"><div class="lab">自由转角 <span class="dir">顺时针</span></div><div class="val cyan">12.480<i>°</i></div><div class="acts"><button class="act" onclick="toast('自由转角已清零')">清零</button><button class="act" onclick="srec('自由转角','12.480°')">记录</button></div></div>
+            <div class="mcard"><div class="lab">实时力值</div><div class="val">8.34<i>N</i></div><div class="acts"><button class="act" onclick="toast('转向力已清零')">清零</button><button class="act" onclick="srec('实时力值','8.34 N')">记录</button></div></div>
+
+            <div class="mcard"><div class="lab">顺时针峰值</div><div class="val violet">12.480<i>°</i></div><div class="acts"><button class="act" onclick="srec('顺时针峰值','12.480°')">记录</button><button class="act clear" onclick="sclr('顺时针峰值')">清除</button></div></div>
+            <div class="mcard"><div class="lab">逆时针峰值</div><div class="val violet">-7.260<i>°</i></div><div class="acts"><button class="act" onclick="srec('逆时针峰值','-7.260°')">记录</button><button class="act clear" onclick="sclr('逆时针峰值')">清除</button></div></div>
+
+            <div class="mcard wide"><div class="lab">最大力值</div><div class="duo"><div><div class="val">11.82<i>N</i></div></div><div class="acts" style="margin:0;align-items:center"><button class="act" style="max-width:110px" onclick="srec('最大力值','11.82 N')">记录</button><button class="act clear" style="max-width:110px" onclick="sclr('最大力值')">清除</button></div></div></div>
+          </div>
+        </section>
+
+        <section class="panel chart-panel">
+          <div class="panel-head"><span class="dot"></span>图表 A <span class="r">倾角 · 自由转角</span></div>
+          <div class="chart">
+            <div class="grid"></div>
+            <div class="legend"><span><i style="background:#0891b2"></i>倾角 X</span><span><i style="background:#7c3aed"></i>自由转角</span></div>
+            <div class="ylab">角度 °</div>
+            <svg viewBox="0 0 440 380" preserveAspectRatio="none">
+              <path d="M0,220 C50,206 90,230 130,188 S210,134 255,152 S340,110 390,124 S425,108 440,112" fill="none" stroke="#0891b2" stroke-width="2.4"/>
+              <path d="M0,280 C60,268 105,246 150,234 S235,208 285,182 S375,154 440,160" fill="none" stroke="#7c3aed" stroke-width="2"/>
+            </svg>
+          </div>
+        </section>
+      </div>
+
+      <div class="page-info"><span>Info:</span><b id="steer-info">倾角 / 转向力已连接 · 待机 · 已记录 0 条</b><span class="grow"></span></div>
+      <div class="page-actions">
+        <button class="start" id="steer-start" onclick="toggleSteer()">开始测试</button>
+        <button onclick="srec('自由转角','12.480°')">记录</button>
+        <button onclick="toast('Excel 已导出')">导出 Excel</button>
+        <button onclick="clearSteerAll()">清空</button>
+      </div>
+    </section>
+
+    <!-- ================= 调试 ================= -->
+    <section class="page" id="page-debug">
+      <div class="page-head">
+        <div class="page-title">调试</div>
+        <div class="toolbar">
+          <div class="seg">
+            <button class="active" data-side="A" onclick="setSide('A')">A 板</button>
+            <button data-side="B" onclick="setSide('B')">B 板</button>
+          </div>
+          <button class="big-btn" onclick="toast('已断开目标板')">断开</button>
+          <button class="big-btn primary" onclick="toast('正在连接目标板…')">连接</button>
+        </div>
+      </div>
+      <div class="debug-grid">
+        <section class="panel">
+          <div class="panel-head"><span class="dot"></span>手动单步</div>
+          <div class="debug-actions">
+            <button class="motion" onclick="toast('已下发角度补偿')">角度补偿</button>
+            <button class="motion" onclick="toast('已开始推出')">开始推出</button>
+            <button class="motion" onclick="toast('已停止推出')">停止推出</button>
+            <button class="motion" onclick="toast('已下发推杆回零')">推杆回零</button>
+            <button class="motion" onclick="toast('已下发角度电机设零')">角度电机设零</button>
+            <button class="motion" onclick="toast('正在扫描 Modbus 从站')">扫描 Modbus</button>
+            <button class="motion wide" onclick="toast('已下发 SET MSH_ZERO_CLEAR')">清除 MSH 零点</button>
+            <button class="motion danger" onclick="toast('已下发 PEDAL STOP')">STOP</button>
+            <button class="motion" onclick="toast('已下发 RESET FAULT')">故障复位</button>
+          </div>
+        </section>
+        <section class="panel">
+          <div class="panel-head"><span class="dot"></span>状态</div>
+          <div class="telemetry">
+            <div class="tel-row">设备状态<b>IDLE</b></div>
+            <div class="tel-row">倾角 X / Y<b>-0.012 / 0.003°</b></div>
+            <div class="tel-row">推杆行程<b>12.5 mm</b></div>
+            <div class="tel-row">推杆状态字<b>0x0002</b></div>
+            <div class="tel-row">传感器<b style="color:var(--ok)">OK</b></div>
+            <div class="tel-row">故障<b style="color:var(--ok)">无</b></div>
+          </div>
+        </section>
+      </div>
+      <div class="page-info"><span>Info:</span><b id="debug-info">A 板 · 已连接 · 目标板 A</b><span class="grow"></span></div>
+      <div class="page-actions">
+        <button class="start" onclick="toast('命令已下发')">执行</button>
+        <button onclick="toast('已下发 MOTOR ENABLE')">总使能</button>
+        <button onclick="toast('已下发 MOTOR STOP')">全轴停止</button>
+      </div>
+    </section>
+
+    <!-- ================= 记录 ================= -->
+    <section class="page" id="page-records">
+      <div class="page-head">
+        <div class="page-title">记录</div>
+        <div class="toolbar"><button class="big-btn primary" onclick="toast('已导出记录')">导出</button></div>
+      </div>
+      <div class="main" style="grid-template-columns:1fr">
+        <section class="panel">
+          <div class="panel-head"><span class="dot"></span>最近记录</div>
+          <div class="list">
+            <div class="rec"><div class="side">A</div><div class="main"><b>踏板 A 侧 · 自动流程</b><span>2026-11-14 12:41:22 · admin</span></div><div class="val">PASS</div></div>
+            <div class="rec"><div class="side" style="background:linear-gradient(135deg,#a78bfa,#7c3aed)">B</div><div class="main"><b>踏板 B 侧 · 手动单步</b><span>2026-11-14 12:35:08 · admin</span></div><div class="val">PASS</div></div>
+            <div class="rec"><div class="side">A</div><div class="main"><b>踏板 A 侧 · 自动流程</b><span>2026-11-14 11:58:41 · user</span></div><div class="val" style="color:var(--warn)">复查</div></div>
+          </div>
+        </section>
+      </div>
+      <div class="page-info"><span>Info:</span><b>共 3 条记录</b><span class="grow"></span></div>
+      <div class="page-actions"><button class="start" onclick="toast('已导出记录')">导出 Excel</button></div>
+    </section>
+
+    <!-- ================= 设置 ================= -->
+    <section class="page" id="page-settings">
+      <div class="page-head">
+        <div class="page-title">设置</div>
+        <div class="toolbar"><button class="big-btn primary" onclick="toast('参数已下发两块板')">应用全部</button></div>
+      </div>
+      <div class="settings-grid">
+        <div class="set-row wide">
+          <div class="info"><b>补正模式</b><span>1 = 一体倾角闭环，2 = 分离初始角度 ± 倾角</span></div>
+          <select class="set-select"><option>1</option><option>2</option></select>
+          <button class="big-btn" onclick="toast('补正模式已设置')">设置</button>
+        </div>
+        <div class="set-row">
+          <div class="info"><b>推杆脉冲当量</b><span>pulse/mm · 787.4</span></div>
+          <div class="stepper"><button>−</button><input value="787.4"><button>＋</button></div>
+          <button class="big-btn" onclick="toast('推杆脉冲当量已设置')">设置</button>
+        </div>
+        <div class="set-row">
+          <div class="info"><b>推杆速度</b><span>RPM · 60</span></div>
+          <div class="stepper"><button>−</button><input value="60"><button>＋</button></div>
+          <button class="big-btn" onclick="toast('推杆速度已设置')">设置</button>
+        </div>
+      </div>
+      <div class="page-info"><span>Info:</span><b>目标板 A · 参数掉电保存</b><span class="grow"></span></div>
+      <div class="page-actions"><button class="start" onclick="toast('参数已应用')">应用</button><button onclick="toast('已恢复默认参数')">恢复默认</button></div>
+    </section>
+
+  </main>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  function go(name, el) {
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.getElementById('page-' + name).classList.add('active');
+    document.querySelectorAll('.nav button').forEach(b => b.classList.remove('active'));
+    el.classList.add('active');
+  }
+
+  let side = 'A';
+  function setSide(s) {
+    side = s;
+    document.querySelectorAll('.seg button[data-side]').forEach(b => b.classList.toggle('active', b.dataset.side === s));
+    const info = document.getElementById('pedal-info');
+    if (info) info.textContent = s + ' 侧 · 待机 · 已记录 0 条';
+    const next = document.getElementById('pedal-start');
+    if (next) next.textContent = '开始测试';
+    toast('目标板：' + s);
+  }
+
+  function pedalTab(name, el) {
+    const panel = el.closest('.panel');
+    panel.querySelectorAll('.pane').forEach(p => p.classList.remove('active'));
+    panel.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.getElementById('pedal-' + name).classList.add('active');
+    el.classList.add('active');
+  }
+
+  let pedalRunning = false;
+  function togglePedal() {
+    const btn = document.getElementById('pedal-start');
+    const info = document.getElementById('pedal-info');
+    pedalRunning = !pedalRunning;
+    if (pedalRunning) {
+      btn.textContent = '停止测试';
+      info.textContent = side + ' 侧 · 测试中 · 自动记录稳定点';
+      toast('开始测试');
+      setTimeout(() => {
+        if (!pedalRunning) return;
+        pedalRunning = false;
+        btn.textContent = '开始测试';
+        info.textContent = side + ' 侧 · 判定合格 · 高度差 26.4 mm';
+        toast('测试完成 · 合格');
+      }, 2200);
+    } else {
+      btn.textContent = '开始测试';
+      info.textContent = side + ' 侧 · 已停止';
+      toast('已停止');
+    }
+  }
+
+  let count = 0;
+  function rec(item, val) {
+    count++;
+    const info = document.getElementById('pedal-info');
+    if (info) info.textContent = side + ' 侧 · 已记录 ' + item + ' · 共 ' + count + ' 条';
+    toast('已记录：' + item);
+  }
+  function clr(item) { toast('已清除：' + item); }
+  function switchPedal() {
+    const next = side === 'A' ? 'B' : 'A';
+    setSide(next);
+    toast('已切换到踏板 ' + next + ' 侧');
+  }
+
+  let steerRunning = false;
+  let steerCount = 0;
+  function toggleSteer() {
+    const btn = document.getElementById('steer-start');
+    const info = document.getElementById('steer-info');
+    steerRunning = !steerRunning;
+    if (steerRunning) {
+      btn.textContent = '停止测试';
+      info.textContent = '倾角 / 转向力已连接 · 测试中 · 已记录 ' + steerCount + ' 条';
+      toast('转盘测试开始');
+      setTimeout(() => {
+        if (!steerRunning) return;
+        steerRunning = false;
+        btn.textContent = '开始测试';
+        info.textContent = '测试完成 · 顺时针 12.480° · 逆时针 -7.260°';
+        toast('测试完成');
+      }, 2200);
+    } else {
+      btn.textContent = '开始测试';
+      info.textContent = '倾角 / 转向力已连接 · 已停止 · 已记录 ' + steerCount + ' 条';
+      toast('已停止');
+    }
+  }
+  function srec(item, val) {
+    steerCount++;
+    const info = document.getElementById('steer-info');
+    if (info) info.textContent = '已记录 ' + item + '：' + val + ' · 共 ' + steerCount + ' 条';
+    toast('已记录：' + item);
+  }
+  function sclr(item) { toast('已清除：' + item); }
+  function clearSteerAll() {
+    steerCount = 0;
+    const info = document.getElementById('steer-info');
+    if (info) info.textContent = '趋势与记录已清空 · 已记录 0 条';
+    toast('已清空趋势与记录');
+  }
+
+  let toastTimer;
+  function toast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove('show'), 1800);
+  }
+</script>
+</body>
+</html>

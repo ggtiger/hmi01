@@ -10,6 +10,7 @@ import PedalDataPanel from '@/components/ui/PedalDataPanel'
 import EventTimeline from '@/components/ui/EventTimeline'
 import EstopButton from '@/components/ui/EstopButton'
 import ForceModal from '@/components/ui/ForceModal'
+import { useT } from '@/lib/i18n'
 
 /** 高度记录点现场值（mm） */
 interface FieldSnapshot {
@@ -25,7 +26,8 @@ const emptySnapshot = (): FieldSnapshot => ({ startH: null, endH: null })
  * → 右侧图表 A → 底部 开始测试 / 记录 / 导出 / 踏板 B
  */
 export default function PedalTestPage() {
-  const { state, actions, lastEvent, error } = useDevice()
+  const t9n = useT()
+  const { state, boards, actions, lastEvent, error } = useDevice()
   const { states: forceStates } = useForce()
   const {
     side, setSide, sides, setPhase, setParam,
@@ -149,6 +151,8 @@ export default function PedalTestPage() {
   const toggleTest = () =>
     run(async () => {
       if (work.phase === 'idle') {
+        // 与固件侧别状态同步后再启动该侧自动流程
+        await actions.pedalSelect(workSide)
         await actions.pedalStart(workSide)
         setPhase(workSide, 'leveling')
         forceHistory.current = []
@@ -161,9 +165,9 @@ export default function PedalTestPage() {
 
   const exportCsv = () => {
     const lines = [
-      ['#', '时间', '侧', '记录项', '值', '单位'].join(','),
+      ['#', '时间', '侧', '记录项', '值', '单位'].map(t9n).join(','),
       ...records.map((r) =>
-        [r.index, r.timestamp, r.side, r.key, r.value === null ? '--' : r.value.toFixed(3), r.unit].join(',')
+        [r.index, r.timestamp, r.side, t9n(r.key), r.value === null ? '--' : r.value.toFixed(3), r.unit].join(',')
       ),
     ]
     const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' })
@@ -188,35 +192,52 @@ export default function PedalTestPage() {
         </div>
       )}
 
+      {boards[workSide].telemetry.state === 'FAULT' && (
+        <div className="flex items-center gap-3 px-4 py-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-[13px] font-label-bold">
+          <span className="material-symbols-outlined text-[18px]">warning</span>
+          <span>{t9n('设备处于故障态：运动命令被拒绝，请先点击「故障复位」')}</span>
+          <button
+            onClick={() => run(() => actions.resetFault(workSide))}
+            disabled={!boards[workSide].is_connected || busy}
+            className="glass-btn !h-7 !px-3 !text-[12px] ml-auto"
+          >
+            {t9n('故障复位')}
+          </button>
+        </div>
+      )}
+
       {/* ===== 工具条：蓝牙模块联结 / A 模块 / B 模块 ===== */}
       <div className="flex items-center gap-2 flex-wrap">
         <button onClick={() => setForceModalOpen(true)} className="glass-btn primary">
           <span className="material-symbols-outlined text-[16px]">bluetooth</span>
-          蓝牙模块联结
+          {t9n('蓝牙模块联结')}
         </button>
         <button
           onClick={() => handleSideChange('A')}
-          disabled={!connected || busy}
+          disabled={!boards.A.is_connected || busy}
           className={`glass-btn ${workSide === 'A' ? '!bg-white/90 !border-[#0891b2] !text-[#0891b2]' : ''}`}
         >
-          A 模块
+          {t9n('A 模块')}
         </button>
         <button
           onClick={() => handleSideChange('B')}
-          disabled={!connected || busy}
+          disabled={!boards.B.is_connected || busy}
           className={`glass-btn ${workSide === 'B' ? '!bg-white/90 !border-[#0891b2] !text-[#0891b2]' : ''}`}
         >
-          B 模块
+          {t9n('B 模块')}
         </button>
         <div className="flex-1" />
         <span className="glass-row !min-h-[34px]">
           <span className="k">WiFi</span>
           <span className={`led ${connected ? 'on' : 'err'}`} />
-          <span className="v !text-[12px]">{connected ? '已连接' : '未连接'}</span>
+          <span className="v !text-[12px]">
+            A {boards.A.is_connected ? t9n('已连接') : t9n('未连接')} · B{' '}
+            {boards.B.is_connected ? t9n('已连接') : t9n('未连接')}
+          </span>
         </span>
         <span className="glass-row !min-h-[34px]">
-          <span className="k">流程</span>
-          <span className="v !text-[12px]">{PHASE_TEXT[work.phase]}</span>
+          <span className="k">{t9n('流程')}</span>
+          <span className="v !text-[12px]">{t9n(PHASE_TEXT[work.phase])}</span>
         </span>
         <EstopButton onEstop={actions.estop} />
       </div>
@@ -225,11 +246,11 @@ export default function PedalTestPage() {
       <div className="flex-1 min-h-0 flex gap-3">
         <div className="glass-panel w-[480px] flex-shrink-0 flex flex-col min-h-0">
           <div className="glass-panel-header">
-            踏板 {workSide} · 数据面板
+            {t9n('踏板')} {workSide} · {t9n('数据面板')}
             <span className="ml-auto flex items-center gap-2 font-normal normal-case tracking-normal">
               <span className={`led ${forceCh.isConnected ? 'on' : ''}`} />
               <span className="font-label-sm text-slate-500">
-                {forceCh.isConnected ? forceCh.deviceName : '力值模块未连接'}
+                {forceCh.isConnected ? forceCh.deviceName : t9n('力值模块未连接')}
               </span>
             </span>
           </div>
@@ -252,7 +273,7 @@ export default function PedalTestPage() {
               onMotorMove={() =>
                 run(async () => {
                   const angle = Number(work.params.setAngle)
-                  if (!Number.isFinite(angle)) throw new Error('目标角度无效')
+                  if (!Number.isFinite(angle)) throw new Error(t9n('目标角度无效'))
                   await actions.motorMove(workSide, angle)
                 })
               }
@@ -276,19 +297,19 @@ export default function PedalTestPage() {
         {/* 右侧图表 A */}
         <div className="glass-panel flex-1 min-w-0 flex flex-col">
           <div className="glass-panel-header">
-            图表 A · 踏板趋势
+            {t9n('图表 A · 踏板趋势')}
             <div className="ml-auto flex items-center gap-1.5 normal-case tracking-normal font-normal">
               <button
                 onClick={() => setChartTab('trend')}
                 className={`glass-btn !h-7 !px-2.5 !text-[11px] ${chartTab === 'trend' ? 'primary' : ''}`}
               >
-                趋势
+                {t9n('趋势')}
               </button>
               <button
                 onClick={() => setChartTab('events')}
                 className={`glass-btn !h-7 !px-2.5 !text-[11px] ${chartTab === 'events' ? 'primary' : ''}`}
               >
-                事件
+                {t9n('事件')}
                 {events.length > 0 && (
                   <span className="ml-1 px-1.5 rounded-full bg-[#e11d48] text-white text-[10px]">{events.length}</span>
                 )}
@@ -297,7 +318,7 @@ export default function PedalTestPage() {
                 onClick={chartTab === 'trend' ? clearTrend : clearEvents}
                 className="glass-btn !h-7 !px-2.5 !text-[11px]"
               >
-                清空
+                {t9n('清空')}
               </button>
             </div>
           </div>
@@ -314,9 +335,9 @@ export default function PedalTestPage() {
                     formatter={(v, name) => (v === null || v === undefined ? ['--', String(name)] : [v, String(name)]) as [string, string]}
                   />
                   <Legend wrapperStyle={{ fontSize: 12 }} />
-                  <Line yAxisId="tilt" type="monotone" dataKey="tilt_y" name="倾角 Y °" stroke="#0891b2" strokeWidth={2} dot={false} isAnimationActive={false} connectNulls={false} />
-                  <Line yAxisId="tilt" type="monotone" dataKey="tilt_x" name="倾角 X °" stroke="#7c3aed" dot={false} isAnimationActive={false} connectNulls={false} />
-                  <Line yAxisId="pedal" type="monotone" dataKey="pedal_mm" name="推杆 mm" stroke="#d97706" dot={false} isAnimationActive={false} connectNulls={false} />
+                  <Line yAxisId="tilt" type="monotone" dataKey="tilt_y" name={t9n('倾角 Y °')} stroke="#0891b2" strokeWidth={2} dot={false} isAnimationActive={false} connectNulls={false} />
+                  <Line yAxisId="tilt" type="monotone" dataKey="tilt_x" name={t9n('倾角 X °')} stroke="#7c3aed" dot={false} isAnimationActive={false} connectNulls={false} />
+                  <Line yAxisId="pedal" type="monotone" dataKey="pedal_mm" name={t9n('推杆 mm')} stroke="#d97706" dot={false} isAnimationActive={false} connectNulls={false} />
                 </LineChart>
               </ResponsiveContainer>
             ) : (
@@ -331,7 +352,7 @@ export default function PedalTestPage() {
                 <thead className="sticky top-0 bg-white/80 backdrop-blur">
                   <tr className="text-left">
                     {['#', '时间', '侧', '记录项', '值', ''].map((h) => (
-                      <th key={h} className="px-2 py-1 font-label-bold text-on-surface-variant">{h}</th>
+                      <th key={h} className="px-2 py-1 font-label-bold text-on-surface-variant">{t9n(h)}</th>
                     ))}
                   </tr>
                 </thead>
@@ -341,7 +362,7 @@ export default function PedalTestPage() {
                       <td className="px-2 py-0.5 monospaced-data">{r.index}</td>
                       <td className="px-2 py-0.5 monospaced-data">{r.timestamp}</td>
                       <td className="px-2 py-0.5">{r.side}</td>
-                      <td className="px-2 py-0.5">{r.key}</td>
+                      <td className="px-2 py-0.5">{t9n(r.key)}</td>
                       <td className="px-2 py-0.5 monospaced-data">
                         {r.value === null ? '--' : `${r.value.toFixed(3)} ${r.unit}`}
                       </td>
@@ -361,10 +382,14 @@ export default function PedalTestPage() {
       <div className="flex items-center gap-2">
         <button
           onClick={toggleTest}
-          disabled={!connected || busy}
+          disabled={
+            !boards[workSide].is_connected ||
+            busy ||
+            boards[workSide].telemetry.state === 'FAULT'
+          }
           className={`glass-action flex-1 ${work.phase !== 'idle' ? 'danger' : 'primary'}`}
         >
-          {work.phase === 'idle' ? '开始测试' : '停止测试'}
+          {work.phase === 'idle' ? t9n('开始测试') : t9n('停止测试')}
         </button>
         <button
           onClick={() =>
@@ -376,27 +401,27 @@ export default function PedalTestPage() {
               unit: 'N',
             })
           }
-          disabled={!connected}
+          disabled={!boards[workSide].is_connected}
           className="glass-action"
         >
-          记录
+          {t9n('记录')}
         </button>
         <button onClick={exportCsv} disabled={records.length === 0} className="glass-action">
-          导出
+          {t9n('导出')}
         </button>
         <button
           onClick={() => { clearRecords(); actions.pedalClear(workSide).catch(() => {}) }}
           disabled={records.length === 0}
           className="glass-action"
         >
-          清除
+          {t9n('清除')}
         </button>
         <button
           onClick={() => handleSideChange(workSide === 'A' ? 'B' : 'A')}
           disabled={!connected || busy}
           className="glass-action"
         >
-          踏板 {workSide === 'A' ? 'B' : 'A'}
+          {t9n('踏板')} {workSide === 'A' ? 'B' : 'A'}
         </button>
       </div>
 

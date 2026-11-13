@@ -3,6 +3,7 @@
 import { memo, useEffect, useRef, useState } from 'react'
 import IndustrialCard from './IndustrialCard'
 import type { LogEntry } from '@/lib/comm/types'
+import { useT } from '@/lib/i18n'
 
 interface DebugConsoleProps {
   debugLog: LogEntry[]
@@ -32,6 +33,7 @@ const directionStyle: Record<string, { label: string; cls: string }> = {
  *  memo 化：debugLog 仅在新日志到达时变化，20Hz 遥测刷新不再触发 500 行列表重渲染
  */
 function DebugConsoleImpl({ debugLog, connected, onSend, onClear, bare }: DebugConsoleProps) {
+  const t = useT()
   const [input, setInput] = useState('')
   const [autoScroll, setAutoScroll] = useState(true)
   const [sending, setSending] = useState(false)
@@ -75,7 +77,7 @@ function DebugConsoleImpl({ debugLog, connected, onSend, onClear, bare }: DebugC
           className="flex-1 min-h-0 overflow-y-auto px-3 py-2 monospaced-data text-xs leading-5 bg-slate-50 border-b border-surface-variant"
         >
           {debugLog.length === 0 && (
-            <div className="text-outline text-center py-10">暂无日志（连接设备后显示交互数据）</div>
+            <div className="text-outline text-center py-10">{t('暂无日志（连接设备后显示交互数据）')}</div>
           )}
           {debugLog.slice(-200).map((entry, i) => {
             const style = directionStyle[entry.direction] ?? directionStyle.SYS
@@ -84,6 +86,15 @@ function DebugConsoleImpl({ debugLog, connected, onSend, onClear, bare }: DebugC
                 <span className={`font-bold w-4 flex-shrink-0 text-center ${style.cls}`}>
                   {style.label}
                 </span>
+                {entry.board && (
+                  <span
+                    className={`font-bold flex-shrink-0 ${
+                      entry.board === 'A' ? 'text-sky-600' : 'text-violet-600'
+                    }`}
+                  >
+                    [{entry.board}]
+                  </span>
+                )}
                 <span className="text-slate-400 flex-shrink-0">
                   {new Date(entry.timestamp).toLocaleTimeString('zh-CN', { hour12: false })}
                 </span>
@@ -117,7 +128,7 @@ function DebugConsoleImpl({ debugLog, connected, onSend, onClear, bare }: DebugC
               if (e.key === 'Enter') handleSend(input)
             }}
             disabled={!connected}
-            placeholder={connected ? '输入命令后回车发送（如 PING）' : '连接设备后可手动发送命令'}
+            placeholder={connected ? t('输入命令后回车发送（如 PING）') : t('连接设备后可手动发送命令')}
             className="flex-1 px-3 py-2 rounded-lg border border-outline-variant monospaced-data text-body-md focus:outline-none focus:border-primary disabled:bg-surface-container disabled:text-outline"
           />
           <button
@@ -126,7 +137,7 @@ function DebugConsoleImpl({ debugLog, connected, onSend, onClear, bare }: DebugC
             className="px-4 py-2 rounded-lg bg-[linear-gradient(135deg,rgba(8,145,178,0.92),rgba(37,99,235,0.92))] text-white font-label-bold text-label-bold disabled:opacity-40 transition-all flex items-center gap-1"
           >
             <span className="material-symbols-outlined text-[16px]">send</span>
-            发送
+            {t('发送')}
           </button>
         </div>
     </div>
@@ -136,7 +147,7 @@ function DebugConsoleImpl({ debugLog, connected, onSend, onClear, bare }: DebugC
 
   return (
     <IndustrialCard
-      title="交互控制台"
+      title={t('交互控制台')}
       headerRight={
         <div className="flex items-center gap-3">
           <label className="flex items-center gap-1 font-label-sm text-on-surface-variant cursor-pointer select-none">
@@ -146,13 +157,13 @@ function DebugConsoleImpl({ debugLog, connected, onSend, onClear, bare }: DebugC
               onChange={(e) => setAutoScroll(e.target.checked)}
               className="accent-[#041627]"
             />
-            自动滚动
+            {t('自动滚动')}
           </label>
           <button
             onClick={onClear}
             className="font-label-sm text-outline hover:text-critical transition-colors"
           >
-            清空
+            {t('清空')}
           </button>
         </div>
       }
