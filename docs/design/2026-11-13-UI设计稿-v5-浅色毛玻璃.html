@@ -1,0 +1,1140 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>XdesinHMI 界面设计稿 v5.0 · 浅色毛玻璃工业</title>
+<style>
+  :root {
+    --ink: #eef3f8;
+    --glass: rgba(255, 255, 255, 0.55);
+    --glass-strong: rgba(255, 255, 255, 0.72);
+    --glass-line: rgba(255, 255, 255, 0.85);
+    --glass-line-soft: rgba(15, 80, 120, 0.08);
+    --text: #16283a;
+    --muted: #5b7186;
+    --dim: #8fa2b3;
+    --cyan: #0891b2;
+    --blue: #2563eb;
+    --violet: #7c3aed;
+    --ok: #059669;
+    --warn: #d97706;
+    --danger: #e11d48;
+    --r: 14px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; color: var(--text);
+    background: #eef3f8;
+    font-family: "Inter", -apple-system, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+    font-size: 14px; line-height: 1.55;
+  }
+  .mono { font-family: "JetBrains Mono", "SF Mono", Consolas, Menlo, monospace; font-variant-numeric: tabular-nums; }
+
+  /* ===== 文档头 ===== */
+  .doc-header {
+    position: relative; overflow: hidden;
+    padding: 46px 56px 38px;
+    background:
+      radial-gradient(900px 420px at 12% -10%, rgba(8,145,178,.14), transparent 60%),
+      radial-gradient(800px 500px at 88% 0%, rgba(124,58,237,.12), transparent 60%),
+      linear-gradient(180deg, #f8fbfe 0%, #eef3f8 100%);
+    border-bottom: 1px solid rgba(15,80,120,.12);
+  }
+  .doc-header::before {
+    content: ""; position: absolute; inset: 0; pointer-events: none;
+    background-image:
+      linear-gradient(rgba(37,99,235,.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(37,99,235,.05) 1px, transparent 1px);
+    background-size: 46px 46px;
+    mask-image: linear-gradient(180deg, rgba(0,0,0,.7), transparent 85%);
+  }
+  .doc-header .kicker {
+    position: relative;
+    display: inline-flex; gap: 8px; align-items: center;
+    font-size: 10.5px; letter-spacing: 2.4px; text-transform: uppercase;
+    color: var(--cyan);
+    background: rgba(8,145,178,.08);
+    border: 1px solid rgba(8,145,178,.22);
+    padding: 4px 11px; border-radius: 999px; margin-bottom: 18px;
+    backdrop-filter: blur(8px);
+  }
+  .doc-header h1 { position: relative; margin: 0 0 8px; font-size: 31px; letter-spacing: .5px; color: #0f2233; }
+  .doc-header h1 small { font-size: 16px; color: var(--muted); font-weight: 400; margin-left: 10px; }
+  .doc-header p { position: relative; margin: 0; color: var(--muted); font-size: 13.5px; }
+  .doc-header .meta { position: relative; margin-top: 18px; display: flex; gap: 24px; font-size: 12px; color: var(--dim); flex-wrap: wrap; }
+  .doc-header .meta b { color: var(--text); }
+
+  .doc-nav {
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(6, 11, 18, .72);
+    backdrop-filter: blur(18px) saturate(140%);
+    border-bottom: 1px solid rgba(15,80,120,.08);
+    padding: 10px 56px; display: flex; gap: 6px; flex-wrap: wrap;
+  }
+  .doc-nav a {
+    text-decoration: none; color: var(--muted); font-size: 12.5px; font-weight: 600;
+    padding: 6px 12px; border-radius: 8px; border: 1px solid transparent;
+  }
+  .doc-nav a:hover { color: var(--cyan); border-color: rgba(8,145,178,.2); background: rgba(8,145,178,.06); }
+
+  .container { max-width: 1560px; margin: 0 auto; padding: 40px 56px 90px; }
+  section { margin-bottom: 62px; }
+  h2.sec-title { font-size: 20px; margin: 0 0 6px; color: #0f2233; display: flex; align-items: center; gap: 12px; }
+  h2.sec-title .num {
+    display: inline-flex; width: 30px; height: 30px; border-radius: 9px;
+    background: linear-gradient(135deg, rgba(8,145,178,.2), rgba(124,58,237,.18));
+    border: 1px solid rgba(8,145,178,.35); color: var(--cyan);
+    align-items: center; justify-content: center; font-size: 13px; font-weight: 700;
+  }
+  .sec-desc { color: var(--muted); font-size: 13.5px; margin: 0 0 22px 42px; }
+  .sec-desc b { color: var(--text); }
+
+  /* ===== 毛玻璃卡片 ===== */
+  .glass {
+    background: var(--glass);
+    backdrop-filter: blur(18px) saturate(150%);
+    -webkit-backdrop-filter: blur(18px) saturate(150%);
+    border: 1px solid var(--glass-line);
+    border-radius: var(--r);
+    box-shadow:
+      0 14px 44px rgba(31, 86, 130, .14),
+      inset 0 1px 0 rgba(255, 255, 255, .09);
+  }
+
+  /* 设计规范 */
+  .spec-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
+  .spec-card { padding: 18px 20px; }
+  .spec-card h4 { margin: 0 0 12px; font-size: 11px; text-transform: uppercase; letter-spacing: 1.8px; color: var(--muted); }
+  .swatches { display: flex; flex-wrap: wrap; gap: 10px; }
+  .swatch { width: 68px; }
+  .swatch .chip { height: 34px; border-radius: 9px; border: 1px solid rgba(255,255,255,.12); }
+  .swatch .name { font-size: 10.5px; color: var(--muted); margin-top: 4px; }
+  .swatch .hex { font-size: 9.5px; color: var(--dim); }
+  .type-row { display: flex; align-items: baseline; gap: 14px; margin-bottom: 8px; }
+  .type-row .tag { width: 76px; color: var(--dim); font-size: 11.5px; flex-shrink: 0; }
+  .type-row .demo { color: var(--text); }
+
+  /* 玻璃按钮 */
+  .btn4 {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    padding: 9px 18px; font-size: 13px; font-weight: 600; color: var(--text);
+    background: rgba(255,255,255,.05);
+    border: 1px solid rgba(15,80,120,.16);
+    border-radius: 10px;
+    backdrop-filter: blur(10px);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.08);
+    white-space: nowrap; cursor: default;
+  }
+  .btn4.primary {
+    background: linear-gradient(135deg, rgba(8,145,178,.9), rgba(37,99,235,.9));
+    border-color: rgba(8,145,178,.45);
+    color: #ffffff;
+    box-shadow: 0 6px 22px rgba(8,145,178,.22), inset 0 1px 0 rgba(255,255,255,.35);
+  }
+  .btn4.danger {
+    background: linear-gradient(135deg, rgba(251,113,133,.85), rgba(225,29,72,.85));
+    border-color: rgba(251,113,133,.5); color: #1d0509;
+    box-shadow: 0 6px 22px rgba(251,113,133,.25);
+  }
+  .btn4.sm { padding: 5px 11px; font-size: 11.5px; border-radius: 8px; }
+  .btn4.dis { opacity: .45; }
+
+  /* 玻璃数据块 */
+  .gbox {
+    display: inline-flex; align-items: center; gap: 10px; min-width: 140px;
+    padding: 8px 12px; border-radius: 10px;
+    background: rgba(255,255,255,.045);
+    border: 1px solid rgba(15,80,120,.12);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.06);
+  }
+  .gbox .k { color: var(--muted); font-size: 11.5px; white-space: nowrap; }
+  .gbox .v { margin-left: auto; font-weight: 700; color: #0f2233; }
+  .gbox .v.glow { color: var(--cyan);  }
+  .gbox .v.dim { color: var(--dim); font-weight: 600; }
+
+  /* LED */
+  .led4 { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: #3b4d60; }
+  .led4.on { background: var(--ok); box-shadow: 0 0 10px rgba(52,211,153,.85); }
+  .led4.warn { background: var(--warn); box-shadow: 0 0 10px rgba(251,191,36,.8); }
+  .led4.err { background: var(--danger); box-shadow: 0 0 10px rgba(251,113,133,.85); }
+
+  .tag4 { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 999px; border: 1px solid; letter-spacing: .3px; }
+  .tag4.ok { color: var(--ok); border-color: rgba(52,211,153,.4); background: rgba(52,211,153,.08); }
+  .tag4.warn { color: var(--warn); border-color: rgba(251,191,36,.4); background: rgba(251,191,36,.08); }
+  .tag4.err { color: var(--danger); border-color: rgba(251,113,133,.4); background: rgba(251,113,133,.08); }
+  .tag4.info { color: var(--cyan); border-color: rgba(8,145,178,.35); background: rgba(8,145,178,.08); }
+
+  /* mockup */
+  .mock-frame { margin-bottom: 18px; }
+  .mock-title { display: flex; align-items: center; gap: 10px; font-weight: 700; color: #0f2233; font-size: 15px; margin-bottom: 10px; }
+  .mock-title .badge { font-size: 10.5px; font-weight: 700; color: #ffffff; background: linear-gradient(135deg, var(--cyan), var(--blue)); padding: 2px 9px; border-radius: 999px; }
+  .mock-title .badge.new { background: linear-gradient(135deg, var(--warn), #f97316); }
+  .mock-scale { width: 100%; overflow: hidden; }
+  .mock-scale .inner { transform: scale(.72); transform-origin: top left; width: 1440px; height: 900px; }
+
+  .mock {
+    width: 1440px; height: 900px; position: relative; overflow: hidden;
+    border-radius: 18px;
+    border: 1px solid rgba(255,255,255,.9);
+    display: flex; flex-direction: column;
+    color: var(--text);
+    background:
+      radial-gradient(1100px 520px at 8% -8%, rgba(8,145,178,.14), transparent 55%),
+      radial-gradient(1000px 600px at 96% 4%, rgba(124,58,237,.12), transparent 55%),
+      radial-gradient(800px 500px at 50% 110%, rgba(37,99,235,.1), transparent 60%),
+      linear-gradient(180deg, #f8fbfe 0%, #e7eff7 100%);
+    box-shadow: 0 26px 60px rgba(31,86,130,.18);
+  }
+  .mock::before {
+    content: ""; position: absolute; inset: 0; pointer-events: none;
+    background-image:
+      linear-gradient(rgba(37,99,235,.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(37,99,235,.05) 1px, transparent 1px);
+    background-size: 44px 44px;
+    mask-image: radial-gradient(ellipse at 50% 0%, rgba(0,0,0,.7), transparent 80%);
+  }
+  .mock > * { position: relative; z-index: 1; }
+
+  /* 顶栏（玻璃） */
+  .m-topbar {
+    height: 48px; flex-shrink: 0;
+    background: rgba(255, 255, 255, .62);
+    backdrop-filter: blur(18px) saturate(150%);
+    border-bottom: 1px solid rgba(15,80,120,.12);
+    display: flex; align-items: center; padding: 0 14px; gap: 18px;
+  }
+  .m-brand { display: flex; align-items: center; gap: 9px; font-weight: 800; font-size: 14px; color: #0f2233; letter-spacing: .2px; }
+  .m-brand .lg {
+    width: 26px; height: 26px; border-radius: 8px;
+    background: linear-gradient(135deg, var(--cyan), var(--violet));
+    box-shadow: 0 0 18px rgba(8,145,178,.4);
+    display: flex; align-items: center; justify-content: center; color: #ffffff; font-size: 12px; font-weight: 900;
+  }
+  .m-statusbar-top { display: flex; align-items: center; gap: 14px; font-size: 11px; color: var(--muted); border-left: 1px solid rgba(15,80,120,.12); padding-left: 16px; }
+  .m-nav4 { margin-left: auto; display: flex; align-items: center; gap: 4px; }
+  .m-nav4 .it {
+    padding: 7px 14px; border-radius: 9px; font-size: 12.5px; font-weight: 600;
+    color: var(--muted); border: 1px solid transparent;
+  }
+  .m-nav4 .it.active {
+    color: #ffffff;
+    background: linear-gradient(135deg, rgba(8,145,178,.92), rgba(37,99,235,.92));
+    box-shadow: 0 4px 18px rgba(8,145,178,.25);
+  }
+  .m-win { display: flex; gap: 7px; margin-left: 16px; }
+  .m-win i { width: 11px; height: 11px; border-radius: 50%; display: block; }
+  .m-win i:nth-child(1) { background: #ff5f57; box-shadow: 0 0 8px rgba(255,95,87,.5); }
+  .m-win i:nth-child(2) { background: #febc2e; box-shadow: 0 0 8px rgba(254,188,46,.5); }
+  .m-win i:nth-child(3) { background: #28c840; box-shadow: 0 0 8px rgba(40,200,64,.5); }
+
+  /* 工具条 */
+  .m-toolbar4 {
+    display: flex; align-items: center; gap: 8px; padding: 10px 14px; flex-shrink: 0;
+    background: rgba(255,255,255,.02);
+    border-bottom: 1px solid rgba(15,80,120,.08);
+  }
+  .m-toolbar4 .spacer { flex: 1; }
+  .m-toolbar4 .pill {
+    display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px;
+    border-radius: 999px; font-size: 11px; color: var(--muted);
+    background: rgba(255,255,255,.04); border: 1px solid rgba(15,80,120,.12);
+    backdrop-filter: blur(8px);
+  }
+  .m-toolbar4 .pill b { color: var(--text); }
+
+  /* 主体 */
+  .m-body4 { flex: 1; min-height: 0; display: flex; gap: 12px; padding: 12px 14px; }
+  .m-col4 { display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+
+  /* 玻璃面板 */
+  .panel4 {
+    background: var(--glass);
+    backdrop-filter: blur(18px) saturate(150%);
+    -webkit-backdrop-filter: blur(18px) saturate(150%);
+    border: 1px solid var(--glass-line);
+    border-radius: 14px;
+    box-shadow: 0 14px 40px rgba(31,86,130,.1), inset 0 1px 0 rgba(255,255,255,.75);
+    display: flex; flex-direction: column; min-height: 0;
+    overflow: hidden;
+  }
+  .panel4 > .ph {
+    display: flex; align-items: center; gap: 9px;
+    padding: 10px 14px; flex-shrink: 0;
+    border-bottom: 1px solid rgba(15,80,120,.08);
+    font-size: 11px; font-weight: 700; letter-spacing: 1.4px; text-transform: uppercase;
+    color: #5b7186;
+  }
+  .panel4 > .ph .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--cyan); box-shadow: 0 0 8px rgba(8,145,178,.9); }
+  .panel4 > .ph .r { margin-left: auto; display: flex; align-items: center; gap: 8px; letter-spacing: 0; text-transform: none; font-weight: 600; font-size: 11px; color: var(--muted); }
+  .panel4 > .pb { flex: 1; min-height: 0; padding: 10px 12px; display: flex; flex-direction: column; gap: 7px; }
+
+  /* 数据行 */
+  .row4 { display: flex; align-items: center; gap: 7px; }
+  .row4 .gbx {
+    flex: 1; display: flex; align-items: center; gap: 10px; min-height: 34px;
+    padding: 5px 11px; border-radius: 10px;
+    background: rgba(255,255,255,.035);
+    border: 1px solid rgba(15,80,120,.12);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.05);
+    font-size: 12.5px; overflow: hidden;
+  }
+  .row4 .gbx .k { color: var(--muted); white-space: nowrap; }
+  .row4 .gbx .k em { font-style: normal; color: var(--dim); font-size: 10.5px; margin-left: 3px; }
+  .row4 .gbx .v { margin-left: auto; font-weight: 700; color: #0f2233; font-size: 14px; }
+  .row4 .gbx .v.dim { color: var(--dim); font-weight: 600; }
+  .row4 .gbx .v.cyan { color: var(--cyan);  }
+  .row4 .gbx .v.violet { color: var(--violet);  }
+  .row4 .ab4 {
+    height: 34px; min-width: 50px; padding: 0 11px; border-radius: 9px;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: rgba(255,255,255,.05); border: 1px solid rgba(15,80,120,.14);
+    font-size: 11.5px; font-weight: 600; color: var(--text); flex-shrink: 0;
+    backdrop-filter: blur(8px);
+  }
+  .row4 .ab4.pri {
+    background: linear-gradient(135deg, rgba(8,145,178,.85), rgba(37,99,235,.85));
+    border-color: rgba(8,145,178,.35); color: #ffffff;
+    box-shadow: 0 4px 16px rgba(8,145,178,.2);
+  }
+
+  /* 电机控制 */
+  .motor4 { border-top: 1px solid rgba(15,80,120,.08); padding-top: 8px; display: flex; flex-direction: column; gap: 6px; }
+  .motor4 .mr { display: flex; align-items: center; gap: 6px; }
+  .motor4 .mname { width: 74px; font-size: 12px; font-weight: 700; color: #33475c; flex-shrink: 0; }
+  .motor4 .minp {
+    width: 64px; height: 32px; border-radius: 9px;
+    background: rgba(255,255,255,.045); border: 1px solid rgba(15,80,120,.14);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.05);
+    display: flex; align-items: center; justify-content: flex-end; padding: 0 8px;
+    font-size: 12px; color: #0f2233;
+  }
+  .motor4 .minp.ghost { justify-content: center; color: var(--dim); }
+
+  /* 趋势图（发光曲线 + 渐变填充） */
+  .trend4 {
+    flex: 1; min-height: 0; position: relative; border-radius: 12px; overflow: hidden;
+    background:
+      radial-gradient(600px 260px at 30% 0%, rgba(8,145,178,.08), transparent 60%),
+      rgba(255, 255, 255, .5);
+    border: 1px solid rgba(15,80,120,.12);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.04);
+  }
+  .trend4 .grid4 {
+    position: absolute; inset: 0;
+    background:
+      repeating-linear-gradient(0deg, transparent 0 41px, rgba(37,99,235,.06) 41px 42px),
+      repeating-linear-gradient(90deg, transparent 0 69px, rgba(37,99,235,.06) 69px 70px);
+  }
+  .trend4 svg { position: absolute; inset: 8px; width: calc(100% - 16px); height: calc(100% - 16px); }
+  .trend4 .legend4 {
+    position: absolute; right: 14px; top: 12px; display: flex; gap: 14px;
+    font-size: 10.5px; color: var(--muted); padding: 3px 10px; border-radius: 999px;
+    background: rgba(255,255,255,.72); border: 1px solid rgba(15,80,120,.12); backdrop-filter: blur(8px);
+  }
+  .trend4 .legend4 i { display: inline-block; width: 16px; height: 2px; margin-right: 5px; vertical-align: middle; border-radius: 2px; }
+  .trend4 .ylab4 { position: absolute; left: 10px; top: 10px; font-size: 10px; color: var(--dim); }
+  .trend4 .xlab4 { position: absolute; right: 14px; bottom: 8px; font-size: 10px; color: var(--dim); }
+
+  /* 底部动作条（玻璃） */
+  .m-actions4 {
+    display: flex; gap: 8px; padding: 10px 14px; flex-shrink: 0;
+    background: rgba(255, 255, 255, .5);
+    backdrop-filter: blur(18px) saturate(150%);
+    border-top: 1px solid rgba(15,80,120,.08);
+  }
+  .m-actions4 .big4 {
+    display: inline-flex; align-items: center; justify-content: center;
+    height: 48px; padding: 0 26px; font-size: 14px; font-weight: 700; letter-spacing: .4px;
+    border-radius: 12px; color: var(--text);
+    background: rgba(255,255,255,.055);
+    border: 1px solid rgba(255,255,255,.9);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.08);
+  }
+  .m-actions4 .big4.primary {
+    background: linear-gradient(135deg, rgba(8,145,178,.95), rgba(37,99,235,.95));
+    border-color: rgba(8,145,178,.4); color: #ffffff;
+    box-shadow: 0 8px 28px rgba(8,145,178,.25), inset 0 1px 0 rgba(255,255,255,.4);
+  }
+  .m-actions4 .big4.danger {
+    background: linear-gradient(135deg, rgba(251,113,133,.9), rgba(225,29,72,.9));
+    border-color: rgba(251,113,133,.45); color: #1d0509;
+    box-shadow: 0 8px 28px rgba(251,113,133,.26);
+  }
+  .m-actions4 .big4.grow { flex: 1; }
+
+  /* 状态栏 */
+  .m-status4 {
+    height: 30px; flex-shrink: 0;
+    display: flex; align-items: center; gap: 14px; padding: 0 14px;
+    background: rgba(255, 255, 255, .62);
+    backdrop-filter: blur(14px);
+    border-top: 1px solid rgba(37,99,235,.06);
+    font-size: 10.5px; color: var(--muted);
+    font-family: "JetBrains Mono", Consolas, Menlo, monospace;
+  }
+  .m-status4 b { color: var(--cyan); font-weight: 600; }
+  .m-status4 .vs { width: 1px; height: 11px; background: rgba(15,80,120,.14); }
+  .m-status4 .grow { flex: 1; }
+
+  /* 命令监测 */
+  .mon-left4 { width: 330px; flex-shrink: 0; }
+  .modline4 {
+    display: flex; align-items: center; gap: 9px; padding: 7px 9px; border-radius: 10px;
+    background: rgba(255,255,255,.035); border: 1px solid rgba(15,80,120,.12);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.04); font-size: 11.5px;
+  }
+  .modline4 .n { font-weight: 700; color: #e6eef7; }
+  .modline4 .s { color: var(--dim); font-size: 10px; }
+  .modline4 .st { margin-left: auto; }
+  .cmdlog4 {
+    flex: 1; min-height: 0; overflow: hidden; border-radius: 12px; padding: 8px 10px;
+    background: rgba(255, 255, 255, .65); border: 1px solid rgba(15,80,120,.1);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.03);
+  }
+  .cl4 { font-size: 11px; display: flex; gap: 8px; padding: 1.5px 0; font-family: "JetBrains Mono", Consolas, Menlo, monospace; }
+  .cl4 .d { width: 13px; font-weight: 800; flex-shrink: 0; }
+  .cl4 .d.tx { color: var(--blue); }
+  .cl4 .d.rx { color: var(--ok); }
+  .cl4 .d.sys { color: var(--dim); }
+  .cl4 .t { color: #33475c; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .cmdbar4 { display: flex; gap: 8px; padding: 8px 10px; border-top: 1px solid rgba(15,80,120,.08); flex-shrink: 0; }
+  .cmdbar4 .inp4 {
+    flex: 1; height: 36px; border-radius: 10px; display: flex; align-items: center; padding: 0 11px;
+    background: rgba(255,255,255,.04); border: 1px solid rgba(15,80,120,.12);
+    font-size: 11px; color: var(--dim); font-family: "JetBrains Mono", Consolas, Menlo, monospace;
+  }
+  .chips4 { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 10px 0; }
+  .chips4 span { font-size: 10px; padding: 3px 9px; border-radius: 999px; border: 1px solid rgba(15,80,120,.12); color: var(--muted); background: rgba(255,255,255,.03); }
+
+  /* 帮助 */
+  .help-btns4 { display: flex; gap: 8px; padding: 10px 14px; flex-shrink: 0; }
+  .help-main4 { flex: 1; min-height: 0; margin: 0 14px 12px; display: flex; flex-direction: column; overflow: hidden; }
+  .help-body4 {
+    flex: 1; margin: 12px; border-radius: 12px;
+    background: radial-gradient(600px 280px at 50% 0%, rgba(8,145,178,.07), transparent 60%), rgba(255,255,255,.55);
+    border: 1px dashed rgba(255,255,255,.9);
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+    text-align: center; padding: 28px;
+  }
+  .help-body4 h3 { margin: 0; font-size: 22px; color: #0f2233; }
+  .help-body4 p { margin: 0; font-size: 13px; color: var(--muted); max-width: 640px; }
+
+  /* 设置 */
+  .set-rows4 { display: flex; flex-direction: column; gap: 6px; }
+  .set-group4 { font-size: 10.5px; font-weight: 800; color: var(--cyan); letter-spacing: 1.3px; text-transform: uppercase; margin: 4px 0 1px; }
+  .set-item4 {
+    display: flex; align-items: center; gap: 10px; padding: 8px 11px; border-radius: 11px;
+    background: rgba(255,255,255,.035); border: 1px solid rgba(15,80,120,.12);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.04);
+  }
+  .set-item4 .nm { width: 210px; flex-shrink: 0; }
+  .set-item4 .nm b { display: block; font-size: 12.5px; color: #e6eef7; }
+  .set-item4 .nm span { font-size: 10.5px; color: var(--dim); }
+  .set-item4 .vals { margin-left: auto; display: flex; gap: 6px; align-items: center; }
+
+  /* 说明卡 */
+  .notes { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 14px; margin-top: 14px; }
+  .note { padding: 16px 18px; }
+  .note h4 { margin: 0 0 8px; font-size: 13px; color: #0f2233; }
+  .note ul { margin: 0; padding-left: 18px; color: var(--muted); font-size: 12.5px; }
+  .note li { margin-bottom: 4px; }
+  .note li b { color: var(--text); }
+  .legend-row { display: flex; gap: 20px; flex-wrap: wrap; font-size: 12px; color: var(--muted); margin-bottom: 12px; }
+  .legend-row b { color: var(--text); }
+</style>
+</head>
+<body>
+
+<header class="doc-header">
+  <span class="kicker">Glass Industrial UI · Design Spec</span>
+  <h1>XdesinHMI 界面设计稿 <small>v5.0 · 浅色毛玻璃工业</small></h1>
+  <p>工业信息架构 + 玻璃拟态（Glassmorphism）视觉：浅色底、白色毛玻璃面板、彩色强调、渐变按钮</p>
+  <div class="meta">
+    <span>结构：<b>《软件UI》PPT 布局</b></span>
+    <span>视觉：<b>浅色底 + 毛玻璃 + 柔和渐变</b></span>
+    <span>数据：<b>等宽数字 + 彩色强调</b></span>
+    <span>面板：<b>backdrop-filter blur 18px</b></span>
+  </div>
+</header>
+
+<nav class="doc-nav">
+  <a href="#principles">设计原则</a>
+  <a href="#system">设计系统</a>
+  <a href="#page-welcome">欢迎页</a>
+  <a href="#page-pedal">踏板测试</a>
+  <a href="#page-monitor">命令监测</a>
+  <a href="#page-steer">转盘测试</a>
+  <a href="#page-settings">设置</a>
+  <a href="#page-help">帮助</a>
+  <a href="#impl">落地说明</a>
+</nav>
+
+<div class="container">
+
+  <!-- 设计原则 -->
+  <section id="principles">
+    <h2 class="sec-title"><span class="num">01</span>设计原则（玻璃工业风）</h2>
+    <p class="sec-desc">保持工业 HMI 的<b>信息密度与操作确定性</b>，用玻璃质感与光效提升视觉层级，避免花哨干扰读值。</p>
+    <div class="notes">
+      <div class="note glass">
+        <h4>浅色底 + 玻璃层</h4>
+        <ul>
+          <li>背景：浅灰蓝渐变 + 网格 + 柔和彩色光斑（青 / 紫）</li>
+          <li>面板：半透明深色 + <b>blur(18px)</b> + 1px 高光描边 + 内高光</li>
+          <li>层级通过"透明度 + 模糊 + 阴影"表达，而非粗边框</li>
+        </ul>
+      </div>
+      <div class="note glass">
+        <h4>彩色强调数据</h4>
+        <ul>
+          <li>关键数值用青色强调，普通数值深色</li>
+          <li>状态灯为发光圆点（绿/琥珀/红）</li>
+          <li>趋势曲线带渐变填充与光晕，光标虚线高亮</li>
+        </ul>
+      </div>
+      <div class="note glass">
+        <h4>渐变强调</h4>
+        <ul>
+          <li>主操作按钮：青→蓝渐变 + 柔和投影</li>
+          <li>危险操作：粉红→玫红渐变</li>
+          <li>导航激活项：渐变胶囊；其余为玻璃按钮</li>
+        </ul>
+      </div>
+      <div class="note glass">
+        <h4>工业约束</h4>
+        <ul>
+          <li>一屏完整呈现数据（行高 34px，紧凑间距）</li>
+          <li>空值 <span class="mono">--</span> 灰化；报警用红色仅限关键状态</li>
+          <li>主按钮 ≥ 48px，行内按钮 ≥ 34px（触屏）</li>
+          <li>毛玻璃降级：不支持 blur 时回退半透明深色</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- 设计系统 -->
+  <section id="system">
+    <h2 class="sec-title"><span class="num">02</span>设计系统</h2>
+    <p class="sec-desc">玻璃工业风色彩、字体与组件规格。</p>
+    <div class="spec-grid">
+      <div class="spec-card glass">
+        <h4>色彩</h4>
+        <div class="swatches">
+          <div class="swatch"><div class="chip" style="background:#eef3f8"></div><div class="name">浅色底</div><div class="hex">#EEF3F8</div></div>
+          <div class="swatch"><div class="chip" style="background:rgba(255,255,255,.75)"></div><div class="name">玻璃面板</div><div class="hex">15,27,40</div></div>
+          <div class="swatch"><div class="chip" style="background:#0891b2"></div><div class="name">青（强调）</div><div class="hex">#22D3EE</div></div>
+          <div class="swatch"><div class="chip" style="background:#2563eb"></div><div class="name">蓝</div><div class="hex">#38BDF8</div></div>
+          <div class="swatch"><div class="chip" style="background:#7c3aed"></div><div class="name">紫</div><div class="hex">#A78BFA</div></div>
+          <div class="swatch"><div class="chip" style="background:#059669"></div><div class="name">正常</div><div class="hex">#34D399</div></div>
+          <div class="swatch"><div class="chip" style="background:#d97706"></div><div class="name">警告</div><div class="hex">#FBBF24</div></div>
+          <div class="swatch"><div class="chip" style="background:#e11d48"></div><div class="name">危险</div><div class="hex">#FB7185</div></div>
+        </div>
+      </div>
+      <div class="spec-card glass">
+        <h4>字体层级</h4>
+        <div class="type-row"><span class="tag">页面标题</span><span class="demo" style="font-size:20px;font-weight:800">转盘测试</span></div>
+        <div class="type-row"><span class="tag">面板标题</span><span class="demo" style="font-size:11px;font-weight:700;letter-spacing:1.4px;color:#5b7186">数据面板</span></div>
+        <div class="type-row"><span class="tag">强调数据</span><span class="demo mono" style="font-size:16px;font-weight:700;color:#0891b2">9.62 N</span></div>
+        <div class="type-row"><span class="tag">数据值</span><span class="demo mono" style="font-size:15px;font-weight:700">-0.779°</span></div>
+        <div class="type-row"><span class="tag">辅助</span><span class="demo mono" style="font-size:11px;color:#536a80">AD 49749 · 原始 981270 mg</span></div>
+      </div>
+      <div class="spec-card glass">
+        <h4>玻璃规格</h4>
+        <ul style="margin:0;padding-left:18px;color:#8ba0b5;font-size:12.5px">
+          <li>面板：<b>rgba(255,255,255,.55)</b> + <b>blur(18px)</b></li>
+          <li>描边：<b>rgba(15,80,120,.14)</b>；内高光 <b>rgba(255,255,255,.08)</b></li>
+          <li>圆角：面板 <b>14px</b>，控件 <b>9–10px</b>，胶囊 <b>999px</b></li>
+          <li>阴影：<b>0 14px 40px rgba(31,86,130,.12)</b></li>
+          <li>背景网格 44px，光晕青/紫各一处</li>
+        </ul>
+      </div>
+      <div class="spec-card glass">
+        <h4>组件库</h4>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+          <span class="btn4 primary">开始测试</span>
+          <span class="btn4">导出</span>
+          <span class="btn4 danger">停止</span>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+          <span class="gbox"><span class="k">倾角 X</span><span class="v mono">0.419°</span></span>
+          <span class="gbox"><span class="k">力值</span><span class="v glow mono">9.62 N</span></span>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <span class="led4 on"></span><span class="tag4 ok">已连接</span>
+          <span class="led4 warn"></span><span class="tag4 warn">未标定</span>
+          <span class="led4 err"></span><span class="tag4 err">故障</span>
+          <span class="btn4 sm">清零</span><span class="btn4 sm primary">记录</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 欢迎页 -->
+  <section id="page-welcome">
+    <h2 class="sec-title"><span class="num">03</span>欢迎页（开机自检）</h2>
+    <p class="sec-desc">对齐《软件UI》第 1 页：Logo、主标题、副标题条与系统状态；玻璃质感欢迎界面。</p>
+    <div class="mock-frame">
+      <div class="mock-title">欢迎页 <span class="badge">对齐 PPT</span></div>
+      <div class="mock-scale"><div class="inner">
+        <div class="mock" style="justify-content:center;align-items:center">
+          <div style="position:absolute;left:24px;top:20px;display:flex;align-items:center;gap:8px">
+            <span style="width:120px;height:44px;border-radius:12px;border:1px solid rgba(15,80,120,.16);background:rgba(255,255,255,.05);backdrop-filter:blur(14px);display:flex;align-items:center;justify-content:center;font-size:11px;color:#8ba0b5;letter-spacing:1.5px">LOGO</span>
+          </div>
+          <div style="position:absolute;right:24px;top:24px" class="m-win"><i></i><i></i><i></i></div>
+          <div style="text-align:center">
+            <div style="width:84px;height:84px;margin:0 auto 24px;border-radius:22px;background:linear-gradient(135deg,#0891b2,#7c3aed);box-shadow:0 0 50px rgba(8,145,178,.4);display:flex;align-items:center;justify-content:center;font-size:36px;font-weight:900;color:#ffffff">X</div>
+            <div style="font-size:44px;font-weight:900;letter-spacing:6px;color:#0f2233">XDESIN 踏板测试台</div>
+            <div style="margin-top:24px;width:760px;padding:14px 22px;border-radius:14px;border:1px solid rgba(15,80,120,.14);background:rgba(255,255,255,.05);backdrop-filter:blur(16px);font-size:13.5px;color:#33475c;letter-spacing:.6px;box-shadow:inset 0 1px 0 rgba(255,255,255,.08)">
+              开机自检 · 蓝牙模块联接 · 系统网络设置 · 力值校准
+            </div>
+            <div style="margin-top:16px;display:flex;gap:12px;justify-content:center;align-items:center">
+              <span class="led4 on"></span><span class="tag4 ok">蓝牙 2/4</span>
+              <span class="led4 warn"></span><span class="tag4 warn">WiFi 未连接</span>
+              <span class="led4"></span><span class="tag4 info">设备自检中</span>
+            </div>
+          </div>
+          <div style="position:absolute;bottom:28px;width:100%;text-align:center;font-size:11.5px;color:#536a80;letter-spacing:1px">
+            开机自检，系统网络设置 · XdesinHMI v1.0.0
+          </div>
+        </div>
+      </div></div>
+    </div>
+  </section>
+
+  <!-- 踏板测试 -->
+  <section id="page-pedal">
+    <h2 class="sec-title"><span class="num">04</span>踏板测试（结构对齐 PPT 第 2 页）</h2>
+    <p class="sec-desc">顶部模块按钮 → 左侧玻璃数据面板（全部字段 + 记录/清除）→ 左下电机控制 → 右侧发光趋势 → 底部渐变动作条 + 状态栏。</p>
+    <div class="mock-frame">
+      <div class="mock-title">踏板测试 <span class="badge">对齐 PPT</span></div>
+      <div class="mock-scale"><div class="inner">
+        <div class="mock">
+          <div class="m-topbar">
+            <div class="m-brand"><span class="lg">X</span>XDESIN</div>
+            <div class="m-statusbar-top">
+              <span><span class="led4 on"></span> 蓝牙 2/2</span>
+              <span><span class="led4"></span> WiFi</span>
+              <span>A 侧 · 待机</span>
+            </div>
+            <div class="m-nav4">
+              <span class="it">命令监测</span>
+              <span class="it active">踏板测试</span>
+              <span class="it">转盘测试</span>
+              <span class="it">手动及状态检测</span>
+              <span class="it">数据记录</span>
+              <span class="it">设置</span>
+              <span class="it">帮助</span>
+            </div>
+            <div class="m-win"><i></i><i></i><i></i></div>
+          </div>
+
+          <div class="m-toolbar4">
+            <span class="btn4 primary">蓝牙模块联结 2/2</span>
+            <span class="btn4">A 模块</span>
+            <span class="btn4">B 模块</span>
+            <span class="btn4">清零</span>
+            <span class="btn4">记录</span>
+            <span class="spacer"></span>
+            <span class="pill"><span class="led4 on"></span>倾角模块 <b>DSJH_B006</b></span>
+            <span class="pill"><span class="led4 on"></span>加载模块 <b>A</b></span>
+          </div>
+
+          <div class="m-body4">
+            <div class="m-col4" style="width:470px;flex-shrink:0">
+              <div class="panel4" style="flex:1;min-height:0">
+                <div class="ph"><span class="dot"></span>踏板 A · 数据面板 <span class="r"><span class="tag4 ok">已连接</span></span></div>
+                <div class="pb" style="gap:5px">
+                  <div class="row4">
+                    <span class="gbx"><span class="k">倾角 X <em>°</em></span><span class="v mono">0.419</span></span>
+                    <span class="gbx"><span class="k">倾角 Y <em>°</em></span><span class="v mono">-1.650</span></span>
+                  </div>
+                  <div class="row4">
+                    <span class="gbx"><span class="k">垂直测距 <em>mm</em></span><span class="v mono">112.600</span></span>
+                    <span class="ab4">清零</span>
+                  </div>
+                  <div class="row4">
+                    <span class="gbx"><span class="k">起始高度 <em>mm</em></span><span class="v mono">0.000</span></span>
+                    <span class="ab4">记录</span><span class="ab4">清除</span>
+                  </div>
+                  <div class="row4">
+                    <span class="gbx"><span class="k">终末高度 <em>mm</em></span><span class="v mono">25.430</span></span>
+                    <span class="ab4">记录</span><span class="ab4">清除</span>
+                  </div>
+                  <div class="row4">
+                    <span class="gbx"><span class="k">高度差 <em>mm</em></span><span class="v mono">25.430</span></span>
+                    <span class="ab4">记录</span><span class="ab4">清除</span>
+                  </div>
+                  <div class="row4">
+                    <span class="gbx"><span class="k">实时力值 <em>N</em></span><span class="v cyan mono">0.00</span></span>
+                    <span class="ab4">记录</span><span class="ab4">清除</span>
+                  </div>
+                  <div class="row4">
+                    <span class="gbx"><span class="k">最大力值 <em>N</em></span><span class="v dim mono">--</span></span>
+                    <span class="gbx"><span class="k">均匀力值 <em>N</em></span><span class="v dim mono">--</span></span>
+                  </div>
+
+                  <div class="motor4">
+                    <div class="mr">
+                      <span class="mname">调平电机</span>
+                      <span class="minp mono">0.0</span>
+                      <span class="ab4 pri">启动</span>
+                      <span class="ab4">调平补偿</span>
+                      <span class="ab4">停止</span>
+                    </div>
+                    <div class="mr">
+                      <span class="mname">加载电机</span>
+                      <span class="minp mono">25.0</span>
+                      <span class="minp ghost mono">0</span>
+                      <span class="ab4 pri">启动加载</span>
+                      <span class="ab4">+</span>
+                      <span class="ab4">−</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="panel4" style="flex:1;min-width:0">
+              <div class="ph"><span class="dot"></span>图表 A · 趋势 <span class="r">倾角 / 推杆 / 力值</span></div>
+              <div class="pb" style="padding:8px">
+                <div class="trend4">
+                  <div class="grid4"></div>
+                  <span class="ylab4">mm</span>
+                  <span class="xlab4">t →</span>
+                  <div class="legend4"><span><i style="background:#0891b2"></i>倾角 X</span><span><i style="background:#7c3aed"></i>倾角 Y</span><span><i style="background:#d97706"></i>推杆 mm</span></div>
+                  <svg viewBox="0 0 900 340" preserveAspectRatio="none">
+                    <defs>
+                      <linearGradient id="fillCyan" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0" stop-color="#0891b2" stop-opacity=".28"/>
+                        <stop offset="1" stop-color="#0891b2" stop-opacity="0"/>
+                      </linearGradient>
+                      <linearGradient id="fillAmber" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0" stop-color="#d97706" stop-opacity=".22"/>
+                        <stop offset="1" stop-color="#d97706" stop-opacity="0"/>
+                      </linearGradient>
+                      <filter id="glowCyan" x="-20%" y="-20%" width="140%" height="140%">
+                        <feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+                      </filter>
+                    </defs>
+                    <path d="M0,240 60,236 120,232 180,240 240,226 300,220 360,228 420,214 480,222 540,208 600,216 660,202 720,210 800,196 900,204 L900,340 L0,340 Z" fill="url(#fillCyan)"/>
+                    <polyline fill="none" stroke="#0891b2" stroke-width="2.4" filter="url(#glowCyan)" points="0,240 60,236 120,232 180,240 240,226 300,220 360,228 420,214 480,222 540,208 600,216 660,202 720,210 800,196 900,204"/>
+                    <polyline fill="none" stroke="#7c3aed" stroke-width="1.6" opacity=".85" points="0,268 60,264 120,260 180,268 240,262 300,256 360,264 420,258 480,262 540,254 600,260 660,252 720,258 800,250 900,254"/>
+                    <path d="M0,320 90,318 180,308 270,282 360,240 450,190 540,160 630,146 720,150 810,154 900,158 L900,340 L0,340 Z" fill="url(#fillAmber)"/>
+                    <polyline fill="none" stroke="#d97706" stroke-width="2.4" points="0,320 90,318 180,308 270,282 360,240 450,190 540,160 630,146 720,150 810,154 900,158"/>
+                    <line x1="540" y1="0" x2="540" y2="340" stroke="#0891b2" stroke-width="1" stroke-dasharray="5 5" opacity=".55"/>
+                    <circle cx="540" cy="160" r="5" fill="#d97706" stroke="#0b1520" stroke-width="2"/>
+                  </svg>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="m-actions4">
+            <span class="big4 primary grow">开始测试</span>
+            <span class="big4">记录</span>
+            <span class="big4">导出</span>
+            <span class="big4">踏板 B</span>
+            <span class="big4 danger">停止</span>
+          </div>
+
+          <div class="m-status4">
+            <b>Info</b><span class="vs"></span><span>踏板 A · 待机</span><span class="vs"></span>
+            <span>倾角 X 0.419° · Y -1.650°</span><span class="vs"></span><span>记录 0 条</span>
+            <span class="grow"></span><span>v1.0.0</span>
+          </div>
+        </div>
+      </div></div>
+    </div>
+  </section>
+
+  <!-- 命令监测 -->
+  <section id="page-monitor">
+    <h2 class="sec-title"><span class="num">05</span>命令监测（结构对齐 PPT 第 3 页）</h2>
+    <p class="sec-desc">工具条「命令监测模块 / 无线设置 / 蓝牙设置」；左侧说明与模块状态；右侧玻璃通讯面板；底部状态栏。</p>
+    <div class="mock-frame">
+      <div class="mock-title">命令监测 <span class="badge">对齐 PPT</span></div>
+      <div class="mock-scale"><div class="inner">
+        <div class="mock">
+          <div class="m-topbar">
+            <div class="m-brand"><span class="lg">X</span>XDESIN</div>
+            <div class="m-statusbar-top">
+              <span><span class="led4"></span> WiFi</span>
+              <span><span class="led4 on"></span> 蓝牙 2/4</span>
+              <span>命令监测</span>
+            </div>
+            <div class="m-nav4">
+              <span class="it active">命令监测</span>
+              <span class="it">踏板测试</span>
+              <span class="it">转盘测试</span>
+              <span class="it">手动及状态检测</span>
+              <span class="it">数据记录</span>
+              <span class="it">设置</span>
+              <span class="it">帮助</span>
+            </div>
+            <div class="m-win"><i></i><i></i><i></i></div>
+          </div>
+
+          <div class="m-toolbar4">
+            <span class="btn4 primary">命令监测模块</span>
+            <span class="btn4">无线设置</span>
+            <span class="btn4">蓝牙设置</span>
+            <span class="spacer"></span>
+            <span class="pill">AES-128-CTR · HMAC-MD5</span>
+          </div>
+
+          <div class="m-body4">
+            <div class="m-col4 mon-left4">
+              <div class="panel4" style="flex:1">
+                <div class="ph"><span class="dot"></span>系统测试命令</div>
+                <div class="pb">
+                  <div style="font-size:11.5px;color:#8ba0b5;line-height:1.9">
+                    常用测试命令一键下发：心跳、设备信息、遥测频率、调试开关。<br>
+                    无线设置：WiFi 参数与 NET 配置。<br>
+                    蓝牙设置：模块扫描、连接与手动调试。
+                  </div>
+                  <div style="margin-top:auto;display:flex;flex-direction:column;gap:6px">
+                    <div class="modline4"><span class="led4 on"></span><span><span class="n">倾角模块</span><br><span class="s">DSJH_B006 · Modbus 10Hz</span></span><span class="st tag4 ok">ON</span></div>
+                    <div class="modline4"><span class="led4 on"></span><span><span class="n">转向力模块</span><br><span class="s">WEIGHT_SO3 · 100ms</span></span><span class="st tag4 ok">ON</span></div>
+                    <div class="modline4"><span class="led4"></span><span><span class="n">二路开关</span><br><span class="s">YX_ *** · 未连接</span></span><span class="st tag4 warn">OFF</span></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="panel4" style="flex:1;min-width:0">
+              <div class="ph"><span class="dot"></span>上下位机通讯命令 <span class="r"><span class="tag4 info">10Hz 遥测</span></span></div>
+              <div class="pb" style="padding:0;gap:0">
+                <div class="chips4"><span>PING</span><span>INFO GET</span><span>DEBUG ON</span><span>PEDAL SELECT NONE</span><span>MOTOR STOP</span></div>
+                <div class="cmdlog4" style="margin:8px 10px 0">
+                  <div class="cl4"><span class="d sys">●</span><span class="t">TCP 已连接 192.168.4.1:10001 · 握手完成，启动心跳</span></div>
+                  <div class="cl4"><span class="d tx">→</span><span class="t">HELLO xdesin-host</span></div>
+                  <div class="cl4"><span class="d rx">←</span><span class="t">HELLO OK xdesin-s3-001 1.0.0</span></div>
+                  <div class="cl4"><span class="d rx">←</span><span class="t">INFO fw=1.0.0 hw=esp32-s3 uptime=120 ssid=XDESIN</span></div>
+                  <div class="cl4"><span class="d tx">→</span><span class="t">SET REPORT 10</span></div>
+                  <div class="cl4"><span class="d rx">←</span><span class="t">OK SET</span></div>
+                  <div class="cl4"><span class="d rx">←</span><span class="t">TELEMETRY t=1200 tilt_x=0.05 tilt_y=-0.02 pedal_a_tilt_x=0.78 ...</span></div>
+                  <div class="cl4"><span class="d tx">→</span><span class="t">PEDAL SELECT A</span></div>
+                  <div class="cl4"><span class="d rx">←</span><span class="t">OK PEDAL</span></div>
+                </div>
+                <div class="cmdbar4">
+                  <div class="inp4">输入命令后回车发送，如 PING</div>
+                  <span class="btn4 primary" style="height:36px">发送</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="m-status4">
+            <b>Info</b><span class="vs"></span><span>WiFi 未连接</span><span class="vs"></span>
+            <span>蓝牙 2/4 · 倾角 10Hz · 力值 100ms</span>
+            <span class="grow"></span><span>TX 12 · RX 486</span>
+          </div>
+        </div>
+      </div></div>
+    </div>
+  </section>
+
+  <!-- 转盘测试 -->
+  <section id="page-steer">
+    <h2 class="sec-title"><span class="num">06</span>转盘测试（现有系统）</h2>
+    <p class="sec-desc">纯蓝牙双模块：倾角 + 转向力；玻璃数据面板 + 发光角度趋势。</p>
+    <div class="mock-frame">
+      <div class="mock-title">转盘测试 <span class="badge">现有功能 · 玻璃化</span></div>
+      <div class="mock-scale"><div class="inner">
+        <div class="mock">
+          <div class="m-topbar">
+            <div class="m-brand"><span class="lg">X</span>XDESIN</div>
+            <div class="m-statusbar-top">
+              <span><span class="led4 on"></span> 倾角</span>
+              <span><span class="led4 on"></span> 转向力</span>
+              <span>测试中</span>
+            </div>
+            <div class="m-nav4">
+              <span class="it">命令监测</span>
+              <span class="it">踏板测试</span>
+              <span class="it active">转盘测试</span>
+              <span class="it">手动及状态检测</span>
+              <span class="it">数据记录</span>
+              <span class="it">设置</span>
+              <span class="it">帮助</span>
+            </div>
+            <div class="m-win"><i></i><i></i><i></i></div>
+          </div>
+
+          <div class="m-toolbar4">
+            <span class="btn4 primary">蓝牙模块联结 2/2</span>
+            <span class="pill"><span class="led4 on"></span>倾角 <b>DSJH_B006</b></span>
+            <span class="pill"><span class="led4 on"></span>转向力 <b>WEIGHT_SO3</b></span>
+            <span class="spacer"></span>
+            <span class="pill">测试状态 <b style="color:#059669;margin-left:4px">运行</b></span>
+          </div>
+
+          <div class="m-body4">
+            <div class="m-col4" style="width:520px;flex-shrink:0">
+              <div class="panel4" style="flex:1">
+                <div class="ph"><span class="dot"></span>转盘测试 · 数据 <span class="r"><span class="tag4 info">蓝牙采集</span></span></div>
+                <div class="pb" style="gap:6px">
+                  <div class="row4"><span class="gbx"><span class="k">倾角 X / Y <em>°</em></span><span class="v mono">-0.779 / -87.327</span></span></div>
+                  <div class="row4">
+                    <span class="gbx"><span class="k">自由转角 <em>°</em></span><span class="v violet mono">-0.779</span></span>
+                    <span class="ab4 pri">清零</span><span class="ab4">记录</span>
+                  </div>
+                  <div class="row4">
+                    <span class="gbx"><span class="k">顺时针峰值 <em>°</em></span><span class="v mono">12.430</span></span>
+                    <span class="ab4">清除</span><span class="ab4">记录</span>
+                  </div>
+                  <div class="row4">
+                    <span class="gbx"><span class="k">逆时针峰值 <em>°</em></span><span class="v mono">-15.020</span></span>
+                    <span class="ab4">清除</span><span class="ab4">记录</span>
+                  </div>
+                  <div class="row4">
+                    <span class="gbx"><span class="k">实时力值 <em>N</em></span><span class="v cyan mono">9.62</span></span>
+                    <span class="ab4 pri">清零</span><span class="ab4">记录</span>
+                  </div>
+                  <div class="row4">
+                    <span class="gbx"><span class="k">最大力值 <em>N</em></span><span class="v mono">24.18</span></span>
+                    <span class="ab4">记录</span><span class="ab4">清除</span>
+                  </div>
+                  <div style="margin-top:auto;font-size:10.5px;color:#536a80">
+                    倾角来源：Modbus 10Hz 轮询 · 力值来源：转向力蓝牙模块
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="panel4" style="flex:1;min-width:0">
+              <div class="ph"><span class="dot"></span>角度趋势 <span class="r">清空</span></div>
+              <div class="pb" style="padding:8px">
+                <div class="trend4">
+                  <div class="grid4"></div>
+                  <span class="ylab4">°</span>
+                  <span class="xlab4">t →</span>
+                  <div class="legend4"><span><i style="background:#0891b2"></i>倾角 X</span><span><i style="background:#7c3aed"></i>倾角 Y</span><span><i style="background:#d97706"></i>自由转角</span></div>
+                  <svg viewBox="0 0 900 340" preserveAspectRatio="none">
+                    <defs>
+                      <linearGradient id="steerFill" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0" stop-color="#0891b2" stop-opacity=".25"/>
+                        <stop offset="1" stop-color="#0891b2" stop-opacity="0"/>
+                      </linearGradient>
+                      <filter id="glowCyan2" x="-20%" y="-20%" width="140%" height="140%">
+                        <feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+                      </filter>
+                    </defs>
+                    <path d="M0,170 55,168 110,172 165,166 220,170 275,164 330,170 385,166 440,172 495,160 550,170 605,165 660,170 715,162 770,168 825,164 900,166 L900,340 L0,340 Z" fill="url(#steerFill)"/>
+                    <polyline fill="none" stroke="#0891b2" stroke-width="2.4" filter="url(#glowCyan2)" points="0,170 55,168 110,172 165,166 220,170 275,164 330,170 385,166 440,172 495,160 550,170 605,165 660,170 715,162 770,168 825,164 900,166"/>
+                    <polyline fill="none" stroke="#7c3aed" stroke-width="1.6" opacity=".85" points="0,86 55,88 110,84 165,90 220,86 275,88 330,82 385,87 440,85 495,90 550,86 605,83 660,88 715,84 770,89 825,86 900,87"/>
+                    <polyline fill="none" stroke="#d97706" stroke-width="2.2" points="0,170 55,166 110,172 165,160 220,170 275,164 330,172 385,156 440,170 495,162 550,174 605,158 660,170 715,160 770,172 825,164 900,170"/>
+                    <line x1="660" y1="0" x2="660" y2="340" stroke="#0891b2" stroke-width="1" stroke-dasharray="5 5" opacity=".55"/>
+                  </svg>
+                </div>
+                <div style="border-top:1px solid rgba(15,80,120,.08);margin-top:8px;padding-top:6px;font-size:10.5px;color:#8ba0b5;display:flex;gap:20px" class="mono">
+                  <span>#1 17:12:20 顺时针峰值 12.430°</span>
+                  <span>#2 17:13:02 最大力值 24.18 N</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="m-actions4">
+            <span class="big4 primary grow">开始测试</span>
+            <span class="big4">导出 Excel</span>
+          </div>
+          <div class="m-status4">
+            <b>Info</b><span class="vs"></span><span>转向力已标定 · 系数 0.00845</span><span class="vs"></span>
+            <span>零点 AD 32909</span><span class="grow"></span><span>测试 00:42</span>
+          </div>
+        </div>
+      </div></div>
+    </div>
+  </section>
+
+  <!-- 设置 -->
+  <section id="page-settings">
+    <h2 class="sec-title"><span class="num">07</span>设置（现有系统）</h2>
+    <p class="sec-desc">蓝牙采集模块业务分组；玻璃模块行；校准为「清零 + 标准 N + 校准」。</p>
+    <div class="mock-frame">
+      <div class="mock-title">设置 <span class="badge">现有功能 · 玻璃化</span></div>
+      <div class="mock-scale"><div class="inner">
+        <div class="mock">
+          <div class="m-topbar">
+            <div class="m-brand"><span class="lg">X</span>XDESIN</div>
+            <div class="m-statusbar-top"><span><span class="led4 on"></span> 蓝牙 2/5</span><span><span class="led4"></span> WiFi</span></div>
+            <div class="m-nav4">
+              <span class="it">命令监测</span>
+              <span class="it">踏板测试</span>
+              <span class="it">转盘测试</span>
+              <span class="it">手动及状态检测</span>
+              <span class="it">数据记录</span>
+              <span class="it active">设置</span>
+              <span class="it">帮助</span>
+            </div>
+            <div class="m-win"><i></i><i></i><i></i></div>
+          </div>
+          <div class="m-body4" style="justify-content:center">
+            <div class="m-col4" style="width:900px">
+              <div class="panel4">
+                <div class="ph"><span class="dot"></span>蓝牙采集模块 <span class="r"><span class="btn4 sm">蓝牙模块联结</span></span></div>
+                <div class="pb" style="gap:7px">
+                  <div class="set-rows4">
+                    <div class="set-group4">转盘测试 · 倾角 + 转向力采集</div>
+                    <div class="set-item4">
+                      <div class="nm"><b>倾角模块 · 转盘 X/Y</b><span>DSJH_B006 · Modbus 10Hz</span></div>
+                      <div class="vals">
+                        <span class="gbox" style="min-width:110px"><span class="k">倾角 X</span><span class="v mono">-0.779°</span></span>
+                        <span class="gbox" style="min-width:110px"><span class="k">倾角 Y</span><span class="v mono">-87.327°</span></span>
+                        <span class="tag4 ok">ON</span>
+                      </div>
+                    </div>
+                    <div class="set-item4">
+                      <div class="nm"><b>转向力 · 转盘力值</b><span>WEIGHT_SO3 · AD 49749 · 原始 981270</span></div>
+                      <div class="vals">
+                        <span class="gbox" style="min-width:100px"><span class="k">实时</span><span class="v glow mono">9.62 N</span></span>
+                        <span class="gbox" style="min-width:100px"><span class="k">系数</span><span class="v mono">0.00845</span></span>
+                        <span class="btn4 sm">清零</span>
+                        <span class="gbox" style="min-width:78px"><span class="v dim mono" style="font-size:11px">标准 N</span></span>
+                        <span class="btn4 sm primary">校准</span>
+                      </div>
+                    </div>
+                    <div class="set-group4" style="margin-top:4px">踏板测试 · A / B 侧加载力采集</div>
+                    <div class="set-item4">
+                      <div class="nm"><b>模块 A · 踏板 A 加载力</b><span>未连接</span></div>
+                      <div class="vals"><span class="gbox" style="min-width:100px"><span class="k">实时</span><span class="v dim mono">-- N</span></span><span class="btn4 sm">清零</span><span class="btn4 sm">校准</span><span class="led4"></span></div>
+                    </div>
+                    <div class="set-item4">
+                      <div class="nm"><b>模块 B · 踏板 B 加载力</b><span>未连接</span></div>
+                      <div class="vals"><span class="gbox" style="min-width:100px"><span class="k">实时</span><span class="v dim mono">-- N</span></span><span class="btn4 sm">清零</span><span class="btn4 sm">校准</span><span class="led4"></span></div>
+                    </div>
+                    <div class="set-group4" style="margin-top:4px">辅助设备 · 继电器开关控制</div>
+                    <div class="set-item4">
+                      <div class="nm"><b>二路开关 · 加载控制</b><span>YX_ *** · 未连接</span></div>
+                      <div class="vals">
+                        <span class="gbox" style="min-width:92px"><span class="k">第1路</span><span class="v dim mono">--</span></span>
+                        <span class="gbox" style="min-width:92px"><span class="k">第2路</span><span class="v dim mono">--</span></span>
+                        <span class="led4"></span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div style="display:flex;gap:12px;flex:1;min-height:0">
+                <div class="panel4" style="flex:1">
+                  <div class="ph"><span class="dot"></span>设备参数（SET）</div>
+                  <div class="pb" style="gap:6px">
+                    <div class="row4"><span class="gbx"><span class="k">遥测上报频率</span><span class="v mono">10 Hz</span></span><span class="ab4">应用</span></div>
+                    <div class="row4"><span class="gbx"><span class="k">推杆脉冲当量</span><span class="v mono">320 P/mm</span></span><span class="ab4">应用</span></div>
+                    <div class="row4"><span class="gbx"><span class="k">调平传动比</span><span class="v mono">1.0</span></span><span class="ab4">应用</span></div>
+                  </div>
+                </div>
+                <div class="panel4" style="flex:1">
+                  <div class="ph"><span class="dot"></span>通信调试 / 网络</div>
+                  <div class="pb" style="gap:6px">
+                    <div class="row4"><span class="gbx"><span class="k">传输模式</span><span class="v mono">AES-128-CTR</span></span><span class="ab4">明文</span></div>
+                    <div class="row4"><span class="gbx"><span class="k">WiFi SSID</span><span class="v mono">XDESIN</span></span><span class="ab4">配置</span></div>
+                    <div style="font-size:10.5px;color:#536a80;line-height:1.7">力值校准：清零 → 施加标准载荷 → 输入标准 N → 校准。危险操作需行内二次确认。</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="m-status4"><b>Info</b><span class="vs"></span><span>5 个蓝牙通道 · 2 已连接</span><span class="vs"></span><span>WiFi 未连接 · 设置将在连接后生效</span><span class="grow"></span><span>v1.0.0</span></div>
+        </div>
+      </div></div>
+    </div>
+  </section>
+
+  <!-- 帮助 -->
+  <section id="page-help">
+    <h2 class="sec-title"><span class="num">08</span>帮助（结构对齐 PPT 第 4 页）</h2>
+    <p class="sec-desc">帮助 / 上一页 / 下一页 / 主页 浏览式布局；内容区支持图片与教学动画。</p>
+    <div class="mock-frame">
+      <div class="mock-title">帮助 <span class="badge">对齐 PPT</span></div>
+      <div class="mock-scale"><div class="inner">
+        <div class="mock">
+          <div class="m-topbar">
+            <div class="m-brand"><span class="lg">X</span>XDESIN</div>
+            <div class="m-statusbar-top"><span>帮助</span></div>
+            <div class="m-nav4">
+              <span class="it">命令监测</span>
+              <span class="it">踏板测试</span>
+              <span class="it">转盘测试</span>
+              <span class="it">手动及状态检测</span>
+              <span class="it">数据记录</span>
+              <span class="it">设置</span>
+              <span class="it active">帮助</span>
+            </div>
+            <div class="m-win"><i></i><i></i><i></i></div>
+          </div>
+          <div class="help-btns4">
+            <span class="btn4 primary" style="min-width:136px">帮助</span>
+            <span class="btn4" style="min-width:136px">上一页</span>
+            <span class="btn4" style="min-width:136px">下一页</span>
+            <span class="btn4" style="min-width:136px">主页</span>
+            <span style="margin-left:auto;align-self:center;font-size:11px;color:#536a80">第 1 / 6 页</span>
+          </div>
+          <div class="help-main4 panel4">
+            <div class="ph"><span class="dot"></span>操作指引 <span class="r">转盘测试</span></div>
+            <div class="help-body4">
+              <div style="width:56px;height:56px;border-radius:16px;background:linear-gradient(135deg,#0891b2,#7c3aed);box-shadow:0 0 34px rgba(8,145,178,.35);display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:900;color:#ffffff">X</div>
+              <h3>转盘测试操作指引</h3>
+              <p>① 连接倾角模块与转向力模块 → ② 空载清零 → ③ 施加标准载荷并校准 → ④ 开始测试 → ⑤ 记录峰值与力值 → ⑥ 导出 Excel</p>
+              <div style="display:flex;gap:8px;margin-top:4px">
+                <span class="tag4 info">教学动画 / 图片</span>
+                <span class="tag4 warn">校准步骤</span>
+                <span class="tag4 ok">版本与设备信息</span>
+              </div>
+            </div>
+          </div>
+          <div class="m-status4"><b>Info</b><span class="vs"></span><span>第 1 / 6 页 · 转盘测试操作指引</span><span class="grow"></span><span>XdesinHMI v1.0.0 · 设备 xdesin-s3-001</span></div>
+        </div>
+      </div></div>
+    </div>
+  </section>
+
+  <!-- 落地说明 -->
+  <section id="impl">
+    <h2 class="sec-title"><span class="num">09</span>落地说明</h2>
+    <p class="sec-desc">毛玻璃工业风的实施要点与降级策略。</p>
+    <div class="notes">
+      <div class="note glass">
+        <h4>视觉令牌</h4>
+        <ul>
+          <li>浅色底 <b>#EEF3F8</b> + 网格 + 柔和青/紫光斑</li>
+          <li>白色玻璃面板 <b>rgba(255,255,255,.55)</b> + <b>blur(18px)</b> + 白色高光描边</li>
+          <li>强调渐变 <b>#22D3EE → #3B82F6</b>；危险 <b>#FB7185 → #E11D48</b></li>
+          <li>数值强调：关键值使用深青/蓝色</li>
+        </ul>
+      </div>
+      <div class="note glass">
+        <h4>实现要点</h4>
+        <ul>
+          <li><b>backdrop-filter</b> 需父级有背景；Tauri WebView（WKWebView/WebView2）均支持</li>
+          <li>降级：`@supports not (backdrop-filter: blur(1px))` 回退不透明深色</li>
+          <li>发光与渐变集中在「面板头 / 按钮 / 数值 / 曲线」，避免大面积光效影响读值</li>
+          <li>趋势图用 SVG 渐变填充 + feGaussianBlur 光晕</li>
+        </ul>
+      </div>
+      <div class="note glass">
+        <h4>实施顺序</h4>
+        <ul>
+          <li>P1：全局令牌（浅色底/光斑/玻璃类/渐变按钮/LED）</li>
+          <li>P2：顶栏、工具条、底部动作条与状态栏玻璃化</li>
+          <li>P3：命令监测页对齐 PPT、玻璃通讯面板</li>
+          <li>P4：踏板页补均匀力值、电机控制整合；帮助页</li>
+          <li>P5：趋势图发光化 + 触屏回归</li>
+        </ul>
+      </div>
+      <div class="note glass">
+        <h4>文件</h4>
+        <ul>
+          <li>v4 本稿：<span class="mono">docs/design/2026-11-13-UI设计稿-v4-毛玻璃工业.html</span></li>
+          <li>历史：v2（浅色工业）、v3（专业工控）</li>
+          <li>参考：<span class="mono">.tmp/软件UI.pptx</span></li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+</div>
+</body>
+</html>
