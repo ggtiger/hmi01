@@ -19,7 +19,8 @@ jobs:
     runs-on: windows-latest
     env:
       NEXT_PUBLIC_GITHUB_REPO: ${{ github.repository }}
-      NEXT_PUBLIC_UPDATE_CDN_URL: ''
+      NEXT_PUBLIC_UPDATE_CDN_URL: ${{ secrets.QINIU_CDN_BASE }}
+      UPDATE_CDN_BASE_URL: ${{ secrets.QINIU_CDN_BASE }}
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     steps:
@@ -106,6 +107,17 @@ jobs:
         shell: bash
         run: |
           node scripts/publish-server-update.mjs --mode full --tag "${GITHUB_REF_NAME}"
+
+      - name: Sync assets and latest.json to Qiniu CDN
+        shell: bash
+        env:
+          QINIU_ACCESS_KEY: ${{ secrets.QINIU_ACCESS_KEY }}
+          QINIU_SECRET_KEY: ${{ secrets.QINIU_SECRET_KEY }}
+          QINIU_BUCKET: ${{ secrets.QINIU_BUCKET }}
+          QINIU_S3_BUCKET: ${{ secrets.QINIU_S3_BUCKET }}
+          QINIU_CDN_BASE: ${{ secrets.QINIU_CDN_BASE }}
+        run: |
+          node scripts/sync-cdn.mjs --mode full --tag "${GITHUB_REF_NAME}"
 
       - name: Publish GitHub Release
         shell: bash

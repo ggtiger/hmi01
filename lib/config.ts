@@ -20,7 +20,8 @@ const BUILD_GITHUB_REPO =
   (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_GITHUB_REPO?.trim()) ||
   'ggtiger/hmi01'
 const BUILD_CDN_URL =
-  (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_UPDATE_CDN_URL?.trim()) || ''
+  (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_UPDATE_CDN_URL?.trim()) ||
+  'https://o09u11p5v.qnssl.com/hmi'
 
 export const DEFAULT_CONFIG: AppConfig = {
   device: {

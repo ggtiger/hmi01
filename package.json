@@ -1,6 +1,6 @@
 {
   "name": "xdesin-hmi",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "scripts": {
     "dev": "next dev -p 3200",
@@ -17,7 +17,8 @@
     "release:version": "node scripts/set-release-version.mjs",
     "release:configure": "node scripts/configure-release.mjs",
     "release:server": "node scripts/publish-server-update.mjs --mode server",
-    "release:windows": "tauri build --bundles nsis --config src-tauri/tauri.release.conf.json"
+    "release:windows": "tauri build --bundles nsis --config src-tauri/tauri.release.conf.json",
+    "sync:cdn": "node scripts/sync-cdn.mjs"
   },
   "dependencies": {
     "@tauri-apps/plugin-dialog": "~2.7.0",

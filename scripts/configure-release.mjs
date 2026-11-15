@@ -28,11 +28,15 @@ if (!pubkey || pubkey === 'REPLACE_WITH_MINISIGN_PUBKEY') {
   process.exit(1)
 }
 
+const cdnBase = (process.env.UPDATE_CDN_BASE_URL || '').trim().replace(/\/+$/, '')
+const endpoint = cdnBase
+  ? `${cdnBase}/latest.json?t={{current_version}}`
+  : `https://github.com/${repo}/releases/latest/download/latest.json?t={{current_version}}`
 const config = {
   plugins: {
     updater: {
       pubkey,
-      endpoints: [`https://github.com/${repo}/releases/latest/download/latest.json?t={{current_version}}`],
+      endpoints: [endpoint],
     },
   },
 }
@@ -49,4 +53,4 @@ if (process.env.CI === 'true') {
   fs.writeFileSync(baseFile, JSON.stringify(base, null, 2) + '\n')
   console.log('[release] CI 模式：已将 updater 公钥/端点写入 tauri.conf.json')
 }
-console.log(`[release] 更新端点: https://github.com/${repo}/releases/latest/download/latest.json`)
+console.log(`[release] 更新端点: ${endpoint}`)

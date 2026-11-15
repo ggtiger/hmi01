@@ -1,9 +1,10 @@
 # Windows 发布与更新（全量 / 增量）
 
-本项目采用和 SSTS 相同的双通道更新：
+本项目采用和 SSTS 相同的双通道更新，更新包通过七牛 CDN 分发：
 
 - **全量更新**：Tauri updater，下载 NSIS 安装包更新整个桌面应用
 - **增量更新**：server 热更新，文件级 patch 覆盖 `server/` 目录；无匹配 patch 时回退 server 全量包
+- **CDN**：`https://o09u11p5v.qnssl.com/hmi`
 
 当前只构建 **Windows x64**，不构建 macOS/Linux。发布通过 GitHub Releases 完成。
 
@@ -44,6 +45,11 @@ npx tauri signer generate -w ~/.tauri/xdesin-hmi.key
 | `TAURI_SIGNING_PRIVATE_KEY` | 已配置 |
 | `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | 已配置 |
 | `TAURI_UPDATER_PUBKEY` | 已配置 |
+| `QINIU_ACCESS_KEY` | 已配置 |
+| `QINIU_SECRET_KEY` | 已配置 |
+| `QINIU_BUCKET` | `gjapp` |
+| `QINIU_S3_BUCKET` | `7xjehb`（gjapp 的 S3 源 bucket） |
+| `QINIU_CDN_BASE` | `https://o09u11p5v.qnssl.com/hmi` |
 
 CI 会把 updater 公钥和 GitHub 更新端点写入发布构建配置。
 
@@ -72,7 +78,8 @@ git push origin feat/v6-system --follow-tags
 4. 构建 server 全量包 `server-<version>.tar.gz`
 5. 对最近 3 个旧版本生成 `server-patch-<old>-<new>.tar.gz`
 6. 更新 `latest.json` 的 `serverVersion` / `serverDeltas` / `serverFullUrl`
-7. 发布 GitHub Release
+7. 同步资产和 CDN 版 latest.json 到七牛
+8. 发布 GitHub Release
 
 Release 中会包含：
 
@@ -126,7 +133,8 @@ npm run release:windows
 
 ## 五、更新链路说明
 
-- 客户端启动时先检查 `latest.json`
+- 客户端启动时先检查 CDN `latest.json`（GitHub 作为兼容回退）
+- CDN `latest.json` 中的安装包/server 包地址均已改写为 `https://o09u11p5v.qnssl.com/hmi/...`
 - `version` 更新：走 Tauri updater 全量安装
 - `serverVersion` 更新：
   - 有匹配的 Windows 增量包 → 下载 patch，校验 SHA-256 后热更新
