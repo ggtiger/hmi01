@@ -1,0 +1,122 @@
+name: Windows Release
+
+# 全量发布：Windows NSIS 安装包 + Tauri updater 产物 + server 全量包 + server 增量包
+# 触发：推送 v* tag，例如 git tag v0.2.0 && git push origin v0.2.0
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: windows-release-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  windows-release:
+    runs-on: windows-latest
+    env:
+      NEXT_PUBLIC_GITHUB_REPO: ${{ github.repository }}
+      NEXT_PUBLIC_UPDATE_CDN_URL: ''
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Resolve and sync version
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}"
+          VERSION="${TAG#v}"
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.-]+)?$ ]]; then
+            echo "Tag 必须是 vX.Y.Z，当前: $TAG"
+            exit 1
+          fi
+          echo "TAG=$TAG" >> "$GITHUB_ENV"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          node scripts/set-release-version.mjs "$VERSION" app
+
+      - name: Verify updater secrets
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_UPDATER_PUBKEY: ${{ secrets.TAURI_UPDATER_PUBKEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "${TAURI_SIGNING_PRIVATE_KEY:-}" ]; then
+            echo "缺少 GitHub Secret: TAURI_SIGNING_PRIVATE_KEY"
+            exit 1
+          fi
+          if [ -z "${TAURI_UPDATER_PUBKEY:-}" ]; then
+            echo "缺少 GitHub Secret: TAURI_UPDATER_PUBKEY"
+            exit 1
+          fi
+
+      - name: Configure updater endpoint and pubkey
+        shell: bash
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          TAURI_UPDATER_PUBKEY: ${{ secrets.TAURI_UPDATER_PUBKEY }}
+          CI: 'true'
+        run: node scripts/configure-release.mjs
+
+      - name: Build Windows NSIS and publish draft
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: '智能驾驶舱检测系统 ${{ github.ref_name }}'
+          releaseBody: |
+            ## 智能驾驶舱检测系统 ${{ github.ref_name }}
+
+            Windows 安装包正在构建，稍后会补充 server 全量包与增量包。
+          releaseDraft: true
+          prerelease: false
+          tauriScript: npx tauri
+          args: --bundles nsis
+          updaterJsonPreferNsis: true
+
+      - name: Publish server full package and Windows deltas
+        shell: bash
+        run: |
+          node scripts/publish-server-update.mjs --mode full --tag "${GITHUB_REF_NAME}"
+
+      - name: Publish GitHub Release
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}"
+          PREV_TAG=$(git tag --sort=-creatordate | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | grep -v "^${TAG}$" | head -1 || true)
+          if [ -n "$PREV_TAG" ]; then
+            CHANGES=$(git log "${PREV_TAG}..${TAG}" --pretty=format:'- %s' --no-merges | head -40 || true)
+          else
+            CHANGES=$(git log -20 --pretty=format:'- %s' --no-merges | head -40 || true)
+          fi
+          NOTES=$(printf '## 智能驾驶舱检测系统 %s\n\n### 变更\n%s\n\n### Windows\n- 下载 `.exe` 安装包进行首次安装/全量安装\n- 已内置 Tauri updater，可在应用内全量更新\n- server 支持增量热更新；无匹配增量时自动回退全量 server 包\n' "$TAG" "$CHANGES")
+          gh release edit "$TAG" --draft=false --title "智能驾驶舱检测系统 $TAG" --notes "$NOTES"

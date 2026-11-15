@@ -137,13 +137,12 @@ async function fetchLatestJsonWithRetry(maxRetries = 2): Promise<Record<string, 
   const githubRepo = config.update.githubRepo || DEFAULT_CONFIG.update.githubRepo
 
   const cdnEndpoint = `${cdnUrl}/latest.json?t=${Date.now()}`
-  const githubEndpoint = `https://github.com/${githubRepo}/releases/latest/download/latest.json`
+  const githubEndpoint = `https://github.com/${githubRepo}/releases/latest/download/latest.json?t=${Date.now()}`
   updateLog(`[Updater] fetchLatestJsonWithRetry 开始 | CDN: ${cdnEndpoint} | GitHub: ${githubEndpoint} | maxRetries=${maxRetries}`)
 
-  const endpoints: Array<{ label: string; fn: () => Promise<Record<string, unknown> | null> }> = [
-    { label: 'CDN', fn: () => fetchJsonViaRust(cdnEndpoint) },
-    { label: 'GitHub', fn: () => fetchJsonViaRust(githubEndpoint) },
-  ]
+  const endpoints: Array<{ label: string; fn: () => Promise<Record<string, unknown> | null> }> = []
+  if (cdnUrl) endpoints.push({ label: 'CDN', fn: () => fetchJsonViaRust(cdnEndpoint) })
+  endpoints.push({ label: 'GitHub', fn: () => fetchJsonViaRust(githubEndpoint) })
   for (const ep of endpoints) {
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {

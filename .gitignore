@@ -31,3 +31,6 @@ src-tauri/frontend/
 # Claude Code 本地配置
 .claude/
 .tmp/
+
+# CI 生成的发布配置（含更新端点/公钥）
+src-tauri/tauri.release.conf.json

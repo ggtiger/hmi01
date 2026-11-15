@@ -150,9 +150,25 @@ function assembleServerBundle(standaloneRoot, destDir) {
 }
 
 function printBundleSize(dir) {
-  const size = execSync(`du -sh "${dir}" 2>/dev/null || echo "unknown"`)
-    .toString().trim()
-  console.log(`[standalone] Bundle size: ${size}`)
+  // 跨平台统计目录大小：Windows runner 没有 du
+  function sizeOf(target) {
+    let total = 0
+    try {
+      const stat = fs.lstatSync(target)
+      if (stat.isFile()) return stat.size
+      if (stat.isDirectory()) {
+        for (const entry of fs.readdirSync(target, { withFileTypes: true })) {
+          total += sizeOf(path.join(target, entry.name))
+        }
+      }
+    } catch { /* ignore permission/symlink errors */ }
+    return total
+  }
+  const bytes = sizeOf(dir)
+  const text = bytes >= 1024 * 1024
+    ? `${(bytes / 1024 / 1024).toFixed(1)} MB`
+    : `${Math.max(1, Math.round(bytes / 1024))} KB`
+  console.log(`[standalone] Bundle size: ${text} (${bytes} bytes)`)
 }
 
 /**

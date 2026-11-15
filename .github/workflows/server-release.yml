@@ -1,0 +1,63 @@
+name: Server Release
+
+# 仅发布 server 热更新：
+# - 构建 Next standalone server
+# - 上传 server-<version>.tar.gz 全量包
+# - 对最近 3 个旧版本生成文件级 patch
+# - 更新最近一个 v* 应用 Release 的 latest.json（serverVersion / serverDeltas / serverFullUrl）
+on:
+  push:
+    tags:
+      - 'server-v*'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: server-release-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  server-release:
+    runs-on: windows-latest
+    env:
+      NEXT_PUBLIC_GITHUB_REPO: ${{ github.repository }}
+      NEXT_PUBLIC_UPDATE_CDN_URL: ''
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Resolve and sync server version
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}"
+          VERSION="${TAG#server-v}"
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.-]+)?$ ]]; then
+            echo "Tag 必须是 server-vX.Y.Z，当前: $TAG"
+            exit 1
+          fi
+          echo "TAG=$TAG" >> "$GITHUB_ENV"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          node scripts/set-release-version.mjs "$VERSION" server
+
+      - name: Build server bundle
+        shell: bash
+        run: node scripts/bundle-sidecar.js
+
+      - name: Publish server full package and Windows deltas
+        shell: bash
+        run: node scripts/publish-server-update.mjs --mode server

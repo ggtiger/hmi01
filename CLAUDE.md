@@ -15,7 +15,10 @@ npm run dev          # 仅前端：next dev -p 3200（浏览器调试，无 Taur
 npm run tauri:dev    # 完整桌面应用开发（先 ensure-placeholders 再起 next dev）
 npm run tauri:build  # 生产构建（beforeBuildCommand 自动跑 bundle-sidecar）
 npm run lint         # next lint
-npm run mock:device  # 启动 mock 设备模拟器（0.0.0.0:10001），上位机连接时 host 填 127.0.0.1
+npm run mock:device  # 双板 mock 模拟器：A=0.0.0.0:10001，B=0.0.0.0:10002（本地 host 填 127.0.0.1）
+npm run mock:test    # 双板 mock 冒烟测试（自动起停，覆盖 Python 测试工具全部命令）
+npm run release:version -- 0.2.0 app     # 同步 app/server 版本（app 模式）
+npm run release:version -- 0.2.1 server  # 仅同步 server 版本
 npm run start:prod   # 单独运行 standalone server 产物
 
 cd src-tauri && cargo test                              # Rust 测试（含 crypto 与 Node 的对拍向量测试）
@@ -80,8 +83,10 @@ Rust comm 各文件职责：
 
 ### 更新机制
 
-- delta 热更新（`delta.rs`）：只 patch `server/` 目录（Next 产物），重启 server 进程生效；全量更新走 tauri-plugin-updater
-- `tauri.conf.json` 的 updater endpoints 和 pubkey 目前是占位，发布前需配置 minisign 密钥
+- delta 热更新（`delta.rs`）：只 patch `server/` 目录（Next 产物），重启 server 进程生效；无匹配 delta 时回退 server 全量包
+- 全量更新走 tauri-plugin-updater
+- 仅发布 Windows x64：推送 `v*` tag 触发 `.github/workflows/release.yml`；推送 `server-v*` tag 触发 `.github/workflows/server-release.yml`
+- updater 公钥/端点由 CI 的 `scripts/configure-release.mjs` 写入临时 `src-tauri/tauri.release.conf.json`，需配置 GitHub Secrets；完整步骤见 `docs/RELEASING-WINDOWS.md`
 
 ## 关键约束与已知坑
 

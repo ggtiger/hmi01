@@ -16,6 +16,12 @@ export interface AppConfig {
   }
 }
 
+const BUILD_GITHUB_REPO =
+  (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_GITHUB_REPO?.trim()) ||
+  'ggtiger/hmi01'
+const BUILD_CDN_URL =
+  (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_UPDATE_CDN_URL?.trim()) || ''
+
 export const DEFAULT_CONFIG: AppConfig = {
   device: {
     // 新固件：A 板 STA 固定 IP（B 板 192.168.8.89）
@@ -23,8 +29,8 @@ export const DEFAULT_CONFIG: AppConfig = {
     port: 10001,
   },
   update: {
-    cdnUrl: 'https://cdn.example.com/xdesin-hmi',
-    githubRepo: 'xdesin/xdesin-hmi',
+    cdnUrl: BUILD_CDN_URL,
+    githubRepo: BUILD_GITHUB_REPO,
   },
   app: {
     closeToTray: false,
