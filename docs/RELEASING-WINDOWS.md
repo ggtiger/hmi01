@@ -9,41 +9,43 @@
 
 ## 一、一次性配置
 
-### 1. 配置 Git 远程仓库
+### 1. Git 仓库
 
-仓库目前没有 remote，需要先添加：
+当前发布仓库：
 
-```bash
-git remote add origin https://github.com/ggtiger/hmi01.git
-git push -u origin feat/v6-system
+```text
+https://github.com/ggtiger/hmi01
 ```
 
 工作流中的所有下载 URL 都基于 `${{ github.repository }}` 生成。客户端更新默认使用公开 GitHub Release 资产；**如果仓库是私有的，未认证的 `curl` 无法下载更新包**，需要改用 CDN 或额外下载鉴权。
 
 ### 2. 生成 updater 签名密钥
 
-在一台可信机器上执行（不要提交私钥）：
+签名密钥已在当前工作机生成并配置到 GitHub：
+
+- 私钥：`~/.tauri/xdesin-hmi.key`
+- 公钥：`~/.tauri/xdesin-hmi.key.pub`
+- 密码：`~/.tauri/xdesin-hmi.key.password`
+
+> 请立即备份以上文件。私钥和密码丢失后无法再签名更新包；不要提交到仓库。
+
+如需重新生成：
 
 ```bash
 npx tauri signer generate -w ~/.tauri/xdesin-hmi.key
 ```
 
-会生成：
+### 3. GitHub Secrets
 
-- `~/.tauri/xdesin-hmi.key`：私钥，用于 CI 签名
-- `~/.tauri/xdesin-hmi.key.pub`：公钥，用于客户端校验
+当前仓库已配置：
 
-### 3. 配置 GitHub Secrets
-
-在 GitHub 仓库 Settings → Secrets and variables → Actions 中添加：
-
-| Secret | 内容 |
+| Secret | 状态 |
 |---|---|
-| `TAURI_SIGNING_PRIVATE_KEY` | 私钥文件完整内容 |
-| `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | 生成私钥时设置的密码；无密码则留空 |
-| `TAURI_UPDATER_PUBKEY` | 公钥文件（`.pub`）完整内容 |
+| `TAURI_SIGNING_PRIVATE_KEY` | 已配置 |
+| `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | 已配置 |
+| `TAURI_UPDATER_PUBKEY` | 已配置 |
 
-> 公钥不是仓库里的占位符，必须与签名私钥匹配。CI 会生成发布配置并写入 updater 公钥和 GitHub 更新端点。
+CI 会把 updater 公钥和 GitHub 更新端点写入发布构建配置。
 
 ## 二、发布 Windows 全量版本
 
