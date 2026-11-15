@@ -151,6 +151,23 @@ function cdnConfig() {
   }
 }
 
+function ghJson(args) {
+  const proc = gh(args)
+  return JSON.parse(proc.stdout)
+}
+
+function findLatestAppRelease(repo) {
+  const releases = ghJson([
+    'release', 'list', '--repo', repo, '--limit', '100',
+    '--json', 'tagName,isDraft,createdAt',
+  ])
+  const app = releases
+    .filter((r) => !r.isDraft && /^v\d+\.\d+\.\d+$/.test(r.tagName))
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0]
+  if (!app) throw new Error('没有找到已发布的 v* 应用 Release，无法确定 server 资产上传目标')
+  return app.tagName
+}
+
 function assetUrl(base, version, fileName) {
   return `${base}/releases/${encodeURIComponent(version)}/${encodeURIComponent(fileName)}`
 }
@@ -189,7 +206,13 @@ async function main() {
 
   const repo = env('GITHUB_REPOSITORY')
   if (!process.env.GH_TOKEN && !process.env.GITHUB_TOKEN) throw new Error('缺少 GH_TOKEN / GITHUB_TOKEN')
-  const tag = args.tag || process.env.GITHUB_REF_NAME || ''
+  let tag = args.tag || ''
+  if (args.mode === 'server') {
+    // server-v* 只是版本 tag，不创建 Release；资产统一上传到最近一个 v* 应用 Release
+    if (!tag || /^server-v/.test(tag)) tag = findLatestAppRelease(repo)
+  } else if (!tag) {
+    tag = process.env.GITHUB_REF_NAME || ''
+  }
   if (!tag) throw new Error('缺少 --tag 或 GITHUB_REF_NAME')
 
   const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'xdesin-cdn-'))
