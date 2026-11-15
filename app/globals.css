@@ -430,14 +430,13 @@ body {
     app-region: drag;
   }
 
-  /* 拖动区域内只有具体交互元素禁用拖动，保持周围空白可拖动 */
-  .draggable-region button span,
-  .draggable-region button svg,
-  .draggable-region a span,
-  .draggable-region a svg,
+  /* 拖动区域内所有交互元素禁用拖动，保持周围空白可拖动 */
+  .draggable-region button,
+  .draggable-region a,
   .draggable-region input,
-  .draggable-region [role="button"] span,
-  .draggable-region [role="button"] svg,
+  .draggable-region select,
+  .draggable-region textarea,
+  .draggable-region [role="button"],
   .draggable-region [data-tauri-no-drag] {
     -webkit-app-region: no-drag;
     app-region: no-drag;

@@ -134,7 +134,10 @@ export default function V6Shell({ children }: { children: React.ReactNode }) {
   return (
     <div className="h-screen flex flex-col min-h-0 overflow-hidden relative">
       {/* ===== 顶栏 ===== */}
-      <header className="flex-shrink-0 h-[58px] z-50 flex items-center gap-4 px-4 bg-white/65 backdrop-blur-xl border-b border-[rgba(15,80,120,.10)] shadow-[0_6px_26px_rgba(31,86,130,.06)] select-none">
+      <header
+        className="draggable-region flex-shrink-0 h-[58px] z-50 flex items-center gap-4 px-4 bg-white/65 backdrop-blur-xl border-b border-[rgba(15,80,120,.10)] shadow-[0_6px_26px_rgba(31,86,130,.06)] select-none"
+        data-tauri-drag-region
+      >
         <button
           onClick={() => allowedNav[0] && router.push(allowedNav[0].href)}
           className="flex items-center gap-2.5 flex-shrink-0"
@@ -169,7 +172,12 @@ export default function V6Shell({ children }: { children: React.ReactNode }) {
           </button>
         </div>
 
-        <div className="ml-auto flex items-center gap-1">
+        {/* 空白区域用于拖动窗口；按钮本身由 draggable-region 的 no-drag 规则排除 */}
+        <div className="flex min-w-4 flex-1 self-stretch items-center justify-center" data-tauri-drag-region>
+          <span className="material-symbols-outlined pointer-events-none text-[16px] text-slate-300/70">drag_indicator</span>
+        </div>
+
+        <div className="flex items-center gap-1">
           <button onClick={() => setGuideOpen(true)} className="flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-[11.5px] text-slate-500 hover:bg-white/60">
             <span className="material-symbols-outlined text-[16px]">cable</span>
             {t('连接')}
