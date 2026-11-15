@@ -27,6 +27,8 @@ const SERVER_DIR = path.join(ROOT, 'src-tauri', 'server')
 const DIST_DIR = path.join(ROOT, 'dist')
 const PLATFORM = 'windows-x86_64'
 const NPM_CMD = process.platform === 'win32' ? 'npm.cmd' : 'npm'
+// Windows Git Bash 的 GNU tar 会把 D:\... 误判为远程主机，必须强制本地路径
+const TAR_FLAGS = process.platform === 'win32' ? ['--force-local'] : []
 const MAX_DELTAS = 3
 const MAX_RELEASES_TO_SCAN = 10
 const PATCH_RATIO_LIMIT = 0.8
@@ -159,12 +161,12 @@ function collectManifestAssets(file) {
 function tarCreate(out, dir) {
   fs.mkdirSync(path.dirname(out), { recursive: true })
   try { fs.rmSync(out, { force: true }) } catch { /* ignore */ }
-  run('tar', ['-czf', out, '-C', dir, '.'])
+  run('tar', [...TAR_FLAGS, '-czf', out, '-C', dir, '.'])
 }
 
 function tarExtract(file, dest) {
   fs.mkdirSync(dest, { recursive: true })
-  run('tar', ['-xzf', file, '-C', dest])
+  run('tar', [...TAR_FLAGS, '-xzf', file, '-C', dest])
 }
 
 function formatBytes(n) {
