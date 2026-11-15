@@ -188,6 +188,19 @@ body {
     color: #fff;
   }
 
+  /* 有颜色的按钮 hover 时必须保留渐变和白色文字，不能被基础白底 hover 覆盖 */
+  .glass-btn.primary:hover:not(:disabled) {
+    background: linear-gradient(135deg, rgba(8, 145, 178, 1), rgba(37, 99, 235, 1));
+    color: #fff;
+    box-shadow: 0 6px 20px rgba(8, 145, 178, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  }
+
+  .glass-btn.danger:hover:not(:disabled) {
+    background: linear-gradient(135deg, rgba(225, 29, 72, 1), rgba(190, 18, 60, 1));
+    color: #fff;
+    box-shadow: 0 6px 20px rgba(225, 29, 72, 0.28);
+  }
+
   /* 大号动作按钮 */
   .glass-action {
     display: inline-flex;
@@ -221,6 +234,18 @@ body {
     border-color: rgba(225, 29, 72, 0.45);
     color: #fff;
     box-shadow: 0 8px 28px rgba(225, 29, 72, 0.26);
+  }
+
+  .glass-action.primary:hover:not(:disabled) {
+    background: linear-gradient(135deg, rgba(8, 145, 178, 1), rgba(37, 99, 235, 1));
+    color: #fff;
+    box-shadow: 0 10px 32px rgba(8, 145, 178, 0.36), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  }
+
+  .glass-action.danger:hover:not(:disabled) {
+    background: linear-gradient(135deg, rgba(225, 29, 72, 1), rgba(190, 18, 60, 1));
+    color: #fff;
+    box-shadow: 0 10px 32px rgba(225, 29, 72, 0.32);
   }
 
   /* 发光状态灯 */
@@ -315,7 +340,7 @@ body {
   }
 
   .ui-action-btn:disabled {
-    opacity: 0.4;
+    opacity: 0.52;
     cursor: not-allowed;
   }
 
@@ -344,8 +369,17 @@ body {
     color: #fff;
   }
 
+  /* 主操作/危险按钮 hover：保持彩色背景与白字，避免“全白看不到字” */
+  .ui-action-btn-primary:hover:not(:disabled) {
+    background: linear-gradient(135deg, rgba(8, 145, 178, 1), rgba(37, 99, 235, 1));
+    color: #fff;
+    box-shadow: 0 6px 20px rgba(8, 145, 178, 0.3);
+  }
+
   .ui-action-btn-danger:hover:not(:disabled) {
-    background: linear-gradient(135deg, rgba(225, 29, 72, 0.98), rgba(190, 18, 60, 0.98));
+    background: linear-gradient(135deg, rgba(225, 29, 72, 1), rgba(190, 18, 60, 1));
+    color: #fff;
+    box-shadow: 0 6px 20px rgba(225, 29, 72, 0.26);
   }
 
   /* 数据/编辑输入框：与数据块同风格 */
@@ -414,3 +448,67 @@ body {
   from { opacity: 0; transform: translateY(12px); }
   to { opacity: 1; transform: translateY(0); }
 }
+
+
+/* 局部区域隐藏滚动条，保留滚轮/触控滚动能力 */
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+
+  /* 踏板电机控制：提高按钮/输入框与白色面板的对比 */
+  .pedal-ctrl-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    height: 36px;
+    padding: 0 10px;
+    border-radius: 9px;
+    border: 1px solid rgba(15, 80, 120, 0.26);
+    background: #e8f2f9;
+    color: #163246;
+    font-size: 11.5px;
+    font-weight: 700;
+    white-space: nowrap;
+    box-shadow: 0 2px 8px rgba(31, 86, 130, 0.06), inset 0 1px 0 #fff;
+    transition: all 0.15s ease;
+    cursor: pointer;
+  }
+
+  .pedal-ctrl-btn:hover:not(:disabled) {
+    border-color: rgba(8, 145, 178, 0.42);
+    background: #ffffff;
+    color: #0f6079;
+    box-shadow: 0 4px 12px rgba(8, 145, 178, 0.10);
+  }
+
+  .pedal-ctrl-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+
+  .pedal-ctrl-input {
+    height: 36px;
+    border: 1px solid rgba(15, 80, 120, 0.30);
+    border-radius: 9px;
+    background: #fff;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-variant-numeric: tabular-nums;
+    font-size: 12.5px;
+    font-weight: 700;
+    color: #10283c;
+    box-shadow: inset 0 1px 2px rgba(15, 34, 51, 0.04);
+    outline: none;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+
+  .pedal-ctrl-input:focus {
+    border-color: #0891b2;
+    box-shadow: 0 0 0 2px rgba(8, 145, 178, 0.14), inset 0 1px 2px rgba(15, 34, 51, 0.04);
+  }

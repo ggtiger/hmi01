@@ -219,6 +219,8 @@ export function useDevice() {
       pedalSelect: wrap(DeviceService.pedalSelect),
       pedalStart: wrap(DeviceService.pedalStart),
       pedalStop: wrap(DeviceService.pedalStop),
+      pedalTestStart: wrap(DeviceService.pedalTestStart),
+      pedalTestStop: wrap(DeviceService.pedalTestStop),
       pedalSetload: wrap(DeviceService.pedalSetload),
       pedalLevel: wrap(DeviceService.pedalLevel),
       pedalPushStart: wrap(DeviceService.pedalPushStart),

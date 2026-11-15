@@ -973,6 +973,7 @@ pub fn run() {
             comm::get_params, comm::scan_modbus, comm::reset_fault,
             comm::net_getcfg, comm::net_setcfg, comm::net_reset,
             comm::pedal_select, comm::pedal_start, comm::pedal_stop,
+            comm::pedal_test_start, comm::pedal_test_stop,
             comm::pedal_setload, comm::pedal_level,
             comm::pedal_push_start, comm::pedal_push_stop, comm::pedal_set,
             comm::pedal_zero, comm::pedal_clear, comm::pedal_record,

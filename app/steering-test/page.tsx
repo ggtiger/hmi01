@@ -29,6 +29,17 @@ interface TrendPoint {
 
 const MAX_TREND = 100
 
+/** 左侧数据分组标题 */
+function GroupHeader({ icon, title, hint }: { icon: string; title: string; hint?: string }) {
+  return (
+    <div className="flex items-center gap-1.5 px-0.5 text-[10px] font-extrabold uppercase tracking-[1.1px] text-slate-500">
+      <span className="material-symbols-outlined text-[14px] text-[#0891b2]">{icon}</span>
+      {title}
+      {hint && <span className="ml-auto font-mono text-[9px] font-normal normal-case tracking-normal text-slate-400">{hint}</span>}
+    </div>
+  )
+}
+
 /** 转盘测试（V6 原型）：BLE 倾角 + 转向力，测量表 + 图表 + 记录 */
 export default function SteeringTestPage() {
   const t = useT()
@@ -83,7 +94,9 @@ export default function SteeringTestPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [angle?.angleX, angle?.angleY, torqueLive, testing])
 
-  const addRecord = (key: string, value: number | null, unit = '°') =>
+  const addRecord = (key: string, value: number | null, unit = '°') => {
+    // 统一兜底：没有有效数值（-- / nan / 未连接）不写入记录
+    if (value === null || !Number.isFinite(value)) return
     setRecords((prev) => [
       ...prev,
       {
@@ -94,6 +107,7 @@ export default function SteeringTestPage() {
         unit,
       },
     ])
+  }
 
   const recordTorqueMax = () => {
     if (torqueLive === null) return
@@ -183,8 +197,8 @@ export default function SteeringTestPage() {
     setRecords([])
   }
 
-  const rowBtn = 'h-8 min-w-[46px] px-2 rounded-md border border-white/80 bg-white/70 text-[11px] font-bold text-slate-600 hover:text-[#0891b2]'
-  const rowBtnClear = 'h-8 min-w-[46px] px-2 rounded-md border border-white/80 bg-white/50 text-[11px] font-bold text-slate-500 hover:text-red-600'
+  const rowBtn = 'h-6 min-w-[42px] px-2 rounded-md border border-[rgba(15,80,120,.18)] bg-[#eef5fa] text-[10.5px] font-bold text-slate-600 shadow-sm hover:bg-white hover:text-[#0891b2] disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-300 disabled:shadow-none'
+  const rowBtnClear = 'h-6 min-w-[42px] px-2 rounded-md border border-[rgba(15,80,120,.14)] bg-white/85 text-[10.5px] font-bold text-slate-500 hover:border-red-200 hover:text-red-600 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-300'
 
   return (
     <div className="h-full flex flex-col gap-2 p-3 overflow-hidden">
@@ -225,66 +239,80 @@ export default function SteeringTestPage() {
               {t('倾角 10Hz · 力值 100ms')}
             </span>
           </div>
-          <div className="flex-1 min-h-0 overflow-y-auto p-2.5 flex flex-col gap-1.5">
-            <div className="grid grid-cols-2 gap-1.5">
-              <div className="glass-row !min-h-[46px]">
-                <span className="k">{t('倾角 X')} <em>°</em></span>
-                <span className="v">{fmtNum(tiltX, 3)}</span>
+          <div className="no-scrollbar flex flex-1 min-h-0 flex-col gap-2 overflow-y-auto p-2">
+            <section className="flex min-h-0 flex-1 flex-col rounded-xl border border-[rgba(15,80,120,.09)] bg-white/30 p-2">
+              <GroupHeader icon="explore" title={t('姿态')} hint="X / Y" />
+              <div className="mt-1.5 grid min-h-0 flex-1 grid-cols-2 gap-1">
+                <div className="flex min-h-[30px] flex-1 items-center gap-2 rounded-[10px] border border-[rgba(15,80,120,.09)] bg-white/60 px-3">
+                  <span className="text-[11.5px] text-slate-500">{t('倾角 X')} <em className="not-italic text-[9px] text-slate-400">°</em></span>
+                  <span className="ml-auto font-mono text-[15px] font-bold tabular-nums text-[#0891b2]">{fmtNum(tiltX, 3)}</span>
+                </div>
+                <div className="flex min-h-[30px] flex-1 items-center gap-2 rounded-[10px] border border-[rgba(15,80,120,.09)] bg-white/60 px-3">
+                  <span className="text-[11.5px] text-slate-500">{t('倾角 Y')} <em className="not-italic text-[9px] text-slate-400">°</em></span>
+                  <span className="ml-auto font-mono text-[15px] font-bold tabular-nums text-[#7c3aed]">{fmtNum(tiltY, 3)}</span>
+                </div>
               </div>
-              <div className="glass-row !min-h-[46px]">
-                <span className="k">{t('倾角 Y')} <em>°</em></span>
-                <span className="v">{fmtNum(tiltY, 3)}</span>
+              <div className="mt-1 flex min-h-[30px] flex-1 items-center gap-2 rounded-[10px] border border-[rgba(15,80,120,.09)] bg-white/60 px-3">
+                <span className="min-w-0 truncate text-[11.5px] text-slate-500">
+                  {t('自由转角')} <em className="not-italic text-[9px] text-slate-400">°</em>
+                  {direction && (
+                    <span className={`ml-1 text-[9px] font-extrabold ${direction === 'cw' ? 'text-sky-600' : 'text-violet-600'}`}>
+                      {direction === 'cw' ? t('顺时针') : t('逆时针')}
+                    </span>
+                  )}
+                </span>
+                <span className="ml-auto font-mono text-[15px] font-bold tabular-nums text-[#0891b2]">{fmtNum(freeAngle, 3)}</span>
+                <button onClick={() => setZeroOffset(tiltX ?? 0)} disabled={tiltX === null} className={rowBtn}>{t('清零')}</button>
+                <button onClick={() => addRecord('自由转角', freeAngle)} disabled={freeAngle === null} className={rowBtn}>{t('记录')}</button>
               </div>
-            </div>
+            </section>
 
-            <div className="glass-row !min-h-[46px]">
-              <span className="k">
-                {t('自由转角')} <em>°</em>
-                {direction && (
-                  <span className={`ml-1 text-[9px] font-extrabold ${direction === 'cw' ? 'text-sky-600' : 'text-violet-600'}`}>
-                    {direction === 'cw' ? t('顺时针') : t('逆时针')}
-                  </span>
-                )}
-              </span>
-              <span className="v cyan">{fmtNum(freeAngle, 3)}</span>
-              <button onClick={() => setZeroOffset(tiltX ?? 0)} disabled={tiltX === null} className={rowBtn}>{t('清零')}</button>
-              <button onClick={() => addRecord('自由转角', freeAngle)} disabled={freeAngle === null} className={rowBtn}>{t('记录')}</button>
-            </div>
-            <div className="glass-row !min-h-[46px]">
-              <span className="k">{t('顺时针峰值')} <em>°</em></span>
-              <span className="v violet">{fmtNum(cwAngle, 3)}</span>
-              <button onClick={recordCwPeak} disabled={freeAngle === null || freeAngle <= 0.001} className={rowBtn}>{t('记录')}</button>
-              <button onClick={() => setCwAngle(null)} disabled={!testing} className={rowBtnClear}>{t('清除')}</button>
-            </div>
-            <div className="glass-row !min-h-[46px]">
-              <span className="k">{t('逆时针峰值')} <em>°</em></span>
-              <span className="v violet">{fmtNum(ccwAngle, 3)}</span>
-              <button onClick={recordCcwPeak} disabled={freeAngle === null || freeAngle >= -0.001} className={rowBtn}>{t('记录')}</button>
-              <button onClick={() => setCcwAngle(null)} disabled={!testing} className={rowBtnClear}>{t('清除')}</button>
-            </div>
-            <div className="glass-row !min-h-[46px]">
-              <span className="k">{t('实时力值')} <em>N</em></span>
-              <span className="v cyan">{fmtNum(torqueLive, 2)}</span>
-              <button onClick={() => run(() => forceActions.zero('TORQUE'))} disabled={!torqueConnected || busy} className={rowBtn}>{t('清零')}</button>
-              <button onClick={() => addRecord('实时力值', torqueLive, 'N')} disabled={torqueLive === null} className={rowBtn}>{t('记录')}</button>
-            </div>
-            <div className="glass-row !min-h-[46px]">
-              <span className="k">{t('最大力值')} <em>N</em></span>
-              <span className="v">{fmtNum(torqueMax, 2)}</span>
-              <button onClick={recordTorqueMax} disabled={torqueLive === null} className={rowBtn}>{t('记录')}</button>
-              <button
-                onClick={() => { setTorqueMax(null); forceActions.resetMax('TORQUE').catch(() => {}) }}
-                disabled={!torqueConnected}
-                className={rowBtnClear}
-              >
-                {t('清除')}
-              </button>
-            </div>
+            <section className="flex min-h-0 flex-1 flex-col rounded-xl border border-[rgba(15,80,120,.09)] bg-white/30 p-2">
+              <GroupHeader icon="trending_up" title={t('峰值')} hint="°" />
+              <div className="mt-1.5 flex min-h-0 flex-1 flex-col justify-between gap-1">
+                <div className="flex min-h-[30px] flex-1 items-center gap-2 rounded-[10px] border border-[rgba(15,80,120,.09)] bg-white/60 px-3">
+                  <span className="text-[11.5px] text-slate-500">{t('顺时针峰值')} <em className="not-italic text-[9px] text-slate-400">°</em></span>
+                  <span className="ml-auto font-mono text-[15px] font-bold tabular-nums text-[#7c3aed]">{fmtNum(cwAngle, 3)}</span>
+                  <button onClick={recordCwPeak} disabled={freeAngle === null || freeAngle <= 0.001} className={rowBtn}>{t('记录')}</button>
+                  <button onClick={() => setCwAngle(null)} disabled={!testing} className={rowBtnClear}>{t('清除')}</button>
+                </div>
+                <div className="flex min-h-[30px] flex-1 items-center gap-2 rounded-[10px] border border-[rgba(15,80,120,.09)] bg-white/60 px-3">
+                  <span className="text-[11.5px] text-slate-500">{t('逆时针峰值')} <em className="not-italic text-[9px] text-slate-400">°</em></span>
+                  <span className="ml-auto font-mono text-[15px] font-bold tabular-nums text-[#7c3aed]">{fmtNum(ccwAngle, 3)}</span>
+                  <button onClick={recordCcwPeak} disabled={freeAngle === null || freeAngle >= -0.001} className={rowBtn}>{t('记录')}</button>
+                  <button onClick={() => setCcwAngle(null)} disabled={!testing} className={rowBtnClear}>{t('清除')}</button>
+                </div>
+              </div>
+            </section>
 
-            <div className="mt-1 rounded-[10px] border border-[rgba(15,80,120,.10)] bg-white/35 px-3 py-2 text-[10px] text-slate-500 leading-relaxed">
-              <b className="text-slate-600">{t('记录规则')}</b><br />
-              {t('趋势仅在测试中采集；峰值与力值需点击「记录」写入记录表。')}
-            </div>
+            <section className="flex min-h-0 flex-1 flex-col rounded-xl border border-[rgba(15,80,120,.09)] bg-white/30 p-2">
+              <GroupHeader icon="scale" title={t('力值')} hint="N" />
+              <div className="mt-1.5 flex min-h-0 flex-1 flex-col justify-between gap-1">
+                <div className="flex min-h-[30px] flex-1 items-center gap-2 rounded-[10px] border border-[rgba(15,80,120,.09)] bg-white/60 px-3">
+                  <span className="text-[11.5px] text-slate-500">{t('实时力值')} <em className="not-italic text-[9px] text-slate-400">N</em></span>
+                  <span className="ml-auto font-mono text-[15px] font-bold tabular-nums text-[#0891b2]">{fmtNum(torqueLive, 2)}</span>
+                  <button onClick={() => run(() => forceActions.zero('TORQUE'))} disabled={!torqueConnected || busy} className={rowBtn}>{t('清零')}</button>
+                  <button onClick={() => addRecord('实时力值', torqueLive, 'N')} disabled={torqueLive === null} className={rowBtn}>{t('记录')}</button>
+                </div>
+                <div className="flex min-h-[30px] flex-1 items-center gap-2 rounded-[10px] border border-[rgba(15,80,120,.09)] bg-white/60 px-3">
+                  <span className="text-[11.5px] text-slate-500">{t('最大力值')} <em className="not-italic text-[9px] text-slate-400">N</em></span>
+                  <span className="ml-auto font-mono text-[15px] font-bold tabular-nums text-[#0f2233]">{fmtNum(torqueMax, 2)}</span>
+                  <button onClick={recordTorqueMax} disabled={torqueLive === null} className={rowBtn}>{t('记录')}</button>
+                  <button
+                    onClick={() => { setTorqueMax(null); forceActions.resetMax('TORQUE').catch(() => {}) }}
+                    disabled={!torqueConnected}
+                    className={rowBtnClear}
+                  >
+                    {t('清除')}
+                  </button>
+                </div>
+              </div>
+            </section>
+          </div>
+
+          <div className="flex shrink-0 items-start gap-2 border-t border-[rgba(15,80,120,.08)] bg-white/45 px-3 py-2 text-[9.5px] leading-relaxed text-slate-500">
+            <span className="material-symbols-outlined mt-0.5 shrink-0 text-[14px] text-[#0891b2]">info</span>
+            <div><b className="text-slate-600">{t('记录规则')}</b> · {t('趋势仅在测试中采集；峰值与力值需点击「记录」写入记录表。')}</div>
           </div>
         </section>
 

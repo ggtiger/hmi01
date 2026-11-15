@@ -152,6 +152,8 @@ export const EN: Record<string, string> = {
   // ===== 转盘测试页 =====
   '蓝牙采集': 'Bluetooth Acquisition',
   '自由转角': 'Free Angle',
+  '峰值': 'Peaks',
+  '姿态': 'Posture',
   '顺时针峰值': 'CW Peak',
   '逆时针峰值': 'CCW Peak',
   '顺时针': 'CW',
@@ -639,4 +641,24 @@ export const EN: Record<string, string> = {
   '记录与导出': 'Records & Export',
   '蓝牙与校准': 'Bluetooth & Calibration',
   '故障恢复': 'Fault Recovery',
+  '全局控制': 'Global Controls',
+  '测试控制': 'Test Controls',
+  '调平与校正': 'Leveling & Calibration',
+  '推杆与加载': 'Push Rod & Loading',
+  '诊断与安全': 'Diagnostics & Safety',
+  '停止该侧': 'Stop This Side',
+  '轴手动控制': 'Manual Axis Control',
+  '切换轴会同步目标板': 'Switching axis also switches the target board',
+  '当前轴': 'Current Axis',
+  'A 角度': 'A Angle',
+  'B 角度': 'B Angle',
+  '相对移动，负值收回；MOVEABS 为绝对位置':
+    'Relative move; negative retracts. MOVEABS uses an absolute position.',
+  'Bit1=已回零': 'Bit1 = HOMED',
+  '推杆': 'Push Rod',
+  '方向盘': 'Steering',
+  '安全控制': 'Safety',
+  '需总使能 · 急停后复位': 'Enable All · reset fault after E-STOP',
+  '推杆未回原点时自动回零；距离通过上方写入。':
+    'The push rod homes automatically when needed; write the distance above.',
 }

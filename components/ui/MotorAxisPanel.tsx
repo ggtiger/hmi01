@@ -1,7 +1,5 @@
 'use client'
 
-import IndustrialCard from './IndustrialCard'
-import Button from './Button'
 import { fmtNum } from '@/lib/comm/types'
 import type { MotorAxis } from '@/lib/comm/device-service'
 import { AXIS_LABELS } from '@/lib/store/motor-store'
@@ -14,6 +12,7 @@ interface MotorAxisPanelProps {
   unit: string
   targetPos: string
   feed: string
+  disabled?: boolean
   onTargetPosChange: (v: string) => void
   onFeedChange: (v: string) => void
   onMove: () => void
@@ -23,78 +22,119 @@ interface MotorAxisPanelProps {
   onZero: () => void
 }
 
-/** 单轴控制面板 */
+/** 单轴控制面板：定位读数 + 目标/进给 + 轴级动作，保持五个原有操作全部可见 */
 export default function MotorAxisPanel(p: MotorAxisPanelProps) {
   const t = useT()
   const isPush = p.axis.startsWith('PUSH')
+  const disabled = !!p.disabled
 
   return (
-    <IndustrialCard
-      title={`${t(AXIS_LABELS[p.axis])} (${p.axis})`}
-      headerRight={
-        <div className="flex items-baseline gap-1">
-          <span className="font-label-sm text-on-surface-variant">{t('当前位置')}</span>
-          <span className="monospaced-data text-headline-md font-bold text-primary">
-            {fmtNum(p.position, 3)}
-          </span>
-          <span className="font-label-sm text-on-surface-variant">{p.unit}</span>
+    <div className="p-3">
+      <div className="grid grid-cols-[210px_minmax(0,1fr)_auto] items-stretch gap-2.5">
+        {/* 当前轴读数 */}
+        <div className="flex min-h-[70px] flex-col justify-between rounded-xl border border-white/85 bg-[linear-gradient(135deg,rgba(255,255,255,.78),rgba(255,255,255,.35))] px-3 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,.8)]">
+          <div className="flex items-center gap-1.5">
+            <span className="text-[9px] font-bold uppercase tracking-[1.1px] text-slate-400">{t('当前轴')}</span>
+            <span className="ml-auto rounded-md bg-[#0f2233]/[0.06] px-1.5 py-0.5 font-mono text-[9px] font-bold text-[#24405a]">
+              {p.axis}
+            </span>
+          </div>
+          <div className="mt-1 flex items-baseline gap-1.5">
+            <span className="truncate font-mono text-[24px] font-black leading-none tabular-nums text-[#0f2233]">
+              {fmtNum(p.position, 3)}
+            </span>
+            <span className="text-[11px] font-bold text-slate-400">{p.unit}</span>
+          </div>
+          <div className="mt-0.5 truncate text-[9.5px] text-slate-400">{t(AXIS_LABELS[p.axis])}</div>
         </div>
-      }
-    >
-      <div className="p-4 space-y-3">
-        <div className="flex gap-3 items-end">
-          <div className="flex-1">
-            <label className="font-label-sm text-on-surface-variant">
+
+        {/* 目标 / 进给 */}
+        <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_140px] gap-3">
+          <div className="min-w-0">
+            <label className="text-[10px] font-bold text-slate-500">
               {isPush ? t('目标行程（相对，负值收回）') : t('目标角度（绝对位置）')}
             </label>
-            <div className="flex items-center mt-0.5">
+            <div className="relative mt-1">
               <input
                 value={p.targetPos}
                 onChange={(e) => p.onTargetPosChange(e.target.value)}
                 inputMode="decimal"
                 placeholder={isPush ? 'mm' : '°'}
-                className="w-full px-3 py-2 rounded-l-lg border border-outline-variant monospaced-data text-body-md focus:outline-none focus:border-primary"
+                disabled={disabled}
+                className="ui-input h-8 w-full !pr-11"
               />
-              <span className="px-2 py-2 rounded-r-lg border border-l-0 border-outline-variant bg-surface-container-low font-label-sm text-on-surface-variant">
+              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 font-mono text-[10px] text-slate-400">
                 {p.unit}
               </span>
             </div>
           </div>
-          <div className="w-32">
-            <label className="font-label-sm text-on-surface-variant">
-              {t('进给 F')}（{isPush ? 'RPM' : '°/s'}）
+          <div>
+            <label className="text-[10px] font-bold text-slate-500">
+              {t('进给 F')} <span className="font-normal text-slate-400">({isPush ? 'RPM' : '°/s'})</span>
             </label>
             <input
               value={p.feed}
               onChange={(e) => p.onFeedChange(e.target.value)}
               inputMode="decimal"
               placeholder={isPush ? t('默认 60') : t('不限速')}
-              className="mt-0.5 w-full px-3 py-2 rounded-lg border border-outline-variant monospaced-data text-body-md focus:outline-none focus:border-primary"
+              disabled={disabled}
+              className="ui-input mt-1 h-8 w-full"
             />
           </div>
         </div>
 
-        <div className="grid grid-cols-5 gap-2">
-          <Button onClick={p.onMove} icon="arrow_outward" className="justify-center">
+        {/* 五个轴动作保持不变 */}
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <button
+            onClick={p.onMove}
+            disabled={disabled}
+            className="ui-action-btn ui-action-btn-primary !h-8 !px-3.5 !text-[12px]"
+          >
+            <span className="material-symbols-outlined text-[16px]">arrow_outward</span>
             MOVE
-          </Button>
-          <Button onClick={p.onMoveabs} disabled={!isPush} className="justify-center">
+          </button>
+          <button
+            onClick={p.onMoveabs}
+            disabled={disabled || !isPush}
+            className="ui-action-btn !h-8 !px-3 !text-[12px]"
+            title={!isPush ? t('MOVEABS 仅 PUSH 轴支持；MSH 轴 MOVE 即绝对定位') : t('MOVEABS')}
+          >
+            <span className="material-symbols-outlined text-[16px] text-slate-400">open_with</span>
             MOVEABS
-          </Button>
-          <Button variant="ghost" onClick={p.onHome} icon="home" className="justify-center">
+          </button>
+          <button
+            onClick={p.onHome}
+            disabled={disabled}
+            className="ui-action-btn ui-action-btn-ghost !h-8 !px-3 !text-[12px]"
+          >
+            <span className="material-symbols-outlined text-[16px] text-slate-400">home</span>
             {t('回零')}
-          </Button>
-          <Button variant="critical" onClick={p.onStop} icon="stop" className="justify-center">
+          </button>
+          <button
+            onClick={p.onStop}
+            disabled={disabled}
+            className="ui-action-btn ui-action-btn-danger !h-8 !px-3 !text-[12px]"
+          >
+            <span className="material-symbols-outlined text-[16px]">stop_circle</span>
             {t('停止')}
-          </Button>
-          <Button variant="ghost" onClick={p.onZero} icon="exposure_zero" className="justify-center">
+          </button>
+          <button
+            onClick={p.onZero}
+            disabled={disabled}
+            className="ui-action-btn ui-action-btn-ghost !h-8 !px-3 !text-[12px]"
+          >
+            <span className="material-symbols-outlined text-[16px] text-slate-400">exposure_zero</span>
             {t('置零')}
-          </Button>
+          </button>
         </div>
-        {!isPush && (
-          <div className="font-label-sm text-outline">{t('MOVEABS 仅 PUSH 轴支持；MSH 轴 MOVE 即绝对定位')}</div>
-        )}
       </div>
-    </IndustrialCard>
+
+      <div className="mt-1.5 flex items-center gap-1.5 text-[10px] text-slate-400">
+        <span className="material-symbols-outlined text-[14px]">info</span>
+        {!isPush
+          ? t('MOVEABS 仅 PUSH 轴支持；MSH 轴 MOVE 即绝对定位')
+          : t('相对移动，负值收回；MOVEABS 为绝对位置')}
+      </div>
+    </div>
   )
 }

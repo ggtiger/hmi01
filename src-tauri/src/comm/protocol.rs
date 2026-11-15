@@ -44,6 +44,9 @@ pub enum Command {
     PedalSelect(String), // A | B | NONE
     PedalStart(char),
     PedalStop(char),
+    /// 兼容旧协议：PEDAL TEST START/STOP（两侧同时）
+    PedalTestStart,
+    PedalTestStop,
     PedalSetLoad(char, f64),
     PedalLevel(char),
     PedalPushStart(char),
@@ -113,6 +116,8 @@ pub fn command_head(cmd: &Command) -> String {
         Command::PedalSelect(_)
         | Command::PedalStart(_)
         | Command::PedalStop(_)
+        | Command::PedalTestStart
+        | Command::PedalTestStop
         | Command::PedalSetLoad(..)
         | Command::PedalLevel(_)
         | Command::PedalPushStart(_)
@@ -173,6 +178,8 @@ impl Command {
             Command::PedalSelect(side) => format!("PEDAL SELECT {}", side),
             Command::PedalStart(side) => format!("PEDAL {} START", side),
             Command::PedalStop(side) => format!("PEDAL {} STOP", side),
+            Command::PedalTestStart => "PEDAL TEST START".into(),
+            Command::PedalTestStop => "PEDAL TEST STOP".into(),
             Command::PedalSetLoad(side, n) => format!("PEDAL {} SETLOAD {}", side, fmt_float(*n)),
             Command::PedalLevel(side) => format!("PEDAL {} LEVEL", side),
             Command::PedalPushStart(side) => format!("PEDAL {} PUSH START", side),
@@ -561,6 +568,8 @@ mod tests {
         assert_eq!(Command::SetLevelRatio(1.5).to_frame(), "SET LEVEL_RATIO 1.5");
         assert_eq!(Command::PedalSelect("A".into()).to_frame(), "PEDAL SELECT A");
         assert_eq!(Command::PedalStart('A').to_frame(), "PEDAL A START");
+        assert_eq!(Command::PedalTestStart.to_frame(), "PEDAL TEST START");
+        assert_eq!(Command::PedalTestStop.to_frame(), "PEDAL TEST STOP");
         assert_eq!(Command::PedalPushStop('B').to_frame(), "PEDAL B PUSH STOP");
         assert_eq!(
             Command::PedalSet { side: 'A', key: "PUSH_DIST".into(), value: "25.5".into() }.to_frame(),

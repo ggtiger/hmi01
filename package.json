@@ -12,7 +12,12 @@
     "tauri:bundle": "node scripts/bundle-sidecar.js",
     "deploy:build": "node scripts/deploy-build.js",
     "start:prod": "HOSTNAME=${HOSTNAME:-0.0.0.0} node .next/standalone/$(find .next/standalone -maxdepth 10 -name server.js -not -path '*/node_modules/*' -type f | head -1 | xargs dirname)/server.js",
-    "mock:device": "node scripts/mock-device-server.js"
+    "mock:device": "node scripts/mock-device-server.js",
+    "mock:test": "node scripts/mock-smoke-test.js",
+    "release:version": "node scripts/set-release-version.mjs",
+    "release:configure": "node scripts/configure-release.mjs",
+    "release:server": "node scripts/publish-server-update.mjs --mode server",
+    "release:windows": "tauri build --bundles nsis --config src-tauri/tauri.release.conf.json"
   },
   "dependencies": {
     "@tauri-apps/plugin-dialog": "~2.7.0",

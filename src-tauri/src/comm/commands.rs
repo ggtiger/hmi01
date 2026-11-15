@@ -413,6 +413,18 @@ pub async fn pedal_stop(side: String, state: tauri::State<'_, BoardMap>) -> Resu
     )
 }
 
+/// 兼容旧协议：两侧同时开始自动流程（PEDAL TEST START）
+#[tauri::command]
+pub async fn pedal_test_start(state: tauri::State<'_, BoardMap>) -> Result<(), String> {
+    send_both(&state, Command::PedalTestStart, T_MOTOR).await
+}
+
+/// 兼容旧协议：两侧同时停止自动流程（PEDAL TEST STOP）
+#[tauri::command]
+pub async fn pedal_test_stop(state: tauri::State<'_, BoardMap>) -> Result<(), String> {
+    send_both(&state, Command::PedalTestStop, T_MOTOR).await
+}
+
 #[tauri::command]
 pub async fn pedal_setload(
     side: String,

@@ -137,6 +137,16 @@ export async function pedalStop(side: BoardSide): Promise<void> {
   return invoke('pedal_stop', { side });
 }
 
+/** 兼容旧协议：两侧同时开始自动流程 */
+export async function pedalTestStart(): Promise<void> {
+  return invoke('pedal_test_start');
+}
+
+/** 兼容旧协议：两侧同时停止自动流程 */
+export async function pedalTestStop(): Promise<void> {
+  return invoke('pedal_test_stop');
+}
+
 export async function pedalSetload(side: BoardSide, load: number): Promise<void> {
   return invoke('pedal_setload', { side, load });
 }

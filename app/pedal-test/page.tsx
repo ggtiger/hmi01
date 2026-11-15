@@ -184,8 +184,8 @@ export default function PedalTestPage() {
     URL.revokeObjectURL(url)
   }
 
-  const rowBtn = 'h-8 min-w-[46px] px-2 rounded-md border border-white/80 bg-white/70 text-[11px] font-bold text-slate-600 hover:text-[#0891b2]'
-  const rowBtnClear = 'h-8 min-w-[46px] px-2 rounded-md border border-white/80 bg-white/50 text-[11px] font-bold text-slate-500 hover:text-red-600'
+  const rowBtn = 'h-6 min-w-[42px] px-2 rounded-md border border-[rgba(15,80,120,.18)] bg-[#eef5fa] text-[10.5px] font-bold text-slate-600 shadow-sm hover:bg-white hover:text-[#0891b2]'
+  const rowBtnClear = 'h-6 min-w-[42px] px-2 rounded-md border border-[rgba(15,80,120,.14)] bg-white/85 text-[10.5px] font-bold text-slate-500 hover:border-red-200 hover:text-red-600'
 
   return (
     <div className="h-full flex flex-col gap-2 p-3 overflow-hidden">
@@ -256,38 +256,38 @@ export default function PedalTestPage() {
               </span>
             </span>
           </div>
-          <div className="flex-1 min-h-0 overflow-y-auto p-2.5 flex flex-col gap-1.5">
+          <div className="no-scrollbar flex-[1.1] min-h-0 overflow-y-auto p-2 flex flex-col justify-between gap-1">
             <div className="grid grid-cols-2 gap-1.5">
-              <div className="glass-row !min-h-[46px]">
+              <div className="flex-1 glass-row !min-h-[30px] !py-0.5 !max-h-[40px]">
                 <span className="k">{t9n('倾角 X')} <em>°</em></span>
                 <span className="v">{fmtNum(tiltX, 3)}</span>
               </div>
-              <div className="glass-row !min-h-[46px]">
+              <div className="flex-1 glass-row !min-h-[30px] !py-0.5 !max-h-[40px]">
                 <span className="k">{t9n('倾角 Y')} <em>°</em></span>
                 <span className="v">{fmtNum(tiltY, 3)}</span>
               </div>
             </div>
 
-            <div className="glass-row !min-h-[46px]">
+            <div className="flex-1 glass-row !min-h-[30px] !py-0.5 !max-h-[40px]">
               <span className="k">{t9n('垂直测距')} <em>mm</em></span>
               <span className="v">{fmtNum(laser, 2)}</span>
               <button onClick={() => run(() => actions.pedalZero(workSide))} disabled={!connected || busy} className={rowBtn}>
                 {t9n('清零')}
               </button>
             </div>
-            <div className="glass-row !min-h-[46px]">
+            <div className="flex-1 glass-row !min-h-[30px] !py-0.5 !max-h-[40px]">
               <span className="k">{t9n('起始高度')} <em>mm</em></span>
               <span className="v">{fmtNum(snap.startH, 2)}</span>
               <button onClick={() => recordField('startH')} disabled={!connected} className={rowBtn}>{t9n('记录')}</button>
               <button onClick={() => setField(workSide, 'startH', null)} disabled={!connected} className={rowBtnClear}>{t9n('清除')}</button>
             </div>
-            <div className="glass-row !min-h-[46px]">
+            <div className="flex-1 glass-row !min-h-[30px] !py-0.5 !max-h-[40px]">
               <span className="k">{t9n('终末高度')} <em>mm</em></span>
               <span className="v">{fmtNum(snap.endH, 2)}</span>
               <button onClick={() => recordField('endH')} disabled={!connected} className={rowBtn}>{t9n('记录')}</button>
               <button onClick={() => setField(workSide, 'endH', null)} disabled={!connected} className={rowBtnClear}>{t9n('清除')}</button>
             </div>
-            <div className="glass-row !min-h-[46px]">
+            <div className="flex-1 glass-row !min-h-[30px] !py-0.5 !max-h-[40px]">
               <span className="k">{t9n('高度差')} <em>mm</em></span>
               <span className="v cyan">{fmtNum(heightDiff, 2)}</span>
               <button onClick={() => recordField('heightDiff')} disabled={!connected} className={rowBtn}>{t9n('记录')}</button>
@@ -299,38 +299,52 @@ export default function PedalTestPage() {
                 {t9n('清除')}
               </button>
             </div>
-            <div className="glass-row !min-h-[46px]">
+            <div className="flex-1 glass-row !min-h-[30px] !py-0.5 !max-h-[40px]">
               <span className="k">{t9n('实时力值')} <em>N</em></span>
               <span className="v cyan">{fmtNum(forceLive, 2)}</span>
               <button onClick={() => recordField('force')} disabled={!forceCh.isConnected} className={rowBtn}>{t9n('记录')}</button>
               <button disabled className={rowBtnClear}>{t9n('清除')}</button>
             </div>
-            <div className="grid grid-cols-2 gap-1.5">
-              <div className="glass-row !min-h-[46px]">
+            <div className="flex max-h-[40px] flex-1 gap-1">
+              <div className="flex-1 glass-row !min-h-[30px] !py-0.5 !max-h-[40px]">
                 <span className="k">{t9n('最大力值')} <em>N</em></span>
                 <span className="v">{fmtNum(forceMax, 2)}</span>
               </div>
-              <div className="glass-row !min-h-[46px]">
+              <div className="flex-1 glass-row !min-h-[30px] !py-0.5 !max-h-[40px]">
                 <span className="k">{t9n('均匀力值')} <em>N</em></span>
                 <span className="v">{fmtNum(avgForce, 2)}</span>
               </div>
             </div>
 
-            <details className="mt-1 rounded-[10px] border border-[rgba(15,80,120,.10)] bg-white/35 overflow-hidden" open>
-              <summary className="cursor-pointer px-3 py-2 font-label-bold text-[11px] tracking-wider text-slate-500 list-none flex items-center gap-1.5">
-                <span className="text-[#0891b2]">▾</span>{t9n('电机控制部分')}
-                <span className="ml-auto text-[9px] font-normal text-slate-400">{t9n('需总使能 · 命令发往目标板')}</span>
-              </summary>
-              <div className="border-t border-[rgba(15,80,120,.07)] p-2 space-y-1.5">
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="w-14 text-[10px] font-bold text-slate-500">{t9n('调平电机')}</span>
-                  <input
-                    value={work.params.setAngle}
-                    onChange={(e) => setParam(workSide, 'setAngle', e.target.value)}
-                    className="ui-input w-16 !h-8 !py-1 text-center !text-[12px]"
-                    inputMode="decimal"
-                    title={t9n('目标角度 °')}
-                  />
+          </div>
+
+          {/* 电机控制固定在左侧面板底部：数据滚动不会把它顶走或遮住 */}
+          <div className="relative flex flex-[0.9] min-h-0 flex-col overflow-hidden border-t border-[rgba(15,80,120,.10)] bg-white/55 shadow-[0_-8px_20px_rgba(31,86,130,.05)]">
+            <div className="flex shrink-0 items-center gap-2 px-3 py-2">
+              <span className="material-symbols-outlined text-[15px] text-[#0891b2]">precision_manufacturing</span>
+              <span className="text-[10.5px] font-bold tracking-wider text-slate-600">{t9n('电机控制部分')}</span>
+              <span className="ml-auto rounded-full border border-white/90 bg-white/50 px-2 py-0.5 text-[8.5px] font-medium text-slate-400" title={t9n('命令仅发往目标板')}>
+                {t9n('需总使能 · 急停后复位')}
+              </span>
+            </div>
+
+            <div className="no-scrollbar flex min-h-0 flex-1 flex-col overflow-y-auto border-t border-[rgba(15,80,120,.07)] p-2.5">
+              <div className="grid h-full min-h-0 flex-1 grid-cols-1 content-center gap-x-2 gap-y-1 xl:grid-cols-[70px_minmax(0,1fr)] xl:grid-rows-3 xl:gap-y-2">
+                <span className="flex items-center gap-1 text-[10.5px] font-bold text-slate-500">
+                  <span className="material-symbols-outlined text-[14px] text-[#0891b2]">tune</span>
+                  {t9n('调平电机')}
+                </span>
+                <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                  <div className="relative shrink-0">
+                    <input
+                      value={work.params.setAngle}
+                      onChange={(e) => setParam(workSide, 'setAngle', e.target.value)}
+                      className="pedal-ctrl-input w-[84px] !pr-6 text-center"
+                      inputMode="decimal"
+                      title={t9n('目标角度 °')}
+                    />
+                    <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 font-mono text-[9px] text-slate-400">°</span>
+                  </div>
                   <button
                     onClick={() => run(async () => {
                       const angle = Number(work.params.setAngle)
@@ -338,43 +352,77 @@ export default function PedalTestPage() {
                       await actions.motorMove(workSide, angle)
                     })}
                     disabled={!connected || busy}
-                    className="glass-btn !h-8 !px-2.5 !text-[11px]"
+                    className="pedal-ctrl-btn"
                   >
                     {t9n('启动')}
                   </button>
-                  <button onClick={() => run(() => actions.pedalLevel(workSide))} disabled={!connected || busy} className="glass-btn !h-8 !px-2.5 !text-[11px]">
+                  <button onClick={() => run(() => actions.pedalLevel(workSide))} disabled={!connected || busy} className="pedal-ctrl-btn">
                     {t9n('调平补偿')}
                   </button>
                 </div>
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="w-14 text-[10px] font-bold text-slate-500">{t9n('加载电机')}</span>
-                  <input
-                    value={work.params.pushDist}
-                    onChange={(e) => setParam(workSide, 'pushDist', e.target.value)}
-                    onBlur={() => {
-                      if (work.params.pushDist) actions.pedalSet(workSide, 'PUSH_DIST', work.params.pushDist).catch(() => {})
-                    }}
-                    className="ui-input w-14 !h-8 !py-1 text-center !text-[12px]"
-                    inputMode="decimal"
-                    placeholder="mm"
-                  />
-                  <button onClick={() => run(() => actions.pedalPushStart(workSide))} disabled={!connected || busy} className="glass-btn !h-8 !px-2.5 !text-[11px]">
+
+                <span className="flex items-center gap-1 text-[10.5px] font-bold text-slate-500">
+                  <span className="material-symbols-outlined text-[14px] text-[#0891b2]">south</span>
+                  {t9n('加载电机')}
+                </span>
+                <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                  <div className="relative shrink-0">
+                    <input
+                      value={work.params.pushDist}
+                      onChange={(e) => setParam(workSide, 'pushDist', e.target.value)}
+                      onBlur={() => {
+                        if (work.params.pushDist) actions.pedalSet(workSide, 'PUSH_DIST', work.params.pushDist).catch(() => {})
+                      }}
+                      className="pedal-ctrl-input w-[84px] !pr-7 text-center"
+                      inputMode="decimal"
+                      placeholder="mm"
+                    />
+                    <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 font-mono text-[9px] text-slate-400">mm</span>
+                  </div>
+                  <button onClick={() => run(() => actions.pedalPushStart(workSide))} disabled={!connected || busy} className="glass-btn primary !h-9 !px-3 !text-[11.5px]">
                     {t9n('启动加载')}
                   </button>
-                  <button onClick={() => run(() => actions.motorHome(workSide === 'A' ? 'PUSH_A' : 'PUSH_B'))} disabled={!connected || busy} className="glass-btn !h-8 !px-2.5 !text-[11px]">
+                  <button onClick={() => run(() => actions.motorHome(workSide === 'A' ? 'PUSH_A' : 'PUSH_B'))} disabled={!connected || busy} className="pedal-ctrl-btn">
                     {t9n('推杆回零')}
                   </button>
-                  <button onClick={() => run(() => actions.motorMove(workSide === 'A' ? 'PUSH_A' : 'PUSH_B', -1.0))} disabled={!connected || busy} className="glass-btn !h-8 !px-2.5 !text-[11px]">−</button>
-                  <button onClick={() => run(() => actions.motorMove(workSide === 'A' ? 'PUSH_A' : 'PUSH_B', 1.0))} disabled={!connected || busy} className="glass-btn !h-8 !px-2.5 !text-[11px]">＋</button>
+                  <div className="inline-flex shrink-0 overflow-hidden rounded-lg border border-[rgba(15,80,120,.18)] bg-white shadow-[0_2px_8px_rgba(31,86,130,.06)]">
+                    <button
+                      onClick={() => run(() => actions.motorMove(workSide === 'A' ? 'PUSH_A' : 'PUSH_B', -1.0))}
+                      disabled={!connected || busy}
+                      className="h-9 w-9 text-[15px] text-slate-600 transition-colors hover:bg-[#f5fbfe] disabled:opacity-40"
+                      aria-label="推杆微调 -1"
+                    >
+                      −
+                    </button>
+                    <button
+                      onClick={() => run(() => actions.motorMove(workSide === 'A' ? 'PUSH_A' : 'PUSH_B', 1.0))}
+                      disabled={!connected || busy}
+                      className="h-9 w-9 border-l border-[rgba(15,80,120,.12)] text-[15px] text-slate-600 transition-colors hover:bg-[#f5fbfe] disabled:opacity-40"
+                      aria-label="推杆微调 +1"
+                    >
+                      ＋
+                    </button>
+                  </div>
                 </div>
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <button onClick={actions.motorEnable} disabled={!connected} className="glass-btn !h-8 !px-3 !text-[11px]">{t9n('总使能')}</button>
-                  <button onClick={() => run(() => actions.pedalStop(workSide))} disabled={!connected || busy} className="glass-btn danger !h-8 !px-3 !text-[11px]">STOP</button>
-                  <button onClick={() => run(() => actions.resetFault(workSide))} disabled={!connected || busy} className="glass-btn !h-8 !px-3 !text-[11px]">{t9n('故障复位')}</button>
-                  <span className="ml-auto text-[9px] text-slate-400">{t9n('急停后必须先故障复位')}</span>
+
+                <span className="flex items-center gap-1 text-[10.5px] font-bold text-slate-500">
+                  <span className="material-symbols-outlined text-[14px] text-[#0891b2]">shield</span>
+                  {t9n('安全控制')}
+                </span>
+                <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                  <button onClick={actions.motorEnable} disabled={!connected} className="pedal-ctrl-btn">
+                    {t9n('总使能')}
+                  </button>
+                  <button onClick={() => run(() => actions.pedalStop(workSide))} disabled={!connected || busy} className="glass-btn danger !h-9 !px-4 !text-[11.5px]">
+                    STOP
+                  </button>
+                  <button onClick={() => run(() => actions.resetFault(workSide))} disabled={!connected || busy} className="pedal-ctrl-btn !border-amber-200 !bg-amber-50 !text-amber-700">
+                    {t9n('故障复位')}
+                  </button>
                 </div>
               </div>
-            </details>
+
+            </div>
           </div>
         </section>
 
