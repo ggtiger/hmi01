@@ -41,11 +41,37 @@ export const DEFAULT_CONFIG: AppConfig = {
 
 const STORAGE_KEY = 'xdesinhmi-config'
 
+/**
+ * 早期模板遗留的占位更新源。
+ * Rust 端旧版本会把它们写入 config.json；即使当前 Next 构建已指向七牛，
+ * get_app_config 返回的旧值仍会覆盖 BUILD_CDN_URL，因此在读取时统一纠正。
+ */
+const LEGACY_CDN_PREFIX = 'https://cdn.example.com'
+const LEGACY_GITHUB_REPO = 'xdesin/xdesin-hmi'
+
+function normalizeUpdate(update: Partial<AppConfig['update']> | undefined): AppConfig['update'] {
+  const merged = { ...DEFAULT_CONFIG.update, ...update }
+
+  const cdnUrl = (merged.cdnUrl || '').trim().replace(/\/+$/, '')
+  merged.cdnUrl =
+    !cdnUrl || cdnUrl === LEGACY_CDN_PREFIX || cdnUrl.startsWith(`${LEGACY_CDN_PREFIX}/`)
+      ? DEFAULT_CONFIG.update.cdnUrl
+      : cdnUrl
+
+  const githubRepo = (merged.githubRepo || '').trim()
+  merged.githubRepo =
+    !githubRepo || githubRepo.toLowerCase() === LEGACY_GITHUB_REPO
+      ? DEFAULT_CONFIG.update.githubRepo
+      : githubRepo
+
+  return merged
+}
+
 /** 深度合并，确保缺失字段回退到默认值 */
 function mergeConfig(partial: Partial<AppConfig>): AppConfig {
   return {
     device: { ...DEFAULT_CONFIG.device, ...partial.device },
-    update: { ...DEFAULT_CONFIG.update, ...partial.update },
+    update: normalizeUpdate(partial.update),
     app: { ...DEFAULT_CONFIG.app, ...partial.app },
   }
 }
@@ -72,14 +98,15 @@ export async function loadConfig(): Promise<AppConfig> {
 }
 
 export async function saveConfig(config: AppConfig): Promise<void> {
+  const normalized = mergeConfig(config)
   if (isTauri()) {
     try {
       const { invoke } = await import('@tauri-apps/api/core')
-      await invoke('set_app_config', { config })
+      await invoke('set_app_config', { config: normalized })
     } catch (err) {
       console.warn('[Config] Failed to save to Tauri:', err)
     }
   } else {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(config))
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized))
   }
 }
