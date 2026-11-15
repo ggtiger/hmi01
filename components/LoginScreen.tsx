@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useUserStore } from '@/lib/store'
 import { useI18nStore, useT } from '@/lib/i18n'
+import { WindowControls } from './ui/WindowControls'
 
 /** 登录页：启动动画结束后显示，登录成功进入系统和连接向导 */
 export default function LoginScreen({ onLogin }: { onLogin: () => void }) {
@@ -31,14 +32,21 @@ export default function LoginScreen({ onLogin }: { onLogin: () => void }) {
   }
 
   return (
-    <div className="fixed inset-0 z-[500] flex items-center justify-center p-5 bg-[radial-gradient(900px_500px_at_50%_0%,rgba(8,145,178,.16),transparent_62%),rgba(15,40,60,.25)] backdrop-blur-md">
-      <div className="absolute right-5 top-5 flex rounded-[10px] overflow-hidden border border-white/80 bg-white/60">
+    <div
+      className="draggable-region fixed inset-0 z-[500] flex items-center justify-center p-5 bg-[radial-gradient(900px_500px_at_50%_0%,rgba(8,145,178,.16),transparent_62%),rgba(15,40,60,.25)] backdrop-blur-md"
+      data-tauri-drag-region
+    >
+      {/* 无顶栏页面也需要窗口控制按钮；fixed 在右上角 */}
+      <WindowControls />
+
+      {/* 语言切换放左下角：避开 Windows 右上角窗口按钮与 macOS 左上角红绿灯 */}
+      <div className="absolute bottom-5 left-5 flex overflow-hidden rounded-[10px] border border-white/80 bg-white/70 shadow-sm">
         {(['zh', 'en'] as const).map((l) => (
           <button
             key={l}
             onClick={() => setLocale(l)}
             className={`px-3 py-1.5 text-[12px] font-label-bold ${
-              locale === l ? 'bg-[#0891b2] text-white' : 'text-slate-600'
+              locale === l ? 'bg-[#0891b2] text-white' : 'text-slate-600 hover:bg-white'
             }`}
           >
             {l === 'zh' ? '简体中文' : 'English'}
@@ -46,8 +54,15 @@ export default function LoginScreen({ onLogin }: { onLogin: () => void }) {
         ))}
       </div>
 
+      {/* 顶部拖动提示；pointer-events-none 让拖拽落到窗口背景 */}
+      <div className="pointer-events-none absolute left-1/2 top-4 flex -translate-x-1/2 items-center gap-1 text-slate-400/80">
+        <span className="material-symbols-outlined text-[16px]">drag_indicator</span>
+        <span className="text-[9px] font-bold tracking-[2px]">DRAG</span>
+      </div>
+
       <form
         onSubmit={handleSubmit}
+        data-tauri-no-drag
         className="w-[410px] rounded-[18px] border border-white/95 bg-[#f9fdff]/95 p-8 shadow-[0_28px_80px_rgba(15,40,60,.24)] backdrop-blur-2xl"
       >
         <div className="flex flex-col items-center gap-2 mb-6">

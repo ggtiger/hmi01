@@ -1,255 +1,262 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
-import { useDevice } from '@/lib/comm'
-import { checkForUpdate } from '@/lib/updater'
-import { useUpdaterStore } from '@/lib/store'
+import { useCallback, useEffect, useState } from 'react'
+import Link from 'next/link'
+import { useDevice, useForce } from '@/lib/comm'
+import { checkForUpdate, getCurrentServerVersion } from '@/lib/updater'
+import { useUpdaterStore, useUserStore } from '@/lib/store'
 import { useT } from '@/lib/i18n'
 
-interface HelpPage {
-  title: string
-  paragraphs: string[]
-  tips?: string[]
+const UPDATE_CDN = 'https://o09u11p5v.qnssl.com/hmi'
+const SUPPORT_EMAIL = 'support@xdesin.local'
+
+function InfoTile({ label, value, mono = true }: { label: string; value: string; mono?: boolean }) {
+  return (
+    <div className="min-w-0 rounded-xl border border-white/95 bg-white/55 px-3 py-2">
+      <div className="text-[10px] text-slate-400">{label}</div>
+      <div
+        className={`mt-0.5 truncate text-[13px] font-bold text-[#142639] ${mono ? 'font-mono' : ''}`}
+        title={value}
+      >
+        {value}
+      </div>
+    </div>
+  )
 }
 
-const HELP_PAGES: HelpPage[] = [
-  {
-    title: '连接双板',
-    paragraphs: [
-      '在顶部「连接」中分别连接 A/B 板；默认地址 192.168.8.88:10001 与 192.168.8.89:10001。',
-      '板卡 LED 变绿并显示心跳时间，表示连接正常。已连接状态下 IP/端口锁定，需先断开再修改。',
-    ],
-    tips: ['A/B 独立心跳，15 秒无数据自动标记离线'],
-  },
-  {
-    title: '选择目标板',
-    paragraphs: [
-      '在踏板/调试页面点击 A 模块 / B 模块切换目标板，所有动作按钮只作用于目标板。',
-      '切换目标板时同步对应板的 PEDAL SELECT，避免命令发错侧。',
-    ],
-    tips: ['急停、总停止类命令会同时下发两块板'],
-  },
-  {
-    title: '调平',
-    paragraphs: [
-      '在调试台或踏板数据面板点击「开始角度补偿」执行闭环调平；完成后日志显示 DEBUG LEVEL DONE。',
-      '目标倾角 X = 0°，进入死区并确认后判定完成，流程自动进入推出步骤。',
-    ],
-    tips: ['调平过程中手动操作电机会中止自动流程', '故障态下运动命令会被拒绝'],
-  },
-  {
-    title: '推出',
-    paragraphs: [
-      '先设置推出距离（0–500 mm），再点击「启动加载」。未回原点时固件会自动回零后推出。',
-      'STOP 只停止目标板流程，不影响另一侧。',
-    ],
-    tips: ['推出前请确认安全区域无人'],
-  },
-  {
-    title: '记录与导出',
-    paragraphs: [
-      '测试完成后在「记录」中查看调平、推杆与测量点数据；记录可展开查看明细。',
-      '每条记录和全部记录均可导出，导出内容包含测量点明细与结果。',
-    ],
-    tips: ['自动流程记录稳定点快照', '趋势仅在测试中采集'],
-  },
-  {
-    title: '蓝牙与校准',
-    paragraphs: [
-      '点击「蓝牙模块联结」打开模块管理：倾角、转向力、加载 A/B、二路开关。',
-      '力值通道：空载「清零」记录零点；施加标准载荷后填写标准 N，点击「校准」。',
-    ],
-    tips: ['系数默认 1.00000，按通道独立保存', '设备不支持重量输出时自动使用 AD 内码换算'],
-  },
-  {
-    title: '故障恢复',
-    paragraphs: [
-      '急停后设备进入 FAULT，所有运动命令被拒绝。必须先执行「故障复位」RESET FAULT，再总使能继续操作。',
-      '急停命令同时下发 A/B 两块板，故障未复位时开始测试会被拦截。',
-    ],
-    tips: ['故障复位不自动使能电机'],
-  },
-  {
-    title: '版本与设备信息',
-    paragraphs: [],
-    tips: [],
-  },
-]
-
-/** 操作指引（V6 原型）：左右轮播切换，支持键盘/滑动 */
-export default function HelpPage() {
+/** 关于：产品信息、版本、设备状态与更新入口 */
+export default function AboutPage() {
   const t = useT()
-  const { state } = useDevice()
-  const [index, setIndex] = useState(0)
-  const [version, setVersion] = useState('')
+  const { state, boards } = useDevice()
+  const { states: forceStates } = useForce()
+  const currentUser = useUserStore((s) => s.currentUser)
+  const [appVersion, setAppVersion] = useState<string | null>(null)
+  const [serverVersion, setServerVersion] = useState('--')
   const [checking, setChecking] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
-  const updateInfo = useUpdaterStore((s) => s.updateInfo)
-  const stage = useUpdaterStore((s) => s.stage)
-  const touchX = useRef(0)
 
   useEffect(() => {
+    let alive = true
     import('@tauri-apps/api/app')
       .then(({ getVersion }) => getVersion())
-      .then(setVersion)
-      .catch(() => setVersion('（浏览器模式）'))
-  }, [])
+      .then((version) => {
+        if (alive) setAppVersion(version)
+      })
+      .catch(() => {
+        if (alive) setAppVersion(null)
+      })
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowLeft') setIndex((i) => Math.max(0, i - 1))
-      if (e.key === 'ArrowRight') setIndex((i) => Math.min(HELP_PAGES.length - 1, i + 1))
+    getCurrentServerVersion()
+      .then((version) => {
+        if (alive && version && version !== 'unknown') setServerVersion(version)
+      })
+      .catch(() => {
+        /* 非 Tauri 环境保持 -- */
+      })
+
+    return () => {
+      alive = false
     }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [])
+  }, [t])
 
-  const page = HELP_PAGES[index]
-  const isLast = index === HELP_PAGES.length - 1
-
-  const handleCheck = async () => {
+  const handleCheck = useCallback(async () => {
     setChecking(true)
     setMessage(null)
     try {
       const info = await checkForUpdate()
-      if (!info) setMessage(t('当前已是最新版本'))
-    } catch (e) {
-      setMessage(`${t('检查更新失败')}: ${e instanceof Error ? e.message : String(e)}`)
+      if (info) {
+        useUpdaterStore.getState().setAvailable(info)
+        setMessage(`${t('发现新版本')} v${info.version}，${t('请按右下角提示完成更新')}`)
+      } else {
+        setMessage(t('当前已是最新版本'))
+      }
+    } catch (err) {
+      setMessage(`${t('检查更新失败')}: ${err instanceof Error ? err.message : String(err)}`)
     } finally {
       setChecking(false)
     }
-  }
+  }, [t])
+
+  const firmware = state.info?.fw || state.fw_version || '--'
+  const deviceId = state.device_id || '--'
+  const appVersionLabel = appVersion ? `v${appVersion}` : t('浏览器模式')
+  const onlineBoards = (['A', 'B'] as const).filter((side) => boards[side].is_connected).length
+  const onlineModules = Object.values(forceStates).filter((st) => st.isConnected).length
 
   return (
-    <div className="h-full flex flex-col gap-2 p-3 overflow-hidden">
-      <div className="flex items-center gap-2 flex-shrink-0">
-        <h1 className="text-[21px] font-black text-primary whitespace-nowrap">{t('操作指引')}</h1>
-        <span className="px-2 py-0.5 rounded-full bg-[#0891b2]/8 border border-[#0891b2]/20 text-[9px] font-extrabold text-[#0891b2]">
-          GUIDE
+    <div className="h-full flex flex-col gap-3 p-4 overflow-hidden">
+      <div className="flex flex-shrink-0 items-center gap-2">
+        <h1 className="whitespace-nowrap text-[21px] font-black text-primary">{t('关于')}</h1>
+        <span className="rounded-full border border-[#0891b2]/20 bg-[#0891b2]/8 px-2 py-0.5 text-[9px] font-extrabold text-[#0891b2]">
+          ABOUT
         </span>
-        <div className="ml-auto font-label-sm text-slate-400">{index + 1} / {HELP_PAGES.length}</div>
+        <span className="ml-auto rounded-full border border-white/90 bg-white/55 px-2.5 py-1 font-mono text-[10px] text-slate-500">
+          {appVersionLabel}
+        </span>
       </div>
 
-      <div className="flex-1 min-h-0 flex items-stretch gap-3">
-        <button
-          onClick={() => setIndex((i) => Math.max(0, i - 1))}
-          disabled={index === 0}
-          className="self-center w-11 h-11 rounded-full border border-white/95 bg-white/65 text-[#0891b2] text-[26px] leading-none shadow flex items-center justify-center disabled:opacity-30"
-          aria-label={t('上一页')}
-        >
-          ‹
-        </button>
-
-        <div
-          className="flex-1 min-w-0 min-h-0 overflow-hidden rounded-2xl"
-          onTouchStart={(e) => { touchX.current = e.touches[0].clientX }}
-          onTouchEnd={(e) => {
-            const dx = e.changedTouches[0].clientX - touchX.current
-            if (Math.abs(dx) > 50) setIndex((i) => Math.max(0, Math.min(HELP_PAGES.length - 1, i + (dx < 0 ? 1 : -1))))
-          }}
-        >
-          <div
-            className="flex h-full transition-transform duration-300 ease-out"
-            style={{ transform: `translateX(-${index * 100}%)` }}
-          >
-            {HELP_PAGES.map((p, i) => (
-              <article
-                key={p.title}
-                className={`flex-[0_0_100%] min-w-0 h-full flex flex-col justify-center gap-4 px-12 py-8 rounded-2xl border shadow-[0_16px_40px_rgba(31,86,130,.10)] ${
-                  p.title === '故障恢复'
-                    ? 'border-red-200/70 bg-[linear-gradient(135deg,rgba(255,245,245,.8),rgba(255,255,255,.6))]'
-                    : 'border-white/95 bg-white/60'
-                }`}
-              >
-                <div
-                  className={`w-12 h-12 rounded-[13px] flex items-center justify-center text-white font-black text-[18px] ${
-                    p.title === '故障恢复'
-                      ? 'bg-[linear-gradient(135deg,#fb7185,#e11d48)]'
-                      : 'bg-[linear-gradient(135deg,#0891b2,#2563eb)]'
-                  }`}
-                >
-                  {p.title === '故障恢复' ? '!' : String(i + 1).padStart(2, '0')}
-                </div>
-                <h3 className="text-[25px] font-black text-[#0e2133] tracking-tight">{t(p.title)}</h3>
-
-                {p.title === '版本与设备信息' ? (
-                  <div className="max-w-2xl w-full space-y-3">
-                    <div className="flex items-center gap-3">
-                      <img src="/icon.png" alt="" className="w-16 h-16 rounded-2xl shadow-md" />
-                      <div>
-                        <div className="text-[17px] font-black text-primary">{t('智能驾驶舱检测系统')}</div>
-                        <div className="font-label-sm text-slate-500">{t('智能驾驶舱检测系统 · 踏板 / 转盘综合检测')}</div>
-                      </div>
-                    </div>
-                    <div className="rounded-xl overflow-hidden border border-white/90">
-                      <div className="glass-row !min-h-[36px] rounded-none border-0 border-b border-white/60"><span className="k">{t('应用版本')}</span><span className="v">{version ? t(version) : '--'}</span></div>
-                      <div className="glass-row !min-h-[36px] rounded-none border-0 border-b border-white/60"><span className="k">{t('设备 ID')}</span><span className="v">{state.device_id || t('未连接')}</span></div>
-                      <div className="glass-row !min-h-[36px] rounded-none border-0 border-b border-white/60"><span className="k">{t('固件版本')}</span><span className="v">{state.info?.fw || state.fw_version || '--'}</span></div>
-                      <div className="glass-row !min-h-[36px] rounded-none border-0"><span className="k">{t('通信协议')}</span><span className="v !text-[12px]">Xdesin TCP · AES-128-CTR</span></div>
-                    </div>
-                    {updateInfo && stage !== 'idle' && (
-                      <div className="rounded-xl border border-white/90 bg-white/60 p-3">
-                        <div className="font-label-bold text-[13px]">
-                          {t('发现新版本')} <span className="monospaced-data">{updateInfo.version}</span>
-                        </div>
-                        {updateInfo.body && <div className="font-label-sm text-slate-500 mt-1">{updateInfo.body}</div>}
-                        {updateInfo.canAutoInstall === false && updateInfo.downloadUrl && (
-                          <a href={updateInfo.downloadUrl} className="text-[#0891b2] underline mt-2 inline-block font-label-sm">
-                            {t('手动下载安装包')}
-                          </a>
-                        )}
-                      </div>
-                    )}
-                    <div className="flex items-center gap-3">
-                      <button onClick={handleCheck} disabled={checking} className="glass-btn primary !h-9 !px-4">
-                        <span className="material-symbols-outlined text-[17px]">system_update</span>
-                        {checking ? t('检查中...') : t('检查全量更新')}
-                      </button>
-                      {message && <span className="font-label-sm text-slate-500">{message}</span>}
-                    </div>
-                  </div>
-                ) : (
-                  <>
-                    <div className="space-y-2 max-w-3xl">
-                      {p.paragraphs.map((line, idx) => (
-                        <p key={idx} className="text-[14px] leading-relaxed text-slate-600">{t(line)}</p>
-                      ))}
-                    </div>
-                    {p.tips && p.tips.length > 0 && (
-                      <div className="flex flex-wrap gap-2">
-                        {p.tips.map((tip) => (
-                          <span key={tip} className="px-2.5 py-1 rounded-full border border-white/90 bg-white/55 text-[10.5px] text-slate-500">
-                            {t(tip)}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </>
-                )}
-              </article>
-            ))}
+      <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)] gap-3">
+        <section className="flex min-h-0 flex-col rounded-2xl border border-white/95 bg-white/60 p-5 shadow-[0_16px_40px_rgba(31,86,130,.10)]">
+          <div className="flex items-center gap-3">
+            <img src="/icon.png" alt="" className="h-16 w-16 rounded-[16px] shadow-md" />
+            <div className="min-w-0">
+              <div className="text-[20px] font-black tracking-tight text-[#0e2133]">
+                {t('智能驾驶舱检测系统')}
+              </div>
+              <div className="mt-0.5 text-[11.5px] text-slate-500">
+                {t('机动车角度综合校准装置')}
+              </div>
+              <div className="mt-1 text-[9.5px] tracking-[2.5px] text-slate-400">
+                DUAL-BOARD CONSOLE
+              </div>
+            </div>
           </div>
-        </div>
 
-        <button
-          onClick={() => setIndex((i) => Math.min(HELP_PAGES.length - 1, i + 1))}
-          disabled={isLast}
-          className="self-center w-11 h-11 rounded-full border border-white/95 bg-white/65 text-[#0891b2] text-[26px] leading-none shadow flex items-center justify-center disabled:opacity-30"
-          aria-label={t('下一页')}
-        >
-          ›
-        </button>
+          <div className="mt-4 grid grid-cols-2 gap-2">
+            <InfoTile label={t('应用版本')} value={appVersion ? `v${appVersion}` : '--'} />
+            <InfoTile label={t('Server 版本')} value={serverVersion} />
+            <InfoTile label={t('固件版本')} value={firmware} />
+            <InfoTile label={t('设备 ID')} value={deviceId} />
+          </div>
+
+          <div className="mt-2 rounded-xl border border-white/95 bg-white/45 px-3 py-2.5">
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-[10px] text-slate-400">{t('更新源')}</span>
+              <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-600">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                {t('七牛 CDN')}
+              </span>
+            </div>
+            <div className="mt-1 truncate font-mono text-[10.5px] text-slate-500" title={UPDATE_CDN}>
+              {UPDATE_CDN}
+            </div>
+          </div>
+
+          <div className="mt-4">
+            <div className="text-[10px] font-bold tracking-[1.5px] text-slate-400">{t('产品特性')}</div>
+            <p className="mt-1 text-[11px] leading-relaxed text-slate-500">
+              {t('面向机动车踏板 / 转盘综合检测的双板上位机，支持并行测试、蓝牙力值采集与本地记录导出。')}
+            </p>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {['双板并行检测', 'AES-128-CTR 加密', '增量热更新', '本地记录导出'].map((feature) => (
+                <span
+                  key={feature}
+                  className="rounded-full border border-white/95 bg-white/55 px-2.5 py-1 text-[9.5px] font-bold text-slate-500"
+                >
+                  {t(feature)}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <InfoTile label={t('通信链路')} value={t('WiFi TCP · Client')} />
+            <InfoTile label={t('数据存储')} value={t('本地 SQLite')} />
+          </div>
+
+          <div className="mt-auto flex min-h-[42px] flex-wrap items-center gap-3 pt-4">
+            <button
+              onClick={handleCheck}
+              disabled={checking}
+              className="glass-btn primary !h-9 !px-4"
+            >
+              <span className={`material-symbols-outlined text-[17px] ${checking ? 'animate-spin' : ''}`}>
+                {checking ? 'progress_activity' : 'system_update'}
+              </span>
+              {checking ? t('检查中...') : t('检查更新')}
+            </button>
+            {message && <span className="text-[11px] text-slate-500">{message}</span>}
+          </div>
+        </section>
+
+        <div className="flex min-h-0 flex-col gap-3">
+          <section className="min-h-0 flex-1 rounded-2xl border border-white/95 bg-white/60 p-4 shadow-[0_16px_40px_rgba(31,86,130,.10)]">
+            <div className="flex items-center gap-2">
+              <span className="material-symbols-outlined text-[18px] text-[#0891b2]">monitor_heart</span>
+              <h2 className="text-[13px] font-black text-[#142639]">{t('运行状态')}</h2>
+              <span className="ml-auto text-[10px] text-slate-400">
+                {onlineBoards}/2 {t('板在线')} · {onlineModules}/5 {t('模块')}
+              </span>
+            </div>
+
+            <div className="mt-3 space-y-2">
+              {(['A', 'B'] as const).map((side) => {
+                const board = boards[side]
+                return (
+                  <div
+                    key={side}
+                    className="flex items-center gap-2 rounded-xl border border-white/95 bg-white/55 px-3 py-2"
+                  >
+                    <span
+                      className={`h-2 w-2 rounded-full ${board.is_connected ? 'bg-emerald-500' : 'bg-slate-300'}`}
+                    />
+                    <b className="text-[12px] text-[#142639]">{side} {t('板')}</b>
+                    <span className={`text-[10.5px] ${board.is_connected ? 'text-emerald-600' : 'text-slate-400'}`}>
+                      {board.is_connected ? t('在线') : t('离线')}
+                    </span>
+                    <span className="ml-auto font-mono text-[9.5px] text-slate-400">
+                      {board.last_pong || '--'}
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+
+            <div className="mt-3 rounded-xl border border-white/95 bg-white/45 px-3 py-2">
+              <div className="flex items-center justify-between text-[10.5px]">
+                <span className="text-slate-400">{t('通信协议')}</span>
+                <span className="font-mono text-slate-600">AES-128-CTR · HMAC-MD5</span>
+              </div>
+              <div className="mt-1 flex items-center justify-between text-[10.5px]">
+                <span className="text-slate-400">{t('心跳')}</span>
+                <span className="font-mono text-slate-600">5s · 15s</span>
+              </div>
+              <div className="mt-1 flex items-center justify-between text-[10.5px]">
+                <span className="text-slate-400">{t('蓝牙模块')}</span>
+                <span className="font-mono text-slate-600">{onlineModules}/5</span>
+              </div>
+              <div className="mt-1 flex items-center justify-between text-[10.5px]">
+                <span className="text-slate-400">{t('当前用户')}</span>
+                <span className="text-slate-600">
+                  {currentUser ? `${currentUser.username} · ${currentUser.role}` : '--'}
+                </span>
+              </div>
+            </div>
+          </section>
+
+          <section className="rounded-2xl border border-white/95 bg-white/60 p-4 shadow-[0_16px_40px_rgba(31,86,130,.10)]">
+            <div className="flex items-center gap-2">
+              <span className="material-symbols-outlined text-[18px] text-[#0891b2]">support_agent</span>
+              <h2 className="text-[13px] font-black text-[#142639]">{t('帮助与支持')}</h2>
+            </div>
+            <div className="mt-2 space-y-1.5 text-[10.5px]">
+              <div className="flex justify-between gap-3">
+                <span className="text-slate-400">{t('技术支持')}</span>
+                <span className="truncate font-mono text-slate-600" title={SUPPORT_EMAIL}>
+                  {SUPPORT_EMAIL}
+                </span>
+              </div>
+              <div className="flex justify-between gap-3">
+                <span className="text-slate-400">{t('运行平台')}</span>
+                <span className="text-slate-600">Tauri · Next.js 15</span>
+              </div>
+            </div>
+            {currentUser?.perms.includes('help') && (
+              <Link
+                href="/help"
+                className="mt-3 flex h-8 w-full items-center justify-center gap-1.5 rounded-lg border border-[rgba(8,145,178,.22)] bg-white/60 text-[11px] font-bold text-[#0891b2] hover:bg-white"
+              >
+                <span className="material-symbols-outlined text-[16px]">menu_book</span>
+                {t('查看操作指引')}
+              </Link>
+            )}
+          </section>
+        </div>
       </div>
 
-      <div className="flex-shrink-0 flex items-center justify-center gap-2.5 pb-1">
-        {HELP_PAGES.map((p, i) => (
-          <button
-            key={p.title}
-            onClick={() => setIndex(i)}
-            className={`h-[7px] rounded-full transition-all ${i === index ? 'w-[18px] bg-[linear-gradient(90deg,#0891b2,#2563eb)]' : 'w-[7px] bg-[rgba(15,80,120,.16)]'}`}
-            aria-label={`${i + 1}`}
-          />
-        ))}
+      <div className="flex flex-shrink-0 items-center justify-between px-1 text-[9.5px] text-slate-400">
+        <span>© 2026 {t('智能驾驶舱检测系统')}</span>
+        <span>{t('保留所有权利')} · DUAL-BOARD CONSOLE</span>
       </div>
     </div>
   )

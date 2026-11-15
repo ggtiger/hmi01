@@ -18,7 +18,7 @@ const navItems = [
   { label: '手动及状态检测', icon: 'settings_input_component', href: '/motor-debug' },
   { label: '数据记录', icon: 'storage', href: '/records' },
   { label: '设置', icon: 'tune', href: '/settings' },
-  { label: '帮助', icon: 'help', href: '/about' },
+  { label: '帮助', icon: 'help', href: '/help' },
 ]
 
 export default function TopAppBar() {

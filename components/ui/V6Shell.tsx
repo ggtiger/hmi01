@@ -10,7 +10,7 @@ import ForceModal from './ForceModal'
 import UpdateNotification from './UpdateNotification'
 import { WindowControls } from './WindowControls'
 import LoginScreen from '@/components/LoginScreen'
-import { useI18nStore, useT } from '@/lib/i18n'
+import { useI18nStore, useLocaleHydration, useT } from '@/lib/i18n'
 
 interface NavItem {
   key: Permission
@@ -25,7 +25,7 @@ const NAV: NavItem[] = [
   { key: 'steer', label: '转盘', href: '/steering-test', icon: 'rotate_right' },
   { key: 'records', label: '记录', href: '/records', icon: 'article' },
   { key: 'settings', label: '设置', href: '/settings', icon: 'tune' },
-  { key: 'help', label: '帮助', href: '/about', icon: 'help' },
+  { key: 'help', label: '帮助', href: '/help', icon: 'help' },
 ]
 
 /** 启动加载动画（WebView 内） */
@@ -62,6 +62,7 @@ export default function V6Shell({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const locale = useI18nStore((s) => s.locale)
   const setLocale = useI18nStore((s) => s.setLocale)
+  useLocaleHydration()
 
   const { state, boards, actions } = useDevice()
   const { states: forceStates } = useForce()
@@ -95,12 +96,15 @@ export default function V6Shell({ children }: { children: React.ReactNode }) {
     [currentUser]
   )
 
+  const isAboutPage = pathname === '/about' || pathname.startsWith('/about/')
+
   // 权限路由：无权限页面 / 命令监测根路由 → 第一个有权限的页面
+  // 「关于」始终可访问，不受功能权限限制
   useEffect(() => {
     if (!currentUser || allowedNav.length === 0) return
     const current = allowedNav.find((n) => pathname === n.href || pathname.startsWith(n.href + '/'))
-    if (!current) router.replace(allowedNav[0].href)
-  }, [currentUser, pathname, allowedNav, router])
+    if (!current && !isAboutPage) router.replace(allowedNav[0].href)
+  }, [currentUser, pathname, allowedNav, router, isAboutPage])
 
   const connectedBoards = (['A', 'B'] as BoardSide[]).filter((s) => boards[s].is_connected).length
   const connectedModules = Object.values(forceStates).filter((s) => s.isConnected).length
@@ -183,12 +187,12 @@ export default function V6Shell({ children }: { children: React.ReactNode }) {
             {t('连接')}
           </button>
           {currentUser.perms.includes('settings') && (
-            <Link href="/settings" className="flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-[11.5px] text-slate-500 hover:bg-white/60">
+            <Link href="/settings" className="hidden lg:flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-[11.5px] text-slate-500 hover:bg-white/60">
               <span className="material-symbols-outlined text-[16px]">tune</span>
               {t('参数')}
             </Link>
           )}
-          <div className="flex rounded-lg overflow-hidden border border-[rgba(15,80,120,.12)] bg-white/55">
+          <div className="hidden lg:flex rounded-lg overflow-hidden border border-[rgba(15,80,120,.12)] bg-white/55">
             {(['zh', 'en'] as const).map((l) => (
               <button
                 key={l}
@@ -199,7 +203,7 @@ export default function V6Shell({ children }: { children: React.ReactNode }) {
               </button>
             ))}
           </div>
-          <span className="h-8 px-2.5 flex items-center rounded-lg bg-white/45 border border-white/80 font-mono text-[11px] text-slate-500">
+          <span className="hidden xl:flex h-8 px-2.5 items-center rounded-lg bg-white/45 border border-white/80 font-mono text-[11px] text-slate-500">
             {clock}
           </span>
           <button
@@ -209,7 +213,7 @@ export default function V6Shell({ children }: { children: React.ReactNode }) {
             <span className="material-symbols-outlined text-[18px]">emergency_home</span>
             {t('急停')}
           </button>
-          <WindowControls />
+          <WindowControls inline />
         </div>
       </header>
 
@@ -233,13 +237,31 @@ export default function V6Shell({ children }: { children: React.ReactNode }) {
               </button>
             )
           })}
+
+          <div className="my-1 h-px w-8 bg-[rgba(15,80,120,.10)]" />
+          <button
+            onClick={() => router.push('/about')}
+            title={t('关于')}
+            className={`w-14 h-14 rounded-xl flex flex-col items-center justify-center gap-1 text-[10px] font-bold transition-colors ${
+              isAboutPage
+                ? 'text-white bg-[linear-gradient(140deg,rgba(8,145,178,.95),rgba(37,99,235,.92))] shadow-[0_8px_20px_rgba(8,145,178,.26)]'
+                : 'text-slate-500 hover:bg-white/65 hover:text-[#0891b2]'
+            }`}
+          >
+            <span className="material-symbols-outlined text-[20px]">info</span>
+            {t('关于')}
+          </button>
+
           <div className="flex-1" />
           <button
             onClick={handleLogout}
             title={`${currentUser.username} · ${currentUser.role} · ${t('退出登录')}`}
-            className="w-10 h-10 rounded-xl border border-white/90 bg-white/65 flex items-center justify-center text-[11px] font-black text-[#0891b2]"
+            className="w-14 min-h-[54px] rounded-xl border border-white/90 bg-white/65 flex flex-col items-center justify-center gap-0.5 text-[9px] font-bold text-[#0891b2] hover:bg-white/85 transition-colors"
           >
-            {currentUser.username.slice(0, 2).toUpperCase()}
+            <span className="w-6 h-6 rounded-full bg-[linear-gradient(135deg,#0891b2,#2563eb)] text-white flex items-center justify-center text-[9px] font-black">
+              {currentUser.username.slice(0, 2).toUpperCase()}
+            </span>
+            <span>{t('退出')}</span>
           </button>
         </aside>
 
